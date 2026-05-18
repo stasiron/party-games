@@ -1,0 +1,249 @@
+{
+  "games": [
+    {
+      "id": "never-have-i-ever",
+      "name": "Nigdy w życiu",
+      "description": "Klasyczna gra w odkrywanie sekretów."
+    },
+    {
+      "id": "truth-or-dare",
+      "name": "Prawda czy wyzwanie",
+      "description": "Odpowiedz szczerze lub wykonaj zadanie."
+    },
+    {
+      "id": "impostor",
+      "name": "Impostor",
+      "description": "Znajdź oszusta wśród graczy."
+    },
+    {
+      "id": "mafia",
+      "name": "Mafia",
+      "description": "Miasto zasypia, budzi się mafia. Gra z Mistrzem Gry."
+    }
+  ],
+  "neverHaveIEver": {
+    "categories": [
+      {
+        "id": "rozgrzewka",
+        "name": "Rozgrzewka",
+        "desc": "Lekkie i zabawne pytania na start."
+      },
+      {
+        "id": "szkola",
+        "name": "Szkolne czasy",
+        "desc": "Tylko dla odważnych uczniów."
+      },
+      {
+        "id": "impreza",
+        "name": "Gruba impreza",
+        "desc": "Mocniejsze klimaty."
+      }
+    ],
+    "questions": {
+      "rozgrzewka": [
+        "Nigdy w życiu nie udawałem, że z kimś piszę, żeby uniknąć rozmowy.",
+        "Nigdy w życiu nie pomyliłem imienia osoby, z którą rozmawiałem."
+      ],
+      "szkola": [
+        "Nigdy w życiu nie ściągałem na ważnym teście.",
+        "Nigdy w życiu nie zasnąłem na lekcji."
+      ],
+      "impreza": [
+        "Nigdy w życiu nie zgubiłem telefonu w klubie.",
+        "Nigdy w życiu nie wysłałem żenującej wiadomości po północy."
+      ]
+    }
+  },
+  "impostor": {
+    "categories": [
+      {
+        "id": "miejsca",
+        "name": "Miejsca",
+        "desc": "Gdzie jesteśmy? (np. Szpital, Szkoła)"
+      },
+      {
+        "id": "jedzenie",
+        "name": "Jedzenie",
+        "desc": "Co jemy? (np. Pizza, Sushi)"
+      }
+    ],
+    "words": {
+      "miejsca": [
+        "Szpital",
+        "Komisariat policji",
+        "Stacja kosmiczna",
+        "Szkoła",
+        "Okręt podwodny",
+        "Kasyno"
+      ],
+      "jedzenie": [
+        "Pizza",
+        "Sushi",
+        "Spaghetti",
+        "Tacos",
+        "Burger",
+        "Pierogi"
+      ]
+    }
+  },
+  "truthOrDare": {
+    "categories": [
+      {
+        "id": "klasyk",
+        "name": "Klasycznie",
+        "desc": "Zabawne i bezpieczne."
+      },
+      {
+        "id": "ostro",
+        "name": "Bez cenzury",
+        "desc": "Dla odważnych i pełnoletnich."
+      }
+    ],
+    "content": {
+      "klasyk": {
+        "truth": [
+          {
+            "text": "Jaki jest twój najbardziej żenujący nawyk?",
+            "level": 2
+          },
+          {
+            "text": "Kogo z tego pokoju zabrałbyś na bezludną wyspę?",
+            "level": 4
+          },
+          {
+            "text": "Jaka była najgorsza wymówka, której użyłeś, by gdzieś nie pójść?",
+            "level": 1
+          }
+        ],
+        "dare": [
+          {
+            "text": "Zrób 10 pompek.",
+            "level": 3
+          },
+          {
+            "text": "Zatańcz bez muzyki przez 30 sekund.",
+            "level": 2
+          },
+          {
+            "text": "Niech osoba po twojej prawej ułoży ci nową fryzurę.",
+            "level": 4
+          }
+        ]
+      },
+      "ostro": {
+        "truth": [
+          {
+            "text": "Jaka jest twoja największa tajemnica?",
+            "level": 5
+          },
+          {
+            "text": "Kto w tym pokoju podoba ci się najbardziej?",
+            "level": 4
+          }
+        ],
+        "dare": [
+          {
+            "text": "Pocałuj w policzek osobę po twojej lewej.",
+            "level": 5
+          },
+          {
+            "text": "Wypij shota z czymś, co wybierze grupa.",
+            "level": 4
+          }
+        ]
+      }
+    }
+  },
+  "mafia": {
+    "roles": [
+      {
+        "id": "mafia",
+        "name": "Mafia",
+        "desc": "Budzi się w nocy, by eliminować graczy."
+      },
+      {
+        "id": "lekarz",
+        "name": "Lekarz",
+        "desc": "Wybiera osobę do ochrony przed atakiem."
+      },
+      {
+        "id": "agent",
+        "name": "Agent",
+        "desc": "Sprawdza tożsamość jednego gracza w nocy."
+      },
+      {
+        "id": "jester",
+        "name": "Błazen",
+        "desc": "Wygrywa, jeśli miasto go zlinczuje w dzień."
+      },
+      {
+        "id": "lovers",
+        "name": "Zakochani",
+        "desc": "Znają się. Jeśli jedno ginie, drugie też."
+      },
+      {
+        "id": "obywatel",
+        "name": "Obywatel",
+        "desc": "Zwykły mieszkaniec. Głosuje w dzień."
+      }
+    ],
+    "presets": {
+      "4": {
+        "mafia": 1,
+        "lekarz": 0,
+        "agent": 0,
+        "jester": 0,
+        "lovers": 0,
+        "obywatel": 3
+      },
+      "5": {
+        "mafia": 1,
+        "lekarz": 1,
+        "agent": 0,
+        "jester": 0,
+        "lovers": 0,
+        "obywatel": 3
+      },
+      "6": {
+        "mafia": 2,
+        "lekarz": 1,
+        "agent": 1,
+        "jester": 0,
+        "lovers": 0,
+        "obywatel": 2
+      },
+      "7": {
+        "mafia": 2,
+        "lekarz": 1,
+        "agent": 1,
+        "jester": 0,
+        "lovers": 0,
+        "obywatel": 3
+      },
+      "8": {
+        "mafia": 2,
+        "lekarz": 1,
+        "agent": 1,
+        "jester": 1,
+        "lovers": 0,
+        "obywatel": 3
+      },
+      "9": {
+        "mafia": 3,
+        "lekarz": 1,
+        "agent": 1,
+        "jester": 1,
+        "lovers": 0,
+        "obywatel": 3
+      },
+      "10": {
+        "mafia": 3,
+        "lekarz": 1,
+        "agent": 1,
+        "jester": 1,
+        "lovers": 2,
+        "obywatel": 2
+      }
+    }
+  }
+}

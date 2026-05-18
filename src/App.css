@@ -1,0 +1,238 @@
+/* GŁÓWNE USTAWIENIA I TŁO */
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, sans-serif;
+    /* Gradient: Od bardzo ciemnego niebieskiego do odcienia różu */
+    background: linear-gradient(135deg, #0a0f1e 0%, #2a113a 50%, #8c215e 100%);
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* KONTENER APLIKACJI - Domyślnie stylizowany pod telefony (Mobile First) */
+.app-container {
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+}
+
+/* POLA TEKSTOWE I PRZYCISKI - Wersja na telefon (Duże i czytelne) */
+input {
+    width: 100%;
+    padding: 18px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    border: none;
+    font-size: 1.2rem;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+button {
+    width: 100%;
+    padding: 20px;
+    margin-bottom: 15px;
+    border-radius: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px); /* Efekt rozmycia szkła */
+}
+
+    button:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: #d63384; /* Różowe podświetlenie przy najechaniu */
+    }
+
+.game-title {
+    display: block;
+    font-size: 1.3rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.game-desc {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+/* WERSJA NA TABLETY (np. Twój iPad) */
+@media (min-width: 768px) {
+    .app-container {
+        max-width: 600px;
+    }
+
+    button {
+        padding: 16px;
+        font-size: 1.1rem;
+    }
+}
+
+/* WERSJA NA KOMPUTERY (np. Twój PC z Win 11) */
+@media (min-width: 1024px) {
+    .app-container {
+        max-width: 1000px;
+    }
+
+    /* Na komputerach układamy gry w siatkę obok siebie, a nie w pionowej liście */
+    .games-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+
+    button {
+        padding: 12px;
+        font-size: 1rem;
+        margin-bottom: 0;
+    }
+}
+/* =========================================
+   GŁÓWNE PRZYCISKI AKCJI (Popychanie gry)
+   ========================================= */
+.btn-main-action {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-weight: 900 !important;
+    font-size: 1.1rem !important;
+    padding: 16px 24px !important;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 350px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+    .btn-main-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-main-action:active {
+        transform: translateY(2px);
+        box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
+    }
+
+/* =========================================
+   PRAWDA CZY WYZWANIE - KARTY GRY
+   ========================================= */
+.tod-card {
+    flex: 1;
+    padding: 40px 20px;
+    border-radius: 16px;
+    transition: opacity 0.3s ease, transform 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.tod-card-active {
+    opacity: 1;
+    cursor: pointer;
+}
+
+    .tod-card-active:active {
+        transform: scale(0.96);
+    }
+
+.tod-card-disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.tod-truth {
+    background-color: rgba(42, 17, 58, 0.8);
+    border: 2px solid #a855f7;
+}
+
+.tod-dare {
+    background-color: rgba(140, 33, 94, 0.8);
+    border: 2px solid #f43f5e;
+}
+
+.tod-result-box {
+    padding: 40px 20px;
+    border-radius: 16px;
+    margin: 20px 0;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.text-truth {
+    color: #a855f7;
+}
+
+.text-dare {
+    color: #f43f5e;
+}
+/* =========================================
+   UKŁAD (LAYOUT) I KONTROLERY GIER
+   ========================================= */
+.turn-header {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.cards-container {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 40px;
+}
+
+.host-controls {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.bottom-controls {
+    margin-top: 4px;
+    display: flex;
+    justify-content: center;
+}
+
+/* Przycisk zmiany decyzji (brak pytań) */
+.btn-emergency {
+    margin-top: 25px;
+    color: #fff;
+    font-weight: bold;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+    .btn-emergency:hover {
+        opacity: 0.9;
+    }
+
+    .btn-emergency:active {
+        transform: scale(0.95);
+    }
+
+/* Kolory tła używane jako klasy */
+.bg-truth {
+    background-color: #a855f7;
+}
+
+.bg-dare {
+    background-color: #f43f5e;
+}
