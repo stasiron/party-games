@@ -107,7 +107,7 @@ function App() {
         return () => clearInterval(timer);
     }, [hostLost, myPlayerId, isJoined, selectedGame]);
 
-    // 3. DOŁĄCZANIE Z ZABEZPIECZENIEM PRZED DUPLIKATAMI
+    // 3. DOŁĄCZANIE Z ZABEZPIECZENIEM PRZED DUCHAMI I ZOMBIE
     const handleJoin = async () => {
         const cleanedName = playerName.trim();
         if (cleanedName === '') return;
@@ -116,8 +116,10 @@ function App() {
         const snapshot = await get(playersRef);
         const data = snapshot.val() || {};
 
+        // ZABEZPIECZENIE: Znak zapytania przy `name?.toLowerCase()` zapobiega 
+        // wywaleniu kodu, gdy w bazie zostanie uszkodzony gracz bez imienia!
         const existingPlayerKey = Object.keys(data).find(
-            key => data[key].name.toLowerCase() === cleanedName.toLowerCase()
+            key => data[key].name?.toLowerCase() === cleanedName.toLowerCase()
         );
 
         let targetPlayerRef;
@@ -126,11 +128,7 @@ function App() {
         if (existingPlayerKey) {
             const existingPlayer = data[existingPlayerKey];
 
-            if (existingPlayer.isOnline === true) {
-                setNameError('To imię jest już zajęte przez aktywnego gracza! Wybierz inne.');
-                return;
-            }
-
+            // Jeśli imię istnieje, wpuszczamy gracza z powrotem na jego stare miejsce
             targetPlayerRef = ref(db, `rooms/${selectedGame}/players/${existingPlayerKey}`);
             setMyPlayerId(existingPlayerKey);
             finalIsHost = existingPlayer.isHost || isHost;
@@ -208,35 +206,47 @@ function App() {
                         </p>
                     )}
 
-                    {hostExists ? (
-                        <div style={{ marginBottom: '20px', marginTop: '15px' }}>
-                            <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px', fontStyle: 'italic' }}>
-                                🔒 Ten pokój ma już aktywnego Hosta. Dołączasz jako gracz.
-                            </p>
-                            {/* PRZYCISK AWARYJNY */}
-                            <button
-                                onClick={handleEmergencyReset}
-                                style={{ backgroundColor: 'transparent', border: '1px solid #ff4444', color: '#ff4444', fontSize: '0.8rem', padding: '5px 10px' }}
-                            >
-                                Awaryjny reset pokoju (Usuń zawieszonych graczy)
-                            </button>
-                        </div>
-                    ) : (
-                        <div style={{ marginBottom: '20px', marginTop: '15px', textAlign: 'left' }}>
-                            <label style={{ cursor: 'pointer' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={isHost}
-                                    onChange={(e) => setIsHost(e.target.checked)}
-                                    style={{ width: 'auto', marginRight: '10px' }}
-                                />
-                                Jestem Hostem (Dowodzę stołem)
-                            </label>
-                        </div>
-                    )}
+                        {hostExists ? (
+                            <div style={{ marginBottom: '20px', marginTop: '15px' }}>
+                                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px', fontStyle: 'italic' }}>
+                                    🔒 Ten pokój ma już aktywnego Hosta. Dołączasz jako gracz.
+                                </p>
+                                {/* Stary, odsłonięty przycisk został stąd usunięty! */}
+                            </div>
+                        ) : (
+                            <div style={{ marginBottom: '20px', marginTop: '15px', textAlign: 'left' }}>
+                                <label style={{ cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={isHost}
+                                        onChange={(e) => setIsHost(e.target.checked)}
+                                        style={{ width: 'auto', marginRight: '10px' }}
+                                    />
+                                    Jestem Hostem (Dowodzę stołem)
+                                </label>
+                            </div>
+                        )}
 
-                    <button onClick={handleJoin}>Wejdź do pokoju</button>
-                    <button onClick={handleBackToMenu} style={{ backgroundColor: 'transparent', border: 'none', marginTop: '10px', fontSize: '1rem', textDecoration: 'underline' }}>Wróć do wyboru gier</button>
+                        <button onClick={handleJoin}>Wejdź do pokoju</button>
+                        <button onClick={handleBackToMenu} style={{ backgroundColor: 'transparent', border: 'none', marginTop: '10px', fontSize: '1rem', textDecoration: 'underline' }}>Wróć do wyboru gier</button>
+
+                        {/* Ukryty przycisk awaryjny - pojawia się tylko, gdy wpiszesz tajne hasło w polu imienia */}
+                        {playerName.toUpperCase() === 'RESET' && (
+                            <div style={{ marginTop: '30px', animation: 'fadeIn 0.3s ease' }}>
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm("⚠️ UWAGA: Czy na pewno chcesz całkowicie wyczyścić ten pokój? Wszyscy obecni gracze zostaną wyrzuceni!")) {
+                                            handleEmergencyReset();
+                                            setPlayerName('');
+                                        }
+                                    }}
+                                    style={{ backgroundColor: '#ff4444', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '0.9rem', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer' }}
+                                >
+                                    ⚠️ POTWIERDŹ AWARYJNY RESET
+                                </button>
+                            </div>
+                        )}
+
                 </div>
             ) : (
                 <div>
