@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ref, set, get, onValue } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
 import ConfirmButton from './ConfirmButton';
 
 function Impostor({ isHost, onLeave, myPlayerId }) {
-    const [selectedCategory, setSelectedCategory] = useState(null);
+    // ZMIANA: Tablica zamiast pojedynczej wartości, by obsługiwać wiele kategorii
+    const [selectedCategories, setSelectedCategories] = useState([]);
     const [showRole, setShowRole] = useState(false);
 
     const [roomData, setRoomData] = useState({
@@ -28,8 +29,15 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
         return () => unsubscribe();
     }, []);
 
-    const startGame = async () => {
-        if (!selectedCategory) return;
+    // OPTYMALIZACJA: Cachowanie funkcji wyboru kategorii
+    const toggleCategory = useCallback((catId) => {
+        setSelectedCategories((prev) =>
+            prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
+        );
+    }, []);
+
+    const startGame = useCallback(async () => {
+        if (selectedCategories.length === 0) return;
 
         const playersRef = ref(db, 'rooms/impostor/players');
         const snapshot = await get(playersRef);
@@ -41,38 +49,52 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
         const randomImpostorIndex = Math.floor(Math.random() * playerIds.length);
         const chosenImpostorId = playerIds[randomImpostorIndex];
 
-        const words = gameData.impostor.words[selectedCategory];
-        const randomWord = words[Math.floor(Math.random() * words.length)];
-        const catName = gameData.impostor.categories.find(c => c.id === selectedCategory).name;
+        // ZMIANA: Łączenie słów ze wszystkich wybranych kategorii
+        let combinedWords = [];
+        let combinedCatNames = [];
+
+        selectedCategories.forEach(catId => {
+            const wordsForCat = gameData.impostor.words[catId];
+            if (wordsForCat) {
+                combinedWords = [...combinedWords, ...wordsForCat];
+            }
+            const catObj = gameData.impostor.categories.find(c => c.id === catId);
+            if (catObj) {
+                combinedCatNames.push(catObj.name);
+            }
+        });
+
+        const randomWord = combinedWords[Math.floor(Math.random() * combinedWords.length)];
+        const catNameDisplay = combinedCatNames.join(' + ');
 
         set(ref(db, 'rooms/impostor/gameState'), {
             phase: 'peeking',
             word: randomWord,
             impostorId: chosenImpostorId,
-            categoryName: catName
+            categoryName: catNameDisplay
         });
-    };
+    }, [selectedCategories]);
 
-    const startDiscussion = () => {
+    const startDiscussion = useCallback(() => {
         set(ref(db, 'rooms/impostor/gameState/phase'), 'discussing');
         setShowRole(false);
-    };
+    }, []);
 
-    const forceResetTable = () => {
+    const forceResetTable = useCallback(() => {
         set(ref(db, 'rooms/impostor/gameState'), {
             phase: 'lobby',
             word: '',
             impostorId: null,
             categoryName: ''
         });
-        setSelectedCategory(null);
+        setSelectedCategories([]);
         setShowRole(false);
-    };
+    }, []);
 
-    const handleEndGame = () => {
+    const handleEndGame = useCallback(() => {
         forceResetTable();
         onLeave();
-    };
+    }, [forceResetTable, onLeave]);
 
     const amIImpostor = roomData.impostorId === myPlayerId;
 
@@ -82,37 +104,37 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                 <div>
                     {isHost ? (
                         <>
-                            <p>Wybierz kategorię dla tej rundy:</p>
-                            <div className="games-grid" style={{ marginBottom: '20px' }}>
-                                {gameData.impostor.categories.map((cat) => (
-                                    <button
-                                        key={cat.id}
-                                        onClick={() => setSelectedCategory(cat.id)}
-                                        style={{
-                                            borderColor: selectedCategory === cat.id ? '#d63384' : 'rgba(255,255,255,0.2)',
-                                            backgroundColor: selectedCategory === cat.id ? 'rgba(214, 51, 132, 0.2)' : 'rgba(255,255,255,0.05)'
-                                        }}
-                                    >
-                                        <span className="game-title">{cat.name}</span>
-                                        <span className="game-desc">{cat.desc}</span>
-                                    </button>
-                                ))}
+                            <p>Wybierz kategorie dla tej rundy (możesz kilka):</p>
+                            <div className="games-grid impostor-categories-grid">
+                                {gameData.impostor.categories.map((cat) => {
+                                    const isSelected = selectedCategories.includes(cat.id);
+                                    return (
+                                        <button
+                                            key={cat.id}
+                                            onClick={() => toggleCategory(cat.id)}
+                                            className={isSelected ? 'category-btn-selected' : 'category-btn-unselected'}
+                                        >
+                                            <span className="game-title">{cat.name}</span>
+                                            <span className="game-desc">{cat.desc}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
-                            {selectedCategory && (
-                                <button onClick={startGame} style={{ backgroundColor: '#d63384', borderColor: '#d63384', fontWeight: 'bold' }}>
-                                    Wylosuj i rozdaj role
+                            {selectedCategories.length > 0 && (
+                                <button onClick={startGame} className="btn-impostor-start">
+                                    Wylosuj z {selectedCategories.length} kategorii i rozdaj role
                                 </button>
                             )}
                         </>
                     ) : (
-                        <p>Czekamy aż Host wybierze kategorię i wylosuje role...</p>
+                        <p>Czekamy aż Host wybierze kategorie i wylosuje role...</p>
                     )}
                 </div>
             ) : (
                 <div>
                     {roomData.phase === 'peeking' && (
                         <>
-                            <p style={{ color: '#d63384', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                            <p className="impostor-peeking-header">
                                 Faza sprawdzania ról
                             </p>
                             <div
@@ -121,50 +143,38 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                                 onMouseLeave={() => setShowRole(false)}
                                 onTouchStart={() => setShowRole(true)}
                                 onTouchEnd={() => setShowRole(false)}
-                                style={{
-                                    padding: '40px 20px',
-                                    backgroundColor: showRole ? (amIImpostor ? 'rgba(214, 51, 132, 0.3)' : 'rgba(42, 17, 58, 0.6)') : 'rgba(0,0,0,0.3)',
-                                    borderRadius: '16px',
-                                    margin: '20px 0',
-                                    minHeight: '150px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    userSelect: 'none'
-                                }}
+                                className={`impostor-peeking-box ${showRole ? (amIImpostor ? 'impostor-bg-bad' : 'impostor-bg-good') : 'impostor-bg-hidden'}`}
                             >
                                 {!showRole ? (
-                                    <h3 style={{ margin: 0, opacity: 0.5 }}>Kliknij i przytrzymaj, aby zobaczyć rolę</h3>
+                                    <h3 className="impostor-hidden-text">Kliknij i przytrzymaj, aby zobaczyć rolę</h3>
                                 ) : (
                                     <>
-                                        <h2 style={{ margin: 0, fontSize: '2rem', color: amIImpostor ? '#ff4444' : '#44ff44' }}>
+                                        <h2 className={`impostor-role-title ${amIImpostor ? 'text-impostor' : 'text-crewmate'}`}>
                                             {amIImpostor ? "JESTEŚ OSZUSTEM!" : roomData.word}
                                         </h2>
                                         {amIImpostor && (
-                                            <p style={{ marginTop: '10px', fontSize: '1.2rem', color: '#fff', opacity: 0.9 }}>
-                                                Kategoria: <span style={{ fontWeight: 'bold', color: '#ffd700' }}>{roomData.categoryName}</span>
+                                            <p className="impostor-cat-info">
+                                                Kategoria: <span className="impostor-cat-highlight">{roomData.categoryName}</span>
                                             </p>
                                         )}
                                     </>
                                 )}
                             </div>
-                            <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Ukryj ekran przed innymi!</p>
+                            <p className="impostor-secret-warning">Ukryj ekran przed innymi!</p>
                         </>
                     )}
 
                     {roomData.phase === 'discussing' && (
-                        <div style={{ padding: '60px 20px', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '16px', margin: '20px 0', border: '2px solid #d63384' }}>
-                            <h2 style={{ margin: 0, color: '#d63384' }}>Trwa dyskusja!</h2>
-                            <p style={{ opacity: 0.8, marginTop: '10px' }}>Ekrany zostały zablokowane. Czas znaleźć oszusta.</p>
+                        <div className="impostor-discussing-box">
+                            <h2 className="impostor-discussing-title">Trwa dyskusja!</h2>
+                            <p className="impostor-discussing-desc">Ekrany zostały zablokowane. Czas znaleźć oszusta.</p>
                         </div>
                     )}
 
                     {isHost && (
-                        <div style={{ marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'center' }}>
+                        <div className="impostor-host-controls">
                             {roomData.phase === 'peeking' && (
-                                <button onClick={startDiscussion} style={{ backgroundColor: '#ffffff', color: '#000', fontWeight: 'bold' }}>
+                                <button onClick={startDiscussion} className="btn-impostor-discuss">
                                     Rozpocznij dyskusję (Zablokuj podgląd)
                                 </button>
                             )}
@@ -174,7 +184,7 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                 </div>
             )}
 
-            <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'center' }}>
+            <div className="impostor-bottom-controls">
                 <ConfirmButton
                     onClick={isHost ? handleEndGame : onLeave}
                     text={isHost ? "Zamknij pokój" : "Wyjdź z pokoju"}

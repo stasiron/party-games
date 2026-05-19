@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 
-export default function ConfirmButton({ onClick, text, confirmText = "Na pewno? Kliknij znów", style }) {
+// Używamy React.memo, aby zapobiec niepotrzebnemu odrysowywaniu komponentu i oszczędzać CPU/baterię
+const ConfirmButton = memo(({ onClick, text, confirmText = "Na pewno? Kliknij znów", style, className = "" }) => {
     const [isConfirming, setIsConfirming] = useState(false);
 
     useEffect(() => {
@@ -24,21 +25,13 @@ export default function ConfirmButton({ onClick, text, confirmText = "Na pewno? 
     return (
         <button
             onClick={handleClick}
-            style={{
-                backgroundColor: isConfirming ? '#ff4444' : 'transparent',
-                color: isConfirming ? '#fff' : 'rgba(255, 255, 255, 0.4)',
-                border: isConfirming ? '1px solid #ff4444' : '1px solid rgba(255, 255, 255, 0.2)',
-                padding: '8px 16px',
-                fontSize: '0.8rem',
-                borderRadius: '20px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                margin: '5px',
-                fontWeight: isConfirming ? 'bold' : 'normal',
-                ...style
-            }}
+            className={`btn-confirm-base ${isConfirming ? 'btn-confirm-active' : 'btn-confirm-idle'} ${className}`}
+            style={style}
         >
             {isConfirming ? confirmText : text}
         </button>
     );
-}
+});
+
+ConfirmButton.displayName = 'ConfirmButton';
+export default ConfirmButton;

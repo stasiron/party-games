@@ -1,14 +1,17 @@
-/* GŁÓWNE USTAWIENIA I TŁO */
+/* =========================================
+   GŁÓWNE USTAWIENIA I TŁO (MOBILNY FUNDAMENT)
+   ========================================= */
 body {
     margin: 0;
     min-height: 100vh;
     font-family: system-ui, -apple-system, sans-serif;
-    /* Gradient: Od bardzo ciemnego niebieskiego do odcienia różu */
     background: linear-gradient(135deg, #0a0f1e 0%, #2a113a 50%, #8c215e 100%);
     color: #ffffff;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start; /* POPRAWKA MOBILNA: Zapobiega ucinaniu góry ekranu na telefonach przy długich listach */
+    padding: 30px 0; /* Bezpieczny odstęp dla dynamicznych pasków w przeglądarkach mobilnych */
+    box-sizing: border-box;
 }
 
 /* KONTENER APLIKACJI - Domyślnie stylizowany pod telefony (Mobile First) */
@@ -18,14 +21,14 @@ body {
     text-align: center;
 }
 
-/* POLA TEKSTOWE I PRZYCISKI - Wersja na telefon (Duże i czytelne) */
+/* POLA TEKSTOWE I PRZYCISKI - Wersja na telefon (Duże i czytelne dla kciuków) */
 input {
     width: 100%;
     padding: 18px;
     margin-bottom: 20px;
     border-radius: 12px;
     border: none;
-    font-size: 1.2rem;
+    font-size: 1.2rem; /* Powyżej 16px blokuje irytujący auto-zoom ekranu na urządzeniach iOS (iPhone) */
     box-sizing: border-box;
     text-align: center;
 }
@@ -41,12 +44,12 @@ button {
     font-size: 1.2rem;
     cursor: pointer;
     transition: all 0.3s ease;
-    backdrop-filter: blur(10px); /* Efekt rozmycia szkła */
+    backdrop-filter: blur(10px);
 }
 
     button:hover {
         background: rgba(255, 255, 255, 0.15);
-        border-color: #d63384; /* Różowe podświetlenie przy najechaniu */
+        border-color: #d63384;
     }
 
 .game-title {
@@ -61,7 +64,9 @@ button {
     opacity: 0.8;
 }
 
-/* WERSJA NA TABLETY (np. Twój iPad) */
+/* =========================================
+   MEDIA QUERIES (TABLETY I PC)
+   ========================================= */
 @media (min-width: 768px) {
     .app-container {
         max-width: 600px;
@@ -73,13 +78,18 @@ button {
     }
 }
 
-/* WERSJA NA KOMPUTERY (np. Twój PC z Win 11) */
+/* WERSJA NA KOMPUTERY */
 @media (min-width: 1024px) {
+    body {
+        align-items: center; /* <-- TO PRZYWRACA ŚRODKOWANIE PIONOWE NA PC */
+        padding: 0; /* <-- Resetuje mobilny margines */
+    }
+
     .app-container {
         max-width: 1000px;
     }
+    /* ...reszta kodu bez zmian... */
 
-    /* Na komputerach układamy gry w siatkę obok siebie, a nie w pionowej liście */
     .games-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -92,6 +102,7 @@ button {
         margin-bottom: 0;
     }
 }
+
 /* =========================================
    GŁÓWNE PRZYCISKI AKCJI (Popychanie gry)
    ========================================= */
@@ -104,6 +115,8 @@ button {
     border-radius: 12px;
     width: 100%;
     max-width: 350px;
+    margin: 0 auto !important; /* Centruje przycisk na telefonie */
+    display: block !important;
     border: none;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
@@ -123,7 +136,7 @@ button {
     }
 
 /* =========================================
-   PRAWDA CZY WYZWANIE - KARTY GRY
+   PRAWDA CZY WYZWANIE (TRUTH OR DARE)
    ========================================= */
 .tod-card {
     flex: 1;
@@ -179,8 +192,90 @@ button {
 .text-dare {
     color: #f43f5e;
 }
+
+.bg-truth {
+    background-color: #a855f7;
+}
+
+.bg-dare {
+    background-color: #f43f5e;
+}
+
+.tod-turn-h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    opacity: 0.8;
+    cursor: default;
+    user-select: none;
+}
+
+.tod-safe-mode-dot {
+    opacity: 0.2;
+    font-size: 1rem;
+    margin-left: 5px;
+}
+
+.tod-turn-h1 {
+    margin: 5px 0;
+    font-size: 2.5rem;
+    text-transform: uppercase;
+}
+
+    .tod-turn-h1.active {
+        color: #44ff44;
+    }
+
+    .tod-turn-h1.inactive {
+        color: #d63384;
+    }
+
+.tod-choice-text {
+    margin-bottom: 20px;
+}
+
+    .tod-choice-text.active {
+        opacity: 1;
+        font-weight: bold;
+    }
+
+    .tod-choice-text.inactive {
+        opacity: 0.6;
+        font-weight: normal;
+    }
+
+.tod-card-title {
+    margin: 0;
+}
+
+.tod-stars-active {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 1rem;
+    opacity: 0.8;
+    color: #ffd700;
+}
+
+.tod-stars-empty {
+    opacity: 0.3;
+}
+
+.tod-label-span {
+    font-size: 1rem;
+    opacity: 0.7;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.tod-result-text {
+    margin: 0;
+    font-size: 1.5rem;
+    line-height: 1.4;
+}
+
 /* =========================================
-   UKŁAD (LAYOUT) I KONTROLERY GIER
+   STRUKTURA UKŁADU I WSPÓLNE KONTROLERY
    ========================================= */
 .turn-header {
     margin-bottom: 30px;
@@ -192,6 +287,14 @@ button {
     gap: 20px;
     justify-content: center;
     margin-bottom: 40px;
+}
+
+@media (max-width: 360px) {
+    .cards-container {
+        flex-direction: column;
+        gap: 15px;
+    }
+    /* Karty jedna pod drugą na mikrotelefonach */
 }
 
 .host-controls {
@@ -208,7 +311,6 @@ button {
     justify-content: center;
 }
 
-/* Przycisk zmiany decyzji (brak pytań) */
 .btn-emergency {
     margin-top: 25px;
     color: #fff;
@@ -228,11 +330,655 @@ button {
         transform: scale(0.95);
     }
 
-/* Kolory tła używane jako klasy */
-.bg-truth {
-    background-color: #a855f7;
+/* =========================================
+   ZABEZPIECZENIA I INTERFEJS LOBBY
+   ========================================= */
+.input-error {
+    border-color: #ff4444 !important;
 }
 
-.bg-dare {
-    background-color: #f43f5e;
+.error-message {
+    color: #ff4444;
+    font-size: 0.9rem;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+.host-status-container {
+    margin: 15px 0 20px 0;
+}
+
+.host-status-text {
+    color: #aaa;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    font-style: italic;
+}
+
+.host-checkbox-container {
+    margin: 15px 0 20px 0;
+    text-align: left;
+}
+
+.host-checkbox-label {
+    cursor: pointer;
+}
+
+.host-checkbox-input {
+    width: auto !important;
+    margin-right: 10px;
+    padding: 0 !important;
+}
+
+.btn-link {
+    background-color: transparent !important;
+    border: none !important;
+    margin-top: 10px !important;
+    font-size: 1rem !important;
+    text-decoration: underline;
+    padding: 10px !important;
+}
+
+    .btn-link:hover {
+        color: #ccc !important;
+        background-color: transparent !important;
+    }
+
+.emergency-reset-container {
+    margin-top: 30px;
+    animation: fadeIn 0.3s ease;
+}
+
+.btn-emergency-reset {
+    background-color: #ff4444 !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 0.9rem !important;
+    padding: 10px 20px !important;
+    font-weight: bold !important;
+    cursor: pointer;
+    width: auto !important;
+}
+
+.room-lock-container {
+    margin-bottom: 25px;
+}
+
+.btn-lock-toggle {
+    color: #ffffff !important;
+    border: none !important;
+    padding: 12px 20px !important;
+    border-radius: 12px !important;
+    font-size: 0.95rem !important;
+    font-weight: bold !important;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+    transition: all 0.2s ease !important;
+    width: auto !important;
+    max-width: 100%;
+}
+
+    .btn-lock-toggle.locked {
+        background-color: #e11d48 !important;
+    }
+
+    .btn-lock-toggle.unlocked {
+        background-color: #16a34a !important;
+    }
+
+.migration-warning {
+    background-color: #ff4444;
+    color: #fff;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
+}
+
+/* =========================================
+   LISTA GRACZY (DOLNA SEKCJA STOŁU)
+   ========================================= */
+.players-section {
+    margin-top: 40px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-top: 20px;
+}
+
+.players-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.player-tag {
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+}
+
+.player-offline {
+    opacity: 0.5;
+}
+
+.btn-kick {
+    background: transparent !important;
+    border: none !important;
+    color: #ff4444 !important;
+    margin-left: 8px;
+    padding: 0 5px !important;
+    cursor: pointer;
+    font-weight: bold;
+    width: auto !important;
+}
+
+    .btn-kick:hover {
+        background: transparent !important;
+        transform: scale(1.2);
+    }
+
+.empty-room-text {
+    opacity: 0.8;
+}
+
+/* =========================================
+   PRZYCISK POTWIERDZAJĄCY (ConfirmButton)
+   ========================================= */
+.btn-confirm-base {
+    padding: 8px 16px !important;
+    font-size: 0.8rem !important;
+    border-radius: 20px !important;
+    cursor: pointer;
+    transition: all 0.2s ease !important;
+    margin: 5px;
+    width: auto !important;
+}
+
+.btn-confirm-idle {
+    background-color: transparent !important;
+    color: rgba(255, 255, 255, 0.4) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    font-weight: normal !important;
+}
+
+    .btn-confirm-idle:hover {
+        color: rgba(255, 255, 255, 0.8) !important;
+        border-color: rgba(255, 255, 255, 0.5) !important;
+    }
+
+.btn-confirm-active {
+    background-color: #ff4444 !important;
+    color: #fff !important;
+    border: 1px solid #ff4444 !important;
+    font-weight: bold !important;
+    animation: pulseWarning 1s infinite;
+}
+
+/* =========================================
+   NEVER HAVE I EVER (NIGDY W ŻYCIU)
+   ========================================= */
+.nhie-categories-grid {
+    margin-bottom: 20px;
+}
+
+.category-btn-selected {
+    border-color: #d63384 !important;
+    background-color: rgba(214, 51, 132, 0.2) !important;
+}
+
+.category-btn-unselected {
+    border-color: rgba(255,255,255,0.2) !important;
+    background-color: rgba(255,255,255,0.05) !important;
+}
+
+.btn-nhie-start {
+    background-color: #d63384 !important;
+    border-color: #d63384 !important;
+    font-weight: bold !important;
+}
+
+.nhie-progress-text {
+    color: #d63384;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.nhie-question-box {
+    padding: 40px 20px;
+    background-color: rgba(0,0,0,0.3);
+    border-radius: 16px;
+    margin: 20px 0;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nhie-question-text {
+    margin: 0;
+    font-size: 1.5rem;
+    line-height: 1.4;
+}
+
+.nhie-host-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.nhie-nav-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-nhie-prev {
+    background-color: transparent !important;
+    width: auto !important;
+    padding: 15px 20px !important;
+}
+
+    .btn-nhie-prev.disabled {
+        opacity: 0.3;
+    }
+
+.btn-nhie-next {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+}
+
+.nhie-bottom-wrapper {
+    margin-top: 40px;
+    display: flex;
+    justify-content: center;
+}
+
+/* =========================================
+   IMPOSTOR (OSZUST)
+   ========================================= */
+.impostor-categories-grid {
+    margin-bottom: 20px;
+}
+
+.btn-impostor-start {
+    background-color: #d63384 !important;
+    border-color: #d63384 !important;
+    font-weight: bold !important;
+}
+
+.impostor-peeking-header {
+    color: #d63384;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.impostor-peeking-box {
+    padding: 40px 20px;
+    border-radius: 16px;
+    margin: 20px 0;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.impostor-bg-bad {
+    background-color: rgba(214, 51, 132, 0.3);
+}
+
+.impostor-bg-good {
+    background-color: rgba(42, 17, 58, 0.6);
+}
+
+.impostor-bg-hidden {
+    background-color: rgba(0,0,0,0.3);
+}
+
+.impostor-hidden-text {
+    margin: 0;
+    opacity: 0.5;
+}
+
+.impostor-role-title {
+    margin: 0;
+    font-size: 2rem;
+}
+
+.text-impostor {
+    color: #ff4444;
+}
+
+.text-crewmate {
+    color: #44ff44;
+}
+
+.impostor-cat-info {
+    margin-top: 10px;
+    font-size: 1.2rem;
+    color: #fff;
+    opacity: 0.9;
+}
+
+.impostor-cat-highlight {
+    font-weight: bold;
+    color: #ffd700;
+}
+
+.impostor-secret-warning {
+    font-size: 0.8rem;
+    opacity: 0.6;
+}
+
+.impostor-discussing-box {
+    padding: 60px 20px;
+    background-color: rgba(0,0,0,0.5);
+    border-radius: 16px;
+    margin: 20px 0;
+    border: 2px solid #d63384;
+}
+
+.impostor-discussing-title {
+    margin: 0;
+    color: #d63384;
+}
+
+.impostor-discussing-desc {
+    opacity: 0.8;
+    margin-top: 10px;
+}
+
+.impostor-host-controls {
+    margin-top: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.btn-impostor-discuss {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+}
+
+.impostor-bottom-controls {
+    margin-top: 40px;
+    display: flex;
+    justify-content: center;
+}
+
+/* =========================================
+   MAFIA
+   ========================================= */
+.mafia-host-panel {
+    background-color: rgba(0,0,0,0.3);
+    padding: 20px;
+    border-radius: 16px;
+}
+
+.mafia-title-pink {
+    color: #d63384;
+    margin-top: 0;
+}
+
+.mafia-role-config-box {
+    margin: 20px 0;
+    padding: 15px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 10px;
+}
+
+.mafia-role-config-title {
+    margin: 0 0 15px 0;
+}
+
+.mafia-role-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.mafia-role-name {
+    font-weight: bold;
+}
+
+.mafia-role-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.btn-mafia-counter {
+    padding: 5px 15px !important;
+    min-width: 40px !important;
+    width: auto !important;
+    margin: 0 !important;
+}
+
+.mafia-role-count {
+    width: 20px;
+    text-align: center;
+    font-size: 1.2rem;
+}
+
+.mafia-role-summary {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px dashed rgba(255,255,255,0.2);
+    text-align: right;
+}
+
+.text-mafia-ok {
+    color: #44ff44;
+    font-weight: bold;
+}
+
+.text-mafia-error {
+    color: #ff4444;
+    font-weight: bold;
+}
+
+.btn-mafia-start {
+    width: 100% !important;
+    font-weight: bold !important;
+}
+
+    .btn-mafia-start.active {
+        background-color: #d63384 !important;
+    }
+
+    .btn-mafia-start.disabled {
+        background-color: #555 !important;
+    }
+
+.mafia-waiting-text {
+    opacity: 0.8;
+}
+
+.mafia-gm-desc {
+    opacity: 0.8;
+    margin-bottom: 20px;
+}
+
+.mafia-players-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mafia-player-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+    .mafia-player-card.alive {
+        background-color: rgba(42, 17, 58, 0.8);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .mafia-player-card.dead {
+        background-color: rgba(255, 0, 0, 0.2);
+        border: 1px solid #ff4444;
+    }
+
+.mafia-player-name {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+    .mafia-player-name.crossed {
+        text-decoration: line-through;
+    }
+
+.mafia-player-role {
+    color: #ffd700;
+    font-size: 0.9rem;
+}
+
+.btn-mafia-kill {
+    color: #fff !important;
+    padding: 8px 15px !important;
+    font-size: 0.9rem !important;
+    width: auto !important;
+    margin: 0 !important;
+}
+
+    .btn-mafia-kill.kill {
+        background-color: #ff4444 !important;
+    }
+
+    .btn-mafia-kill.revive {
+        background-color: #44ff44 !important;
+    }
+
+.mafia-bottom-controls {
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+}
+
+.mafia-secret-desc {
+    text-align: center;
+    opacity: 0.8;
+    margin-bottom: 20px;
+}
+
+.mafia-peeking-box {
+    padding: 40px 20px;
+    border-radius: 16px;
+    margin: 20px 0;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+    .mafia-peeking-box.active {
+        background-color: rgba(42, 17, 58, 0.8);
+        border: 2px solid #a855f7;
+    }
+
+    .mafia-peeking-box.hidden {
+        background-color: rgba(0,0,0,0.3);
+        border: 2px solid transparent;
+    }
+
+.mafia-hidden-text {
+    margin: 0;
+    opacity: 0.5;
+}
+
+.mafia-identity-label {
+    font-size: 1rem;
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.mafia-identity-title {
+    margin: 10px 0;
+    font-size: 2.5rem;
+    color: #ffd700;
+}
+
+.mafia-identity-desc {
+    text-align: center;
+    max-width: 80%;
+    opacity: 0.9;
+}
+
+.mafia-dead-box {
+    padding: 60px 20px;
+    background-color: rgba(255, 0, 0, 0.2);
+    border-radius: 16px;
+    border: 2px solid #ff4444;
+    text-align: center;
+}
+
+.mafia-dead-icon {
+    font-size: 3rem;
+    margin: 0 0 10px 0;
+    color: #ff4444;
+}
+
+.mafia-dead-title {
+    margin: 0;
+    color: #ff4444;
+    text-transform: uppercase;
+}
+
+.mafia-dead-desc {
+    opacity: 0.8;
+    margin-top: 10px;
+}
+
+/* GLOBALNE UTILITY KLASY */
+.w-100 {
+    width: 100% !important;
+}
+
+/* =========================================
+   ANIMACJE SYSTEMOWE
+   ========================================= */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes pulseWarning {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(255, 68, 68, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 68, 68, 0);
+    }
 }

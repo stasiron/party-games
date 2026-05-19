@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react'; // <-- DOPISANO useRef
 import { ref, set, push, remove, onValue, onDisconnect, get } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
@@ -7,6 +7,7 @@ import Impostor from './Impostor';
 import TruthOrDare from './TruthOrDare';
 import Mafia from './Mafia';
 import './App.css';
+
 
 function App() {
     const [selectedGame, setSelectedGame] = useState(null);
@@ -21,6 +22,10 @@ function App() {
 
     const [hostLost, setHostLost] = useState(false);
     const [migrationCountdown, setMigrationCountdown] = useState(null);
+    const [isRoomLocked, setIsRoomLocked] = useState(false);
+
+    const [lobbyMessage, setLobbyMessage] = useState(''); // Komunikat w lobby
+    const isLeavingVoluntarily = useRef(false);           // Flaga świadomego wyjścia
 
     // 1. NASŁUCHIWANIE GRACZY I STATUSÓW
     useEffect(() => {
@@ -41,9 +46,19 @@ function App() {
 
             if (isJoined && myPlayerId) {
                 if (!data[myPlayerId]) {
-                    const myRef = ref(db, `rooms/${selectedGame}/players/${myPlayerId}`);
-                    set(myRef, { name: playerName, isHost: isHost, isOnline: true });
-                    onDisconnect(myRef).update({ isOnline: false });
+                    if (!isLeavingVoluntarily.current) {
+                        setLobbyMessage('⚠️ Zostałeś wyrzucony z pokoju lub stół został wyczyszczony przez Hosta.');
+                    }
+                    setSelectedGame(null);
+                    setIsJoined(false);
+                    setSelectedGame(null);
+                    setIsJoined(false);
+                    setPlayerName('');
+                    setIsHost(false);
+                    setMyPlayerId(null);
+                    setHostExists(false);
+                    setHostLost(false);
+                    setNameError('');
                 } else {
                     if (data[myPlayerId].isOnline === false) {
                         set(ref(db, `rooms/${selectedGame}/players/${myPlayerId}/isOnline`), true);
@@ -61,7 +76,15 @@ function App() {
             }
         });
 
-        return () => unsubscribe();
+        const lockedRef = ref(db, `rooms/${selectedGame}/isLocked`);
+        const unsubscribeLocked = onValue(lockedRef, (snapshot) => {
+            setIsRoomLocked(snapshot.val() || false);
+        });
+
+        return () => {
+            unsubscribe();
+            unsubscribeLocked();
+        };
     }, [selectedGame, isJoined, myPlayerId, playerName]);
 
     // 2. STOPER I MIGRACJA HOSTA
@@ -107,28 +130,34 @@ function App() {
         return () => clearInterval(timer);
     }, [hostLost, myPlayerId, isJoined, selectedGame]);
 
-    // 3. DOŁĄCZANIE Z ZABEZPIECZENIEM PRZED DUCHAMI I ZOMBIE
+    // 3. DOŁĄCZANIE Z ZABEZPIECZENIEM PRZED DUCHAMI, ZOMBIE I BLOKADĄ POKOJU
     const handleJoin = async () => {
+        isLeavingVoluntarily.current = false; // <-- DOPISZ TĘ LINIJKĘ
         const cleanedName = playerName.trim();
         if (cleanedName === '') return;
+        if (cleanedName.toUpperCase() === 'RESET') return;
+
+        const lockedSnapshot = await get(ref(db, `rooms/${selectedGame}/isLocked`));
+        const isLocked = lockedSnapshot.val() || false;
 
         const playersRef = ref(db, `rooms/${selectedGame}/players`);
         const snapshot = await get(playersRef);
         const data = snapshot.val() || {};
 
-        // ZABEZPIECZENIE: Znak zapytania przy `name?.toLowerCase()` zapobiega 
-        // wywaleniu kodu, gdy w bazie zostanie uszkodzony gracz bez imienia!
         const existingPlayerKey = Object.keys(data).find(
             key => data[key].name?.toLowerCase() === cleanedName.toLowerCase()
         );
+
+        if (isLocked && !existingPlayerKey) {
+            setNameError('🔒 Ten pokój został zablokowany przez Hosta. Rozgrywka już trwa!');
+            return;
+        }
 
         let targetPlayerRef;
         let finalIsHost = isHost;
 
         if (existingPlayerKey) {
             const existingPlayer = data[existingPlayerKey];
-
-            // Jeśli imię istnieje, wpuszczamy gracza z powrotem na jego stare miejsce
             targetPlayerRef = ref(db, `rooms/${selectedGame}/players/${existingPlayerKey}`);
             setMyPlayerId(existingPlayerKey);
             finalIsHost = existingPlayer.isHost || isHost;
@@ -149,6 +178,7 @@ function App() {
     };
 
     const handleBackToMenu = () => {
+        isLeavingVoluntarily.current = true; // <-- DOPISZ TĘ LINIJKĘ
         if (myPlayerId) {
             remove(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
         }
@@ -163,7 +193,6 @@ function App() {
         setNameError('');
     };
 
-    // NOWA FUNKCJA: Całkowite czyszczenie pokoju z zewnątrz
     const handleEmergencyReset = () => {
         set(ref(db, `rooms/${selectedGame}`), null);
     };
@@ -171,6 +200,9 @@ function App() {
     return (
         <div className="app-container">
             <h1>Party Games</h1>
+
+            {/* DOPISZ TĘ LINIJKĘ: Wyświetla czerwony komunikat w lobby jeśli istnieje */}
+            {lobbyMessage && <p className="error-message">{lobbyMessage}</p>}
 
             {!selectedGame ? (
                 <div>
@@ -197,63 +229,70 @@ function App() {
                         }}
                         placeholder="Twoje imię..."
                         onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-                        style={{ borderColor: nameError ? '#ff4444' : '' }}
+                        className={nameError ? 'input-error' : ''}
                     />
 
                     {nameError && (
-                        <p style={{ color: '#ff4444', fontSize: '0.9rem', marginTop: '5px', fontWeight: 'bold' }}>
+                        <p className="error-message">
                             {nameError}
                         </p>
                     )}
 
-                        {hostExists ? (
-                            <div style={{ marginBottom: '20px', marginTop: '15px' }}>
-                                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px', fontStyle: 'italic' }}>
-                                    🔒 Ten pokój ma już aktywnego Hosta. Dołączasz jako gracz.
-                                </p>
-                                {/* Stary, odsłonięty przycisk został stąd usunięty! */}
-                            </div>
-                        ) : (
-                            <div style={{ marginBottom: '20px', marginTop: '15px', textAlign: 'left' }}>
-                                <label style={{ cursor: 'pointer' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={isHost}
-                                        onChange={(e) => setIsHost(e.target.checked)}
-                                        style={{ width: 'auto', marginRight: '10px' }}
-                                    />
-                                    Jestem Hostem (Dowodzę stołem)
-                                </label>
-                            </div>
-                        )}
+                    {hostExists ? (
+                        <div className="host-status-container">
+                            <p className="host-status-text">
+                                🔒 Ten pokój ma już aktywnego Hosta. Dołączasz jako gracz.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="host-checkbox-container">
+                            <label className="host-checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={isHost}
+                                    onChange={(e) => setIsHost(e.target.checked)}
+                                    className="host-checkbox-input"
+                                />
+                                Jestem Hostem (Dowodzę stołem)
+                            </label>
+                        </div>
+                    )}
 
-                        <button onClick={handleJoin}>Wejdź do pokoju</button>
-                        <button onClick={handleBackToMenu} style={{ backgroundColor: 'transparent', border: 'none', marginTop: '10px', fontSize: '1rem', textDecoration: 'underline' }}>Wróć do wyboru gier</button>
+                    <button onClick={handleJoin}>Wejdź do pokoju</button>
+                    <button onClick={handleBackToMenu} className="btn-link">Wróć do wyboru gier</button>
 
-                        {/* Ukryty przycisk awaryjny - pojawia się tylko, gdy wpiszesz tajne hasło w polu imienia */}
-                        {playerName.toUpperCase() === 'RESET' && (
-                            <div style={{ marginTop: '30px', animation: 'fadeIn 0.3s ease' }}>
-                                <button
-                                    onClick={() => {
-                                        if (window.confirm("⚠️ UWAGA: Czy na pewno chcesz całkowicie wyczyścić ten pokój? Wszyscy obecni gracze zostaną wyrzuceni!")) {
-                                            handleEmergencyReset();
-                                            setPlayerName('');
-                                        }
-                                    }}
-                                    style={{ backgroundColor: '#ff4444', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '0.9rem', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer' }}
-                                >
-                                    ⚠️ POTWIERDŹ AWARYJNY RESET
-                                </button>
-                            </div>
-                        )}
-
+                    {playerName.toUpperCase() === 'RESET' && (
+                        <div className="emergency-reset-container">
+                            <button
+                                onClick={() => {
+                                    if (window.confirm("⚠️ UWAGA: Czy na pewno chcesz całkowicie wyczyścić ten pokój? Wszyscy obecni gracze zostaną wyrzuceni!")) {
+                                        handleEmergencyReset();
+                                        setPlayerName('');
+                                    }
+                                }}
+                                className="btn-emergency-reset"
+                            >
+                                ⚠️ POTWIERDŹ AWARYJNY RESET
+                            </button>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div>
                     <h2>Grasz w: {gameData.games.find(g => g.id === selectedGame).name}</h2>
 
+                    {isHost && (
+                        <div className="room-lock-container">
+                            <button
+                                onClick={() => set(ref(db, `rooms/${selectedGame}/isLocked`), !isRoomLocked)}
+                                className={`btn-lock-toggle ${isRoomLocked ? 'locked' : 'unlocked'}`}
+                            >
+                                {isRoomLocked ? '🔒 Pokój zablokowany (Kliknij by zmienić)' : '🔓 Pokój odblokowany (Kliknij by zmienić)'}
+                            </button>
+                        </div>
+                    )}
                     {migrationCountdown !== null && (
-                        <div style={{ backgroundColor: '#ff4444', color: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '25px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 4px 15px rgba(255, 68, 68, 0.4)' }}>
+                        <div className="migration-warning">
                             ⚠️ Host utracił połączenie. Przekazanie stołu za: {migrationCountdown}s...
                         </div>
                     )}
@@ -274,24 +313,24 @@ function App() {
                         <Mafia isHost={isHost} onLeave={handleBackToMenu} myPlayerId={myPlayerId} />
                     )}
 
-                    <div style={{ marginTop: '40px', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '20px' }}>
+                    <div className="players-section">
                         <h3>Gracze przy stole:</h3>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                        <div className="players-list">
                             {playersList.length > 0 ? playersList.map(p => (
-                                <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', opacity: p.isOnline === false ? 0.5 : 1, backgroundColor: 'rgba(255,255,255,0.1)', padding: '8px 14px', borderRadius: '20px', fontSize: '0.9rem' }}>
+                                <span key={p.id} className={`player-tag ${p.isOnline === false ? 'player-offline' : ''}`}>
                                     {p.name} {p.isOnline === false && '💤'}
 
                                     {isHost && p.id !== myPlayerId && (
                                         <button
                                             onClick={() => remove(ref(db, `rooms/${selectedGame}/players/${p.id}`))}
-                                            style={{ background: 'transparent', border: 'none', color: '#ff4444', marginLeft: '8px', padding: '0 5px', cursor: 'pointer', fontWeight: 'bold' }}
+                                            className="btn-kick"
                                             title="Wyrzuć gracza na stałe"
                                         >
                                             ✕
                                         </button>
                                     )}
                                 </span>
-                            )) : <span style={{ opacity: 0.8 }}>Pusty pokój...</span>}
+                            )) : <span className="empty-room-text">Pusty pokój...</span>}
                         </div>
                     </div>
                 </div>

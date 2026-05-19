@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ref, set, onValue, update } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
@@ -59,18 +59,22 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
         }
     }, [lobbyPlayers.length, isHost, roomData.phase]);
 
-    const changeRoleCount = (roleId, delta) => {
+    // OPTYMALIZACJA: Cachowanie funkcji
+    const changeRoleCount = useCallback((roleId, delta) => {
         setRoleCounts(prev => {
             const current = prev[roleId] || 0;
             const newValue = current + delta;
             if (newValue < 0) return prev;
             return { ...prev, [roleId]: newValue };
         });
-    };
+    }, []);
 
-    const totalRolesAssigned = Object.values(roleCounts).reduce((a, b) => a + b, 0);
+    // OPTYMALIZACJA: useMemo sprawia, że matematyka wykonuje się tylko, gdy zmieni się roleCounts
+    const totalRolesAssigned = useMemo(() => {
+        return Object.values(roleCounts).reduce((a, b) => a + b, 0);
+    }, [roleCounts]);
 
-    const startGame = () => {
+    const startGame = useCallback(() => {
         if (lobbyPlayers.length === 0) return alert("Brak graczy do gry!");
         if (totalRolesAssigned !== lobbyPlayers.length) {
             return alert(`Suma ról (${totalRolesAssigned}) musi równać się liczbie graczy (${lobbyPlayers.length})!`);
@@ -101,48 +105,49 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
             phase: 'playing',
             playersData: newPlayersData
         });
-    };
+    }, [lobbyPlayers, totalRolesAssigned, roleCounts]);
 
-    // Optymalizacja: Użycie update() zapobiega nadpisywaniu całego stanu przez Hosta
-    const togglePlayerAlive = (playerId, currentStatus) => {
+    const togglePlayerAlive = useCallback((playerId, currentStatus) => {
         update(ref(db, `rooms/mafia/gameState/playersData/${playerId}`), {
             isAlive: !currentStatus
         });
-    };
+    }, []);
 
-    const forceResetTable = () => {
+    const forceResetTable = useCallback(() => {
         set(ref(db, 'rooms/mafia/gameState'), null);
         setShowRole(false);
-    };
+    }, []);
 
     const myData = roomData.playersData[myPlayerId];
-    const myRoleInfo = myData ? gameData.mafia.roles.find(r => r.id === myData.role) : null;
+    const myRoleInfo = useMemo(() => {
+        return myData ? gameData.mafia.roles.find(r => r.id === myData.role) : null;
+    }, [myData]);
 
     return (
         <div>
             {roomData.phase === 'lobby' ? (
                 <div>
                     {isHost ? (
-                        <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '16px' }}>
-                            <h2 style={{ color: '#d63384' }}>Panel Mistrza Gry</h2>
+                        <div className="mafia-host-panel">
+                            <h2 className="mafia-title-pink">Panel Mistrza Gry</h2>
                             <p>Aktywni gracze (bez Ciebie): <strong>{lobbyPlayers.length}</strong></p>
 
-                            <div style={{ margin: '20px 0', padding: '15px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '10px' }}>
-                                <h3 style={{ margin: '0 0 15px 0' }}>Skonfiguruj role:</h3>
+                            <div className="mafia-role-config-box">
+                                <h3 className="mafia-role-config-title">Skonfiguruj role:</h3>
 
                                 {gameData.mafia.roles.map(role => (
-                                    <div key={role.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                        <span style={{ fontWeight: 'bold' }}>{role.name}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                            <button onClick={() => changeRoleCount(role.id, -1)} style={{ padding: '5px 15px', minWidth: '40px' }}>-</button>
-                                            <span style={{ width: '20px', textAlign: 'center', fontSize: '1.2rem' }}>{roleCounts[role.id] || 0}</span>
-                                            <button onClick={() => changeRoleCount(role.id, 1)} style={{ padding: '5px 15px', minWidth: '40px' }}>+</button>
+                                    <div key={role.id} className="mafia-role-row">
+                                        <span className="mafia-role-name">{role.name}</span>
+                                        <div className="mafia-role-controls">
+                                            <button onClick={() => changeRoleCount(role.id, -1)} className="btn-mafia-counter">-</button>
+                                            <span className="mafia-role-count">{roleCounts[role.id] || 0}</span>
+                                            <button onClick={() => changeRoleCount(role.id, 1)} className="btn-mafia-counter">+</button>
                                         </div>
                                     </div>
                                 ))}
 
-                                <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px dashed rgba(255,255,255,0.2)', textAlign: 'right' }}>
-                                    <span style={{ color: totalRolesAssigned === lobbyPlayers.length ? '#44ff44' : '#ff4444', fontWeight: 'bold' }}>
+                                <div className="mafia-role-summary">
+                                    <span className={totalRolesAssigned === lobbyPlayers.length ? 'text-mafia-ok' : 'text-mafia-error'}>
                                         Przypisano: {totalRolesAssigned} / {lobbyPlayers.length}
                                     </span>
                                 </div>
@@ -151,7 +156,7 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                             <button
                                 onClick={startGame}
                                 disabled={totalRolesAssigned !== lobbyPlayers.length || lobbyPlayers.length === 0}
-                                style={{ backgroundColor: totalRolesAssigned === lobbyPlayers.length && lobbyPlayers.length > 0 ? '#d63384' : '#555', width: '100%', fontWeight: 'bold' }}
+                                className={`btn-mafia-start ${totalRolesAssigned === lobbyPlayers.length && lobbyPlayers.length > 0 ? 'active' : 'disabled'}`}
                             >
                                 Rozdaj role i rozpocznij
                             </button>
@@ -159,7 +164,7 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                     ) : (
                         <div>
                             <h2>Mafia (Mistrz Gry: Oczekuje)</h2>
-                            <p style={{ opacity: 0.8 }}>Zaczekaj, aż Mistrz Gry dobierze talie ról i rozpocznie grę...</p>
+                            <p className="mafia-waiting-text">Zaczekaj, aż Mistrz Gry dobierze talie ról i rozpocznie grę...</p>
                         </div>
                     )}
                 </div>
@@ -167,23 +172,23 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                 <div>
                     {isHost ? (
                         <div>
-                            <h2 style={{ color: '#d63384' }}>Księga Mistrza Gry</h2>
-                            <p style={{ opacity: 0.8, marginBottom: '20px' }}>Masz podgląd na wszystko. Oznaczaj ofiary klikając "Zabij/Ożyw".</p>
+                            <h2 className="mafia-title-pink">Księga Mistrza Gry</h2>
+                            <p className="mafia-gm-desc">Masz podgląd na wszystko. Oznaczaj ofiary klikając "Zabij/Ożyw".</p>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div className="mafia-players-grid">
                                 {Object.keys(roomData.playersData).map(pId => {
                                     const p = roomData.playersData[pId];
                                     const roleDef = gameData.mafia.roles.find(r => r.id === p.role);
                                     return (
-                                        <div key={pId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: p.isAlive ? 'rgba(42, 17, 58, 0.8)' : 'rgba(255, 0, 0, 0.2)', padding: '15px', borderRadius: '8px', border: p.isAlive ? '1px solid rgba(255,255,255,0.1)' : '1px solid #ff4444' }}>
+                                        <div key={pId} className={`mafia-player-card ${p.isAlive ? 'alive' : 'dead'}`}>
                                             <div>
-                                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', textDecoration: p.isAlive ? 'none' : 'line-through' }}>{p.name}</span>
+                                                <span className={`mafia-player-name ${!p.isAlive ? 'crossed' : ''}`}>{p.name}</span>
                                                 <br />
-                                                <span style={{ color: '#ffd700', fontSize: '0.9rem' }}>Rola: {roleDef?.name}</span>
+                                                <span className="mafia-player-role">Rola: {roleDef?.name}</span>
                                             </div>
                                             <button
                                                 onClick={() => togglePlayerAlive(pId, p.isAlive)}
-                                                style={{ backgroundColor: p.isAlive ? '#ff4444' : '#44ff44', color: '#fff', padding: '8px 15px', fontSize: '0.9rem' }}
+                                                className={`btn-mafia-kill ${p.isAlive ? 'kill' : 'revive'}`}
                                             >
                                                 {p.isAlive ? '☠️ Zabij' : '❤️ Ożyw'}
                                             </button>
@@ -192,45 +197,32 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                                 })}
                             </div>
 
-                            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'center' }}>
-                                <ConfirmButton onClick={forceResetTable} text="Zakończ grę i wróć do Setupu" style={{ width: '100%' }} />
+                            <div className="mafia-bottom-controls">
+                                <ConfirmButton onClick={forceResetTable} text="Zakończ grę i wróć do Setupu" className="w-100" />
                             </div>
                         </div>
                     ) : (
                         <div>
                             {myData?.isAlive ? (
                                 <>
-                                    <p style={{ textAlign: 'center', opacity: 0.8, marginBottom: '20px' }}>Gra się rozpoczęła. Twoja rola pozostaje tajna.</p>
+                                    <p className="mafia-secret-desc">Gra się rozpoczęła. Twoja rola pozostaje tajna.</p>
                                     <div
                                         onMouseDown={() => setShowRole(true)}
                                         onMouseUp={() => setShowRole(false)}
                                         onMouseLeave={() => setShowRole(false)}
                                         onTouchStart={() => setShowRole(true)}
                                         onTouchEnd={() => setShowRole(false)}
-                                        style={{
-                                            padding: '40px 20px',
-                                            backgroundColor: showRole ? 'rgba(42, 17, 58, 0.8)' : 'rgba(0,0,0,0.3)',
-                                            borderRadius: '16px',
-                                            margin: '20px 0',
-                                            minHeight: '200px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            cursor: 'pointer',
-                                            userSelect: 'none',
-                                            border: showRole ? '2px solid #a855f7' : '2px solid transparent'
-                                        }}
+                                        className={`mafia-peeking-box ${showRole ? 'active' : 'hidden'}`}
                                     >
                                         {!showRole ? (
-                                            <h3 style={{ margin: 0, opacity: 0.5 }}>Kliknij i przytrzymaj, aby podejrzeć rolę</h3>
+                                            <h3 className="mafia-hidden-text">Kliknij i przytrzymaj, aby podejrzeć rolę</h3>
                                         ) : (
                                             <>
-                                                <span style={{ fontSize: '1rem', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '2px' }}>Twoja tożsamość</span>
-                                                <h2 style={{ margin: '10px 0', fontSize: '2.5rem', color: '#ffd700' }}>
+                                                <span className="mafia-identity-label">Twoja tożsamość</span>
+                                                <h2 className="mafia-identity-title">
                                                     {myRoleInfo?.name}
                                                 </h2>
-                                                <p style={{ textAlign: 'center', maxWidth: '80%', opacity: 0.9 }}>
+                                                <p className="mafia-identity-desc">
                                                     {myRoleInfo?.desc}
                                                 </p>
                                             </>
@@ -238,10 +230,10 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                                     </div>
                                 </>
                             ) : (
-                                <div style={{ padding: '60px 20px', backgroundColor: 'rgba(255, 0, 0, 0.2)', borderRadius: '16px', border: '2px solid #ff4444', textAlign: 'center' }}>
-                                    <h1 style={{ fontSize: '3rem', margin: '0 0 10px 0', color: '#ff4444' }}>☠️</h1>
-                                    <h2 style={{ margin: 0, color: '#ff4444', textTransform: 'uppercase' }}>Nie żyjesz</h2>
-                                    <p style={{ opacity: 0.8, marginTop: '10px' }}>Twoja rola to był: <strong>{myRoleInfo?.name}</strong>. Nie odzywaj się do końca gry!</p>
+                                <div className="mafia-dead-box">
+                                    <h1 className="mafia-dead-icon">☠️</h1>
+                                    <h2 className="mafia-dead-title">Nie żyjesz</h2>
+                                    <p className="mafia-dead-desc">Twoja rola to był: <strong>{myRoleInfo?.name}</strong>. Nie odzywaj się do końca gry!</p>
                                 </div>
                             )}
                         </div>
@@ -249,8 +241,8 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                 </div>
             )}
 
-            <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'center' }}>
-                <ConfirmButton onClick={onLeave} text="Wyjdź z pokoju" style={{ width: '100%' }} />
+            <div className="mafia-bottom-controls">
+                <ConfirmButton onClick={onLeave} text="Wyjdź z pokoju" className="w-100" />
             </div>
         </div>
     );

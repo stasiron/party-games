@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ref, set, get, onValue, update } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
@@ -32,22 +32,23 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
         return () => unsubscribe();
     }, []);
 
-    const toggleCategory = (catId) => {
+    // OPTYMALIZACJA: Cachowanie funkcji
+    const toggleCategory = useCallback((catId) => {
         setSelectedCategories((prev) =>
             prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
         );
-    };
+    }, []);
 
-    const shuffleArray = (array) => {
+    const shuffleArray = useCallback((array) => {
         const newArray = [...array];
         for (let i = newArray.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
         }
         return newArray;
-    };
+    }, []);
 
-    const getRandomPlayer = async (excludeName) => {
+    const getRandomPlayer = useCallback(async (excludeName) => {
         const playersRef = ref(db, 'rooms/truth-or-dare/players');
         const snapshot = await get(playersRef);
         const data = snapshot.val();
@@ -59,9 +60,9 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
             return names[Math.floor(Math.random() * names.length)];
         }
         return "Gracz";
-    };
+    }, []);
 
-    const startGame = async () => {
+    const startGame = useCallback(async () => {
         if (selectedCategories.length === 0) return;
 
         let allTruths = [];
@@ -94,9 +95,9 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
             darePool: shuffleArray(allDares),
             playerStats: initialStats
         });
-    };
+    }, [selectedCategories, getRandomPlayer, shuffleArray]);
 
-    const drawContent = (type) => {
+    const drawContent = useCallback((type) => {
         const poolKey = type === 'truth' ? 'truthPool' : 'darePool';
         const currentPool = roomData[poolKey] || [];
 
@@ -162,9 +163,9 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
             [poolKey]: newPool,
             playerStats: newStats
         });
-    };
+    }, [roomData, isSafeMode]);
 
-    const nextTurn = async () => {
+    const nextTurn = useCallback(async () => {
         const nextPlayer = await getRandomPlayer(roomData.currentPlayerName);
         update(ref(db, 'rooms/truth-or-dare/gameState'), {
             mode: 'choice',
@@ -172,18 +173,22 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
             currentDifficulty: 0,
             currentPlayerName: nextPlayer
         });
-    };
+    }, [roomData.currentPlayerName, getRandomPlayer]);
 
-    const forceResetTable = () => {
+    const forceResetTable = useCallback(() => {
         set(ref(db, 'rooms/truth-or-dare/gameState'), null);
         setSelectedCategories([]);
         setIsSafeMode(false);
-    };
+    }, []);
 
-    const handleEndGame = () => {
+    const handleEndGame = useCallback(() => {
         forceResetTable();
         onLeave();
-    };
+    }, [forceResetTable, onLeave]);
+
+    const toggleSafeMode = useCallback(() => {
+        setIsSafeMode(prev => !prev);
+    }, []);
 
     const amICurrentPlayer = roomData.currentPlayerName === playerName;
     const cardStateClass = amICurrentPlayer ? 'tod-card-active' : 'tod-card-disabled';
@@ -202,11 +207,7 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
                                         <button
                                             key={cat.id}
                                             onClick={() => toggleCategory(cat.id)}
-                                            className={isSelected ? 'selected-category' : 'unselected-category'}
-                                            style={{
-                                                borderColor: isSelected ? '#d63384' : 'rgba(255,255,255,0.2)',
-                                                backgroundColor: isSelected ? 'rgba(214, 51, 132, 0.2)' : 'rgba(255,255,255,0.05)'
-                                            }}
+                                            className={isSelected ? 'category-btn-selected' : 'category-btn-unselected'}
                                         >
                                             <span className="game-title">{cat.name}</span>
                                             <span className="game-desc">{cat.desc}</span>
@@ -228,13 +229,13 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
                 <div>
                     <div className="turn-header">
                         <h2
-                            onDoubleClick={() => setIsSafeMode(prev => !prev)}
-                            style={{ margin: 0, fontSize: '1.2rem', opacity: 0.8, cursor: 'default', userSelect: 'none' }}
+                            onDoubleClick={toggleSafeMode}
+                            className="tod-turn-h2"
                         >
                             Kolej gracza:
-                            {isSafeMode && <span style={{ opacity: 0.2, fontSize: '1rem', marginLeft: '5px' }}>●</span>}
+                            {isSafeMode && <span className="tod-safe-mode-dot">●</span>}
                         </h2>
-                        <h1 style={{ margin: '5px 0', fontSize: '2.5rem', color: amICurrentPlayer ? '#44ff44' : '#d63384', textTransform: 'uppercase' }}>
+                        <h1 className={`tod-turn-h1 ${amICurrentPlayer ? 'active' : 'inactive'}`}>
                             {roomData.currentPlayerName}
                             {amICurrentPlayer && " (TO TY!)"}
                         </h1>
@@ -242,7 +243,7 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
 
                     {roomData.mode === 'choice' ? (
                         <>
-                            <p style={{ opacity: amICurrentPlayer ? 1 : 0.6, fontWeight: amICurrentPlayer ? 'bold' : 'normal', marginBottom: '20px' }}>
+                            <p className={`tod-choice-text ${amICurrentPlayer ? 'active' : 'inactive'}`}>
                                 {amICurrentPlayer ? "Podejmij decyzję:" : "Czekamy na wybór gracza..."}
                             </p>
                             <div className="cards-container">
@@ -250,31 +251,31 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
                                     className={`tod-card tod-truth ${cardStateClass}`}
                                     onClick={() => amICurrentPlayer && drawContent('truth')}
                                 >
-                                    <h2 style={{ margin: 0 }} className="text-truth">PRAWDA</h2>
+                                    <h2 className="tod-card-title text-truth">PRAWDA</h2>
                                 </div>
 
                                 <div
                                     className={`tod-card tod-dare ${cardStateClass}`}
                                     onClick={() => amICurrentPlayer && drawContent('dare')}
                                 >
-                                    <h2 style={{ margin: 0 }} className="text-dare">WYZWANIE</h2>
+                                    <h2 className="tod-card-title text-dare">WYZWANIE</h2>
                                 </div>
                             </div>
                         </>
                     ) : (
                         <div className={`tod-result-box ${roomData.mode === 'truth' ? 'tod-truth' : 'tod-dare'}`}>
                             {roomData.currentDifficulty > 0 && (
-                                <div style={{ position: 'absolute', top: '15px', right: '20px', fontSize: '1rem', opacity: 0.8, color: '#ffd700' }}>
+                                <div className="tod-stars-active">
                                     {'★'.repeat(roomData.currentDifficulty)}
-                                    <span style={{ opacity: 0.3 }}>{'★'.repeat(5 - roomData.currentDifficulty)}</span>
+                                    <span className="tod-stars-empty">{'★'.repeat(5 - roomData.currentDifficulty)}</span>
                                 </div>
                             )}
 
-                            <span style={{ fontSize: '1rem', opacity: 0.7, marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '2px' }} className={roomData.mode === 'truth' ? 'text-truth' : 'text-dare'}>
+                            <span className={`tod-label-span ${roomData.mode === 'truth' ? 'text-truth' : 'text-dare'}`}>
                                 {roomData.mode === 'truth' ? 'Prawda' : 'Wyzwanie'}
                             </span>
 
-                            <h3 style={{ margin: 0, fontSize: '1.5rem', lineHeight: '1.4' }}>
+                            <h3 className="tod-result-text">
                                 {roomData.currentText}
                             </h3>
 
