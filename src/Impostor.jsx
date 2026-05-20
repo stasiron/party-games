@@ -1,11 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ref, set, get, onValue } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
+import { getImpostorCategories, getCategoryLabel } from './gameContentUtils';
 import ConfirmButton from './ConfirmButton';
+import RoomInviteQR from './RoomInviteQR';
 
-function Impostor({ isHost, onLeave, myPlayerId }) {
-    // ZMIANA: Tablica zamiast pojedynczej wartości, by obsługiwać wiele kategorii
+function Impostor({ isHost, onLeave, myPlayerId, roomInviteUrl }) {
+    const playableCategories = useMemo(
+        () => getImpostorCategories(gameData.impostor),
+        []
+    );
+
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [showRole, setShowRole] = useState(false);
 
@@ -58,10 +64,7 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
             if (wordsForCat) {
                 combinedWords = [...combinedWords, ...wordsForCat];
             }
-            const catObj = gameData.impostor.categories.find(c => c.id === catId);
-            if (catObj) {
-                combinedCatNames.push(catObj.name);
-            }
+            combinedCatNames.push(getCategoryLabel(playableCategories, catId));
         });
 
         const randomWord = combinedWords[Math.floor(Math.random() * combinedWords.length)];
@@ -73,7 +76,7 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
             impostorId: chosenImpostorId,
             categoryName: catNameDisplay
         });
-    }, [selectedCategories]);
+    }, [selectedCategories, playableCategories]);
 
     const startDiscussion = useCallback(() => {
         set(ref(db, 'rooms/impostor/gameState/phase'), 'discussing');
@@ -105,8 +108,8 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                     {isHost ? (
                         <>
                             <p>Wybierz kategorie dla tej rundy (możesz kilka):</p>
-                            <div className="games-grid impostor-categories-grid">
-                                {gameData.impostor.categories.map((cat) => {
+                            <div className="games-grid categories-grid">
+                                {playableCategories.map((cat) => {
                                     const isSelected = selectedCategories.includes(cat.id);
                                     return (
                                         <button
@@ -121,10 +124,11 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                                 })}
                             </div>
                             {selectedCategories.length > 0 && (
-                                <button onClick={startGame} className="btn-impostor-start">
+                                <button onClick={startGame} className="btn-accent">
                                     Wylosuj z {selectedCategories.length} kategorii i rozdaj role
                                 </button>
                             )}
+                            <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
                     ) : (
                         <p>Czekamy aż Host wybierze kategorie i wylosuje role...</p>
@@ -143,18 +147,18 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                                 onMouseLeave={() => setShowRole(false)}
                                 onTouchStart={() => setShowRole(true)}
                                 onTouchEnd={() => setShowRole(false)}
-                                className={`impostor-peeking-box ${showRole ? (amIImpostor ? 'impostor-bg-bad' : 'impostor-bg-good') : 'impostor-bg-hidden'}`}
+                                className={`peek-panel ${showRole ? (amIImpostor ? 'impostor-bg-bad' : 'impostor-bg-good') : 'impostor-bg-hidden'}`}
                             >
                                 {!showRole ? (
-                                    <h3 className="impostor-hidden-text">Kliknij i przytrzymaj, aby zobaczyć rolę</h3>
+                                    <h3 className="peek-hidden-text">Kliknij i przytrzymaj, aby zobaczyć rolę</h3>
                                 ) : (
                                     <>
-                                        <h2 className={`impostor-role-title ${amIImpostor ? 'text-impostor' : 'text-crewmate'}`}>
+                                        <h2 className={`impostor-role-title ${amIImpostor ? 'text-danger' : 'text-success'}`}>
                                             {amIImpostor ? "JESTEŚ OSZUSTEM!" : roomData.word}
                                         </h2>
                                         {amIImpostor && (
                                             <p className="impostor-cat-info">
-                                                Kategoria: <span className="impostor-cat-highlight">{roomData.categoryName}</span>
+                                                Kategoria: <span className="text-gold">{roomData.categoryName}</span>
                                             </p>
                                         )}
                                     </>
@@ -172,7 +176,7 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                     )}
 
                     {isHost && (
-                        <div className="impostor-host-controls">
+                        <div className="game-host-controls">
                             {roomData.phase === 'peeking' && (
                                 <button onClick={startDiscussion} className="btn-impostor-discuss">
                                     Rozpocznij dyskusję (Zablokuj podgląd)
@@ -184,7 +188,7 @@ function Impostor({ isHost, onLeave, myPlayerId }) {
                 </div>
             )}
 
-            <div className="impostor-bottom-controls">
+            <div className="bottom-controls">
                 <ConfirmButton
                     onClick={isHost ? handleEndGame : onLeave}
                     text={isHost ? "Zamknij pokój" : "Wyjdź z pokoju"}

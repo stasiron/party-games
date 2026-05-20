@@ -1,10 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ref, set, onValue } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
+import { getNeverHaveIEverCategories } from './gameContentUtils';
 import ConfirmButton from './ConfirmButton';
+import RoomInviteQR from './RoomInviteQR';
 
-function NeverHaveIEver({ isHost, onLeave }) {
+function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
+    const playableCategories = useMemo(
+        () => getNeverHaveIEverCategories(gameData.neverHaveIEver),
+        []
+    );
+
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [roomData, setRoomData] = useState({
         isGameStarted: false,
@@ -43,8 +50,11 @@ function NeverHaveIEver({ isHost, onLeave }) {
 
     const startGame = useCallback(() => {
         let allQuestions = [];
-        selectedCategories.forEach(catId => {
-            allQuestions = [...allQuestions, ...gameData.neverHaveIEver.questions[catId]];
+        selectedCategories.forEach((catId) => {
+            const pool = gameData.neverHaveIEver.questions[catId];
+            if (Array.isArray(pool)) {
+                allQuestions = [...allQuestions, ...pool];
+            }
         });
 
         const shuffled = shuffleArray(allQuestions);
@@ -86,8 +96,8 @@ function NeverHaveIEver({ isHost, onLeave }) {
                     {isHost ? (
                         <>
                             <p>Wybierz kategorie (możesz zaznaczyć kilka):</p>
-                            <div className="games-grid nhie-categories-grid">
-                                {gameData.neverHaveIEver.categories.map((cat) => {
+                            <div className="games-grid categories-grid">
+                                {playableCategories.map((cat) => {
                                     const isSelected = selectedCategories.includes(cat.id);
                                     return (
                                         <button
@@ -102,10 +112,11 @@ function NeverHaveIEver({ isHost, onLeave }) {
                                 })}
                             </div>
                             {selectedCategories.length > 0 && (
-                                <button onClick={startGame} className="btn-nhie-start">
+                                <button onClick={startGame} className="btn-accent">
                                     Rozpocznij grę ({selectedCategories.length})
                                 </button>
                             )}
+                            <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
                     ) : (
                         <p>Czekamy aż Host wybierze kategorie i wystartuje grę...</p>
@@ -117,14 +128,14 @@ function NeverHaveIEver({ isHost, onLeave }) {
                         Pytanie {roomData.currentQuestionIndex + 1} z {roomData.shuffledQuestions ? roomData.shuffledQuestions.length : 0}
                     </p>
 
-                    <div className="nhie-question-box">
+                    <div className="content-panel content-panel--dark">
                         <h3 className="nhie-question-text">
                             {roomData.shuffledQuestions ? roomData.shuffledQuestions[roomData.currentQuestionIndex] : "Ładowanie..."}
                         </h3>
                     </div>
 
                     {isHost && (
-                        <div className="nhie-host-controls">
+                        <div className="game-host-controls">
                             <div className="nhie-nav-buttons">
                                 <button
                                     onClick={prevQuestion}
@@ -147,7 +158,7 @@ function NeverHaveIEver({ isHost, onLeave }) {
                 </div>
             )}
 
-            <div className="nhie-bottom-wrapper">
+            <div className="bottom-controls">
                 <ConfirmButton
                     onClick={isHost ? handleEndGame : onLeave}
                     text={isHost ? "Zamknij pokój" : "Wyjdź z pokoju"}

@@ -3,17 +3,25 @@ import { ref, set, onValue, update } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
 import ConfirmButton from './ConfirmButton';
+import RoomInviteQR from './RoomInviteQR';
 
-function Mafia({ isHost, onLeave, myPlayerId }) {
+function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl }) {
     const [roomData, setRoomData] = useState({
         phase: 'lobby',
         playersData: {}
     });
 
-    const [lobbyPlayers, setLobbyPlayers] = useState([]);
     const [roleCounts, setRoleCounts] = useState({});
     const [showRole, setShowRole] = useState(false);
 
+    const lobbyPlayers = useMemo(() => {
+        if (!isHost || roomData.phase !== 'lobby') return [];
+        return tablePlayers
+            .filter((p) => !p.isHost && p.isOnline !== false)
+            .map((p) => ({ id: p.id, name: p.name, isHost: p.isHost, isOnline: p.isOnline }));
+    }, [isHost, roomData.phase, tablePlayers]);
+
+    // 1. NASŁUCHIWANIE AKTYWNEJ FAZY GRY
     useEffect(() => {
         const roomRef = ref(db, 'rooms/mafia/gameState');
         const unsubscribe = onValue(roomRef, (snapshot) => {
@@ -27,39 +35,26 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
         return () => unsubscribe();
     }, []);
 
-    useEffect(() => {
-        if (!isHost || roomData.phase !== 'lobby') return;
-
-        const playersRef = ref(db, 'rooms/mafia/players');
-        const unsubscribe = onValue(playersRef, (snapshot) => {
-            const data = snapshot.val() || {};
-            const activePlayers = Object.keys(data)
-                .map(key => ({ id: key, ...data[key] }))
-                .filter(p => !p.isHost && p.isOnline !== false);
-
-            setLobbyPlayers(activePlayers);
-        });
-
-        return () => unsubscribe();
-    }, [isHost, roomData.phase]);
-
+    // Presety ról zsynchronizowane z listą graczy z App (jeden strumień RTDB zamiast dwóch).
     useEffect(() => {
         if (!isHost || roomData.phase !== 'lobby') return;
 
         const count = lobbyPlayers.length;
-        if (count === 0) return;
+        if (count > 0) {
+            const presetKey = count > 10 ? '10' : count.toString();
+            const preset = gameData.mafia.presets[presetKey];
 
-        const presetKey = count > 10 ? "10" : count.toString();
-        const preset = gameData.mafia.presets[presetKey];
-
-        if (preset) {
-            setRoleCounts(preset);
+            if (preset) {
+                setRoleCounts(preset);
+            } else {
+                setRoleCounts({ mafia: 0, lekarz: 0, agent: 0, jester: 0, lovers: 0, obywatel: count });
+            }
         } else {
-            setRoleCounts({ mafia: 0, lekarz: 0, agent: 0, jester: 0, lovers: 0, obywatel: count });
+            setRoleCounts({});
         }
-    }, [lobbyPlayers.length, isHost, roomData.phase]);
+    }, [isHost, roomData.phase, lobbyPlayers]);
 
-    // OPTYMALIZACJA: Cachowanie funkcji
+    // OPTYMALIZACJA CPU: Zmiana licznika ról (Cachowana przez useCallback)
     const changeRoleCount = useCallback((roleId, delta) => {
         setRoleCounts(prev => {
             const current = prev[roleId] || 0;
@@ -69,11 +64,12 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
         });
     }, []);
 
-    // OPTYMALIZACJA: useMemo sprawia, że matematyka wykonuje się tylko, gdy zmieni się roleCounts
+    // OPTYMALIZACJA ENERGII: Sumowanie ról tylko wtedy, kiedy faktycznie zmieni się stan roleCounts
     const totalRolesAssigned = useMemo(() => {
         return Object.values(roleCounts).reduce((a, b) => a + b, 0);
     }, [roleCounts]);
 
+    // MECHANIKA LOSOWANIA I ROZPOCZYNANIA ROZGRYWKI
     const startGame = useCallback(() => {
         if (lobbyPlayers.length === 0) return alert("Brak graczy do gry!");
         if (totalRolesAssigned !== lobbyPlayers.length) {
@@ -87,6 +83,7 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
             }
         });
 
+        // Algorytm tasowania puli ról (Fisher-Yates Shuffle)
         for (let i = rolesPool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [rolesPool[i], rolesPool[j]] = [rolesPool[j], rolesPool[i]];
@@ -107,17 +104,20 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
         });
     }, [lobbyPlayers, totalRolesAssigned, roleCounts]);
 
+    // OZNACZANIE OFIAR PRZEZ MISTRZA GRY
     const togglePlayerAlive = useCallback((playerId, currentStatus) => {
         update(ref(db, `rooms/mafia/gameState/playersData/${playerId}`), {
             isAlive: !currentStatus
         });
     }, []);
 
+    // RESETOWANIE STOŁU DO USTAWIEŃ POCZĄTKOWYCH
     const forceResetTable = useCallback(() => {
         set(ref(db, 'rooms/mafia/gameState'), null);
         setShowRole(false);
     }, []);
 
+    // POBIERANIE ROLI DLA AKTUALNEGO KLIENTA
     const myData = roomData.playersData[myPlayerId];
     const myRoleInfo = useMemo(() => {
         return myData ? gameData.mafia.roles.find(r => r.id === myData.role) : null;
@@ -147,7 +147,7 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                                 ))}
 
                                 <div className="mafia-role-summary">
-                                    <span className={totalRolesAssigned === lobbyPlayers.length ? 'text-mafia-ok' : 'text-mafia-error'}>
+                                    <span className={totalRolesAssigned === lobbyPlayers.length ? 'text-ok' : 'text-error'}>
                                         Przypisano: {totalRolesAssigned} / {lobbyPlayers.length}
                                     </span>
                                 </div>
@@ -160,6 +160,7 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                             >
                                 Rozdaj role i rozpocznij
                             </button>
+                            <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </div>
                     ) : (
                         <div>
@@ -197,7 +198,7 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                                 })}
                             </div>
 
-                            <div className="mafia-bottom-controls">
+                            <div className="bottom-controls">
                                 <ConfirmButton onClick={forceResetTable} text="Zakończ grę i wróć do Setupu" className="w-100" />
                             </div>
                         </div>
@@ -212,10 +213,10 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                                         onMouseLeave={() => setShowRole(false)}
                                         onTouchStart={() => setShowRole(true)}
                                         onTouchEnd={() => setShowRole(false)}
-                                        className={`mafia-peeking-box ${showRole ? 'active' : 'hidden'}`}
+                                        className={`peek-panel mafia-peeking-box ${showRole ? 'active' : 'hidden'}`}
                                     >
                                         {!showRole ? (
-                                            <h3 className="mafia-hidden-text">Kliknij i przytrzymaj, aby podejrzeć rolę</h3>
+                                            <h3 className="peek-hidden-text">Kliknij i przytrzymaj, aby podejrzeć rolę</h3>
                                         ) : (
                                             <>
                                                 <span className="mafia-identity-label">Twoja tożsamość</span>
@@ -241,7 +242,7 @@ function Mafia({ isHost, onLeave, myPlayerId }) {
                 </div>
             )}
 
-            <div className="mafia-bottom-controls">
+            <div className="bottom-controls">
                 <ConfirmButton onClick={onLeave} text="Wyjdź z pokoju" className="w-100" />
             </div>
         </div>

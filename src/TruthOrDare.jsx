@@ -1,10 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ref, set, get, onValue, update } from 'firebase/database';
 import { db } from './firebase';
 import gameData from './gameContent.json';
+import { getTruthOrDareCategories } from './gameContentUtils';
 import ConfirmButton from './ConfirmButton';
+import RoomInviteQR from './RoomInviteQR';
 
-function TruthOrDare({ isHost, onLeave, playerName }) {
+function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl }) {
+    const playableCategories = useMemo(
+        () => getTruthOrDareCategories(gameData.truthOrDare),
+        []
+    );
+
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [isSafeMode, setIsSafeMode] = useState(false);
 
@@ -68,9 +75,15 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
         let allTruths = [];
         let allDares = [];
 
-        selectedCategories.forEach(catId => {
-            allTruths = [...allTruths, ...gameData.truthOrDare.content[catId].truth];
-            allDares = [...allDares, ...gameData.truthOrDare.content[catId].dare];
+        selectedCategories.forEach((catId) => {
+            const pack = gameData.truthOrDare.content[catId];
+            if (!pack) return;
+            if (Array.isArray(pack.truth)) {
+                allTruths = [...allTruths, ...pack.truth];
+            }
+            if (Array.isArray(pack.dare)) {
+                allDares = [...allDares, ...pack.dare];
+            }
         });
 
         const firstPlayer = await getRandomPlayer(null);
@@ -200,8 +213,8 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
                     {isHost ? (
                         <>
                             <p>Wybierz kategorie (możesz zaznaczyć kilka):</p>
-                            <div className="games-grid" style={{ marginBottom: '20px' }}>
-                                {gameData.truthOrDare.categories.map((cat) => {
+                            <div className="games-grid categories-grid">
+                                {playableCategories.map((cat) => {
                                     const isSelected = selectedCategories.includes(cat.id);
                                     return (
                                         <button
@@ -220,6 +233,7 @@ function TruthOrDare({ isHost, onLeave, playerName }) {
                                     Rozpocznij grę ({selectedCategories.length})
                                 </button>
                             )}
+                            <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
                     ) : (
                         <p>Czekamy aż Host wybierze talię i wystartuje stół...</p>
