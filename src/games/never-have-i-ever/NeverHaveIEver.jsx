@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ref, set, onValue } from 'firebase/database';
-import { db } from './firebase';
-import gameData from './gameContent.json';
-import { getNeverHaveIEverCategories } from './gameContentUtils';
-import ConfirmButton from './ConfirmButton';
-import RoomInviteQR from './RoomInviteQR';
+import { useState, useCallback, useMemo } from 'react';
+import { ref, set } from 'firebase/database';
+import { db } from '../../lib/firebase';
+import gameData from '../../data/gameContent.json';
+import { getNeverHaveIEverCategories } from '../../lib/gameContentUtils';
+import { useRoomGameState } from '../../lib/useRoomGameState';
+import { shuffleArray } from '../../lib/shuffle';
+import ConfirmButton from '../../components/ConfirmButton';
+import RoomInviteQR from '../../components/RoomInviteQR';
+import GameRules from '../../components/GameRules';
 
 function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
     const playableCategories = useMemo(
@@ -13,39 +16,17 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
     );
 
     const [selectedCategories, setSelectedCategories] = useState([]);
-    const [roomData, setRoomData] = useState({
-        isGameStarted: false,
-        shuffledQuestions: [],
-        currentQuestionIndex: 0
-    });
-
-    useEffect(() => {
-        const roomRef = ref(db, 'rooms/never-have-i-ever/gameState');
-        const unsubscribe = onValue(roomRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                setRoomData(data);
-            } else {
-                setRoomData({ isGameStarted: false, shuffledQuestions: [], currentQuestionIndex: 0 });
-            }
-        });
-        return () => unsubscribe();
-    }, []);
+    const defaultRoomState = useMemo(
+        () => ({ isGameStarted: false, shuffledQuestions: [], currentQuestionIndex: 0 }),
+        []
+    );
+    const roomData = useRoomGameState('never-have-i-ever', defaultRoomState);
 
     // OPTYMALIZACJA: Zapamiętywanie funkcji, by nie obciążać procesora przy re-renderach
     const toggleCategory = useCallback((catId) => {
         setSelectedCategories((prev) =>
             prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
         );
-    }, []);
-
-    const shuffleArray = useCallback((array) => {
-        const newArray = [...array];
-        for (let i = newArray.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-        }
-        return newArray;
     }, []);
 
     const startGame = useCallback(() => {
@@ -64,7 +45,7 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
             shuffledQuestions: shuffled,
             currentQuestionIndex: 0
         });
-    }, [selectedCategories, shuffleArray]);
+    }, [selectedCategories]);
 
     // OPTYMALIZACJA: Stabilna referencja dla ConfirmButton (memo zadziała perfekcyjnie)
     const forceResetTable = useCallback(() => {
@@ -93,6 +74,15 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
         <div>
             {!roomData.isGameStarted ? (
                 <div>
+                    <GameRules title="Nigdy w życiu">
+                        <ol className="game-rules__list">
+                            <li>Host wybiera kategorie i czyta na głos kolejne stwierdzenie „Nigdy w życiu nie…”.</li>
+                            <li>Gracze, którzy to zrobili, podnoszą palec (lub piją łyk — ustalcie zasady na stole).</li>
+                            <li>Można krótko skomentować historię, potem Host przechodzi do następnego pytania.</li>
+                            <li>Bez osądzania — chodzi o zabawę i poznanie się nawzajem.</li>
+                        </ol>
+                    </GameRules>
+
                     {isHost ? (
                         <>
                             <p>Wybierz kategorie (możesz zaznaczyć kilka):</p>
@@ -112,9 +102,11 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
                                 })}
                             </div>
                             {selectedCategories.length > 0 && (
-                                <button onClick={startGame} className="btn-accent">
-                                    Rozpocznij grę ({selectedCategories.length})
-                                </button>
+                                <div className="actions-stack">
+                                    <button onClick={startGame} className="btn-accent">
+                                        Rozpocznij grę ({selectedCategories.length})
+                                    </button>
+                                </div>
                             )}
                             <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
@@ -136,7 +128,7 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
 
                     {isHost && (
                         <div className="game-host-controls">
-                            <div className="nhie-nav-buttons">
+                            <div className="game-nav-row nhie-nav-buttons">
                                 <button
                                     onClick={prevQuestion}
                                     disabled={roomData.currentQuestionIndex === 0}

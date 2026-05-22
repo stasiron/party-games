@@ -1,26 +1,22 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 
-// Używamy React.memo, aby zapobiec niepotrzebnemu odrysowywaniu komponentu i oszczędzać CPU/baterię
 const ConfirmButton = memo(({ onClick, text, confirmText = "Na pewno? Kliknij znów", style, className = "" }) => {
     const [isConfirming, setIsConfirming] = useState(false);
 
     useEffect(() => {
-        let timer;
-        if (isConfirming) {
-            // Automatyczny powrót do bezpiecznego stanu po 3 sekundach
-            timer = setTimeout(() => setIsConfirming(false), 3000);
-        }
+        if (!isConfirming) return undefined;
+        const timer = setTimeout(() => setIsConfirming(false), 3000);
         return () => clearTimeout(timer);
     }, [isConfirming]);
 
-    const handleClick = () => {
+    const handleClick = useCallback(() => {
         if (!isConfirming) {
-            setIsConfirming(true); // Pierwsze kliknięcie
+            setIsConfirming(true);
         } else {
-            onClick(); // Drugie kliknięcie (wykonanie akcji)
+            onClick();
             setIsConfirming(false);
         }
-    };
+    }, [isConfirming, onClick]);
 
     return (
         <button

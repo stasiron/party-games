@@ -1,18 +1,19 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ref, set, onValue, update } from 'firebase/database';
-import { db } from './firebase';
-import gameData from './gameContent.json';
-import ConfirmButton from './ConfirmButton';
-import RoomInviteQR from './RoomInviteQR';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { ref, set, update } from 'firebase/database';
+import { db } from '../../lib/firebase';
+import gameData from '../../data/gameContent.json';
+import { useRoomGameState } from '../../lib/useRoomGameState';
+import ConfirmButton from '../../components/ConfirmButton';
+import RoomInviteQR from '../../components/RoomInviteQR';
+import GameRules from '../../components/GameRules';
 
 function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl }) {
-    const [roomData, setRoomData] = useState({
-        phase: 'lobby',
-        playersData: {}
-    });
+    const defaultRoomState = useMemo(() => ({ phase: 'lobby', playersData: {} }), []);
+    const roomData = useRoomGameState('mafia', defaultRoomState);
 
     const [roleCounts, setRoleCounts] = useState({});
     const [showRole, setShowRole] = useState(false);
+    const lastPresetCountRef = useRef(-1);
 
     const lobbyPlayers = useMemo(() => {
         if (!isHost || roomData.phase !== 'lobby') return [];
@@ -21,38 +22,23 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl }
             .map((p) => ({ id: p.id, name: p.name, isHost: p.isHost, isOnline: p.isOnline }));
     }, [isHost, roomData.phase, tablePlayers]);
 
-    // 1. NASŁUCHIWANIE AKTYWNEJ FAZY GRY
-    useEffect(() => {
-        const roomRef = ref(db, 'rooms/mafia/gameState');
-        const unsubscribe = onValue(roomRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                setRoomData(data);
-            } else {
-                setRoomData({ phase: 'lobby', playersData: {} });
-            }
-        });
-        return () => unsubscribe();
-    }, []);
+    const suggestedRoleCounts = useMemo(() => {
+        const count = lobbyPlayers.length;
+        if (count === 0) return {};
+        const presetKey = count > 10 ? '10' : count.toString();
+        const preset = gameData.mafia.presets[presetKey];
+        if (preset) return preset;
+        return { mafia: 0, lekarz: 0, agent: 0, jester: 0, lovers: 0, obywatel: count };
+    }, [lobbyPlayers.length]);
 
-    // Presety ról zsynchronizowane z listą graczy z App (jeden strumień RTDB zamiast dwóch).
     useEffect(() => {
         if (!isHost || roomData.phase !== 'lobby') return;
-
         const count = lobbyPlayers.length;
-        if (count > 0) {
-            const presetKey = count > 10 ? '10' : count.toString();
-            const preset = gameData.mafia.presets[presetKey];
-
-            if (preset) {
-                setRoleCounts(preset);
-            } else {
-                setRoleCounts({ mafia: 0, lekarz: 0, agent: 0, jester: 0, lovers: 0, obywatel: count });
-            }
-        } else {
-            setRoleCounts({});
-        }
-    }, [isHost, roomData.phase, lobbyPlayers]);
+        if (count === lastPresetCountRef.current) return;
+        lastPresetCountRef.current = count;
+        const t = setTimeout(() => setRoleCounts(suggestedRoleCounts), 0);
+        return () => clearTimeout(t);
+    }, [isHost, roomData.phase, lobbyPlayers.length, suggestedRoleCounts]);
 
     // OPTYMALIZACJA CPU: Zmiana licznika ról (Cachowana przez useCallback)
     const changeRoleCount = useCallback((roleId, delta) => {
@@ -127,6 +113,15 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl }
         <div>
             {roomData.phase === 'lobby' ? (
                 <div>
+                    <GameRules title="Mafia">
+                        <ol className="game-rules__list">
+                            <li>Mistrz Gry (Host) dobiera role tak, by suma ról = liczba graczy przy stole.</li>
+                            <li>Po rozdaniu każdy podgląda tajną rolę na telefonie. Mafia zna swoich wspólników.</li>
+                            <li>Fazy nocy i dnia prowadzicie głosowo — aplikacja służy Mistrzowi do oznaczania żywych i martwych.</li>
+                            <li>Miasto wygrywa, gdy wyeliminuje Mafię. Mafia wygrywa, gdy przejmie miasto.</li>
+                        </ol>
+                    </GameRules>
+
                     {isHost ? (
                         <div className="mafia-host-panel">
                             <h2 className="mafia-title-pink">Panel Mistrza Gry</h2>
@@ -153,13 +148,15 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl }
                                 </div>
                             </div>
 
-                            <button
-                                onClick={startGame}
-                                disabled={totalRolesAssigned !== lobbyPlayers.length || lobbyPlayers.length === 0}
-                                className={`btn-mafia-start ${totalRolesAssigned === lobbyPlayers.length && lobbyPlayers.length > 0 ? 'active' : 'disabled'}`}
-                            >
-                                Rozdaj role i rozpocznij
-                            </button>
+                            <div className="actions-stack">
+                                <button
+                                    onClick={startGame}
+                                    disabled={totalRolesAssigned !== lobbyPlayers.length || lobbyPlayers.length === 0}
+                                    className={`btn-mafia-start ${totalRolesAssigned === lobbyPlayers.length && lobbyPlayers.length > 0 ? 'active' : 'disabled'}`}
+                                >
+                                    Rozdaj role i rozpocznij
+                                </button>
+                            </div>
                             <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </div>
                     ) : (

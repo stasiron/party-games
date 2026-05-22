@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ref, set, get, onValue, update } from 'firebase/database';
-import { db } from './firebase';
-import gameData from './gameContent.json';
-import { getTruthOrDareCategories } from './gameContentUtils';
-import ConfirmButton from './ConfirmButton';
-import RoomInviteQR from './RoomInviteQR';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { ref, set, get, update } from 'firebase/database';
+import { db } from '../../lib/firebase';
+import gameData from '../../data/gameContent.json';
+import { getTruthOrDareCategories } from '../../lib/gameContentUtils';
+import { useRoomGameState } from '../../lib/useRoomGameState';
+import { shuffleArray } from '../../lib/shuffle';
+import ConfirmButton from '../../components/ConfirmButton';
+import RoomInviteQR from '../../components/RoomInviteQR';
+import GameRules from '../../components/GameRules';
 
-function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl }) {
+function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnabled }) {
     const playableCategories = useMemo(
         () => getTruthOrDareCategories(gameData.truthOrDare),
         []
@@ -15,44 +18,49 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl }) {
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [isSafeMode, setIsSafeMode] = useState(false);
 
-    const [roomData, setRoomData] = useState({
-        isGameStarted: false,
-        mode: 'choice',
-        currentText: '',
-        currentDifficulty: 0,
-        currentPlayerName: '',
-        truthPool: [],
-        darePool: [],
-        playerStats: {}
-    });
+    const defaultRoomState = useMemo(
+        () => ({
+            isGameStarted: false,
+            mode: 'choice',
+            currentText: '',
+            currentDifficulty: 0,
+            currentPlayerName: '',
+            truthPool: [],
+            darePool: [],
+            playerStats: {},
+        }),
+        []
+    );
+    const roomData = useRoomGameState('truth-or-dare', defaultRoomState);
+    const lastVibratedTurnRef = useRef('');
 
     useEffect(() => {
-        const roomRef = ref(db, 'rooms/truth-or-dare/gameState');
-        const unsubscribe = onValue(roomRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                setRoomData(data);
-            } else {
-                setRoomData({ isGameStarted: false, mode: 'choice', currentText: '', currentDifficulty: 0, currentPlayerName: '', truthPool: [], darePool: [], playerStats: {} });
-            }
-        });
-        return () => unsubscribe();
-    }, []);
+        lastVibratedTurnRef.current = '';
+    }, [roomData.currentPlayerName]);
+
+    const triggerPlayerVibration = useCallback(() => {
+        if (!vibrationEnabled || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+        try {
+            navigator.vibrate(120);
+        } catch {
+            /* vibrate API */
+        }
+    }, [vibrationEnabled]);
+
+    useEffect(() => {
+        if (!vibrationEnabled || !roomData.currentPlayerName || !playerName) return;
+        const turnKey = roomData.currentPlayerName.trim();
+        if (turnKey !== playerName.trim()) return;
+        if (lastVibratedTurnRef.current === turnKey) return;
+        lastVibratedTurnRef.current = turnKey;
+        triggerPlayerVibration();
+    }, [roomData.currentPlayerName, playerName, triggerPlayerVibration, vibrationEnabled]);
 
     // OPTYMALIZACJA: Cachowanie funkcji
     const toggleCategory = useCallback((catId) => {
         setSelectedCategories((prev) =>
             prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
         );
-    }, []);
-
-    const shuffleArray = useCallback((array) => {
-        const newArray = [...array];
-        for (let i = newArray.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-        }
-        return newArray;
     }, []);
 
     const getRandomPlayer = useCallback(async (excludeName) => {
@@ -108,7 +116,7 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl }) {
             darePool: shuffleArray(allDares),
             playerStats: initialStats
         });
-    }, [selectedCategories, getRandomPlayer, shuffleArray]);
+    }, [selectedCategories, getRandomPlayer]);
 
     const drawContent = useCallback((type) => {
         const poolKey = type === 'truth' ? 'truthPool' : 'darePool';
@@ -154,7 +162,8 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl }) {
             }
         }
 
-        const selectedItem = availableOptions[0];
+        const selectedItem =
+            availableOptions[Math.floor(Math.random() * availableOptions.length)];
         const indexToRemove = currentPool.findIndex(q => q.text === selectedItem.text);
         const newPool = [...currentPool];
         if (indexToRemove !== -1) newPool.splice(indexToRemove, 1);
@@ -203,13 +212,22 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl }) {
         setIsSafeMode(prev => !prev);
     }, []);
 
-    const amICurrentPlayer = roomData.currentPlayerName === playerName;
+    const amICurrentPlayer = roomData.currentPlayerName?.trim() === playerName?.trim();
     const cardStateClass = amICurrentPlayer ? 'tod-card-active' : 'tod-card-disabled';
 
     return (
         <div>
             {!roomData.isGameStarted ? (
                 <div>
+                    <GameRules title="Prawda czy wyzwanie">
+                        <ol className="game-rules__list">
+                            <li>Host wybiera kategorie i startuje grę. Aplikacja losuje gracza na kolejkę.</li>
+                            <li>Wybrany gracz decyduje: <strong>Prawda</strong> lub <strong>Wyzwanie</strong> i wykonuje zadanie.</li>
+                            <li>Host prowadzi stół — po wykonaniu zadania przechodzicie do następnej osoby.</li>
+                            <li>Host może włączyć tryb bezpieczny (podwójne kliknięcie nagłówka „Kolej gracza”) — łagodniejsze karty.</li>
+                        </ol>
+                    </GameRules>
+
                     {isHost ? (
                         <>
                             <p>Wybierz kategorie (możesz zaznaczyć kilka):</p>
@@ -229,9 +247,11 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl }) {
                                 })}
                             </div>
                             {selectedCategories.length > 0 && (
-                                <button onClick={startGame} className="btn-main-action">
-                                    Rozpocznij grę ({selectedCategories.length})
-                                </button>
+                                <div className="actions-stack">
+                                    <button onClick={startGame} className="btn-main-action">
+                                        Rozpocznij grę ({selectedCategories.length})
+                                    </button>
+                                </div>
                             )}
                             <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
