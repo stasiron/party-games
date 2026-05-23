@@ -1,35 +1,56 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from './firebase';
+import { getGameStateDebounceMs } from './lowPower';
 
 /**
- * Subscribes to `rooms/<gameId>/gameState` and mirrors it in React state.
- * Defers setState to avoid cascading render warnings from RTDB callbacks.
- * Pass a stable `defaultState` (e.g. from useMemo) when possible.
+ * @param {string} gameId
+ * @param {object} defaultState
+ * @param {{ mergeDefaults?: boolean, getFingerprint?: (data: object | null) => string }} options
+ * getFingerprint — lekkie porównanie (np. bez pul kart) gdy gracz czeka w kolejce.
  */
-export function useRoomGameState(gameId, defaultState, { mergeDefaults = false } = {}) {
+export function useRoomGameState(gameId, defaultState, { mergeDefaults = false, getFingerprint } = {}) {
     const [roomData, setRoomData] = useState(defaultState);
+    const defaultRef = useRef(defaultState);
+    const latestRef = useRef(defaultState);
+
+    useEffect(() => {
+        defaultRef.current = defaultState;
+    }, [defaultState]);
 
     useEffect(() => {
         let timeoutId;
+        let lastFingerprint = '';
+        const debounceMs = getGameStateDebounceMs();
         const roomRef = ref(db, `rooms/${gameId}/gameState`);
         const unsubscribe = onValue(roomRef, (snapshot) => {
             const data = snapshot.val();
-            let next = defaultState;
+            const base = defaultRef.current;
+            let next = base;
             if (data) {
                 next =
-                    mergeDefaults && typeof defaultState === 'object'
-                        ? { ...defaultState, ...data }
+                    mergeDefaults && typeof base === 'object'
+                        ? { ...base, ...data }
                         : data;
             }
+            latestRef.current = next;
+
+            const fingerprint = getFingerprint
+                ? getFingerprint(next)
+                : JSON.stringify(next);
+            if (fingerprint === lastFingerprint) return;
+            lastFingerprint = fingerprint;
+
             clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => setRoomData(next), 0);
+            timeoutId = setTimeout(() => {
+                setRoomData(latestRef.current);
+            }, debounceMs);
         });
         return () => {
             clearTimeout(timeoutId);
             unsubscribe();
         };
-    }, [gameId, mergeDefaults, defaultState]);
+    }, [gameId, mergeDefaults, getFingerprint]);
 
     return roomData;
 }

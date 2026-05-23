@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { ref, set, get, update } from 'firebase/database';
+import { ref } from 'firebase/database';
+import { set, get, update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
 import gameData from '../../data/gameContent.json';
 import { getImpostorCategories, getCategoryLabel } from '../../lib/gameContentUtils';
@@ -13,6 +14,7 @@ import {
 import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { usePiGameSession } from '../../lib/usePiGameSession';
 
 const DEFAULT_SETTINGS = { fairnessEnabled: false };
 
@@ -34,9 +36,9 @@ function Impostor({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUr
     const [showRole, setShowRole] = useState(false);
 
     useEffect(() => {
-        if (impostorCount > maxImpostors) {
-            setImpostorCount(Math.max(1, maxImpostors));
-        }
+        if (impostorCount <= maxImpostors) return undefined;
+        const t = setTimeout(() => setImpostorCount(Math.max(1, maxImpostors)), 0);
+        return () => clearTimeout(t);
     }, [impostorCount, maxImpostors]);
 
     const roomSettings = useRoomSettings('impostor', DEFAULT_SETTINGS);
@@ -53,6 +55,8 @@ function Impostor({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUr
         []
     );
     const roomData = useRoomGameState('impostor', defaultRoomState, { mergeDefaults: true });
+
+    usePiGameSession(roomData.phase !== 'lobby');
 
     const impostorIds = useMemo(() => {
         if (Array.isArray(roomData.impostorIds) && roomData.impostorIds.length > 0) {

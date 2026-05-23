@@ -1,0 +1,18 @@
+[Unit]
+Description=Party Games — autostart strony i bazy po włączeniu prądu
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=stas
+Group=stas
+WorkingDirectory=/home/stas
+Environment=HOME=/home/stas
+ExecStart=/bin/bash /home/stas/pi/party-boot.sh
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

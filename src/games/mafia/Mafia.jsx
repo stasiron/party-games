@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ref, set, update } from 'firebase/database';
+import { ref } from 'firebase/database';
+import { set, update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
 import gameData from '../../data/gameContent.json';
 import { useRoomGameState } from '../../lib/useRoomGameState';
+import { usePiGameSession } from '../../lib/usePiGameSession';
 import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
@@ -10,6 +12,7 @@ import GameRules from '../../components/GameRules';
 function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl }) {
     const defaultRoomState = useMemo(() => ({ phase: 'lobby', playersData: {} }), []);
     const roomData = useRoomGameState('mafia', defaultRoomState);
+    usePiGameSession(roomData.phase !== 'lobby');
 
     const [roleCounts, setRoleCounts] = useState({});
     const [showRole, setShowRole] = useState(false);

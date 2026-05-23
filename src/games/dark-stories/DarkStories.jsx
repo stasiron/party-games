@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
-import { ref, set } from 'firebase/database';
+import { ref } from 'firebase/database';
+import { set } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
 import gameData from '../../data/gameContent.json';
 import { getDarkStoriesDifficulties } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
+import { usePiGameSession } from '../../lib/usePiGameSession';
 import { shuffleArray } from '../../lib/shuffle';
 import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
@@ -26,6 +28,7 @@ function DarkStories({ isHost, onLeave, roomInviteUrl }) {
         []
     );
     const roomData = useRoomGameState('dark-stories', defaultRoomState, { mergeDefaults: true });
+    usePiGameSession(roomData.isGameStarted);
 
     const toggleDifficulty = useCallback((diffId) => {
         setSelectedDifficulties((prev) =>

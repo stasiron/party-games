@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
-import { ref, set } from 'firebase/database';
+import { ref } from 'firebase/database';
+import { set } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
 import gameData from '../../data/gameContent.json';
 import { getNeverHaveIEverCategories } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
+import { usePiGameSession } from '../../lib/usePiGameSession';
 import { shuffleArray } from '../../lib/shuffle';
 import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
@@ -21,6 +23,7 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
         []
     );
     const roomData = useRoomGameState('never-have-i-ever', defaultRoomState);
+    usePiGameSession(roomData.isGameStarted);
 
     // OPTYMALIZACJA: Zapamiętywanie funkcji, by nie obciążać procesora przy re-renderach
     const toggleCategory = useCallback((catId) => {

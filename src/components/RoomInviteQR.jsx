@@ -1,5 +1,8 @@
-import { useState, useCallback } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useState, useCallback, lazy, Suspense } from 'react';
+
+const QRCodeSVG = lazy(() =>
+    import('qrcode.react').then((m) => ({ default: m.QRCodeSVG }))
+);
 
 function RoomInviteQR({ inviteUrl }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -35,7 +38,9 @@ function RoomInviteQR({ inviteUrl }) {
                         Zeskanuj telefonem — otworzy się ta sama gra i pokój. Gracz wpisze tylko imię i dołączy.
                     </p>
                     <div className="room-invite__qr" aria-hidden="true">
-                        <QRCodeSVG value={inviteUrl} size={200} level="M" includeMargin />
+                        <Suspense fallback={<div className="room-invite__qr-placeholder" aria-hidden="true" />}>
+                            <QRCodeSVG value={inviteUrl} size={200} level="M" includeMargin />
+                        </Suspense>
                     </div>
                     <button type="button" onClick={handleCopy} className="btn-copy-invite">
                         {copied ? 'Skopiowano link!' : 'Kopiuj link do pokoju'}

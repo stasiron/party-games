@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ref, set, get, update } from 'firebase/database';
+import { ref } from 'firebase/database';
+import { set, get, update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
+import { getMinUiSyncMs } from '../../lib/lowPower';
+import { subscribePiQueue } from '../../lib/rtdbThrottle';
+import { usePiGameSession } from '../../lib/usePiGameSession';
 import gameData from '../../data/gameContent.json';
 import { getTruthOrDareCategories } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
@@ -31,8 +35,40 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
         }),
         []
     );
-    const roomData = useRoomGameState('truth-or-dare', defaultRoomState);
+    const truthOrDareFingerprint = useCallback(
+        (data) => {
+            if (!data) return '';
+            const amI =
+                data.currentPlayerName?.trim().toLowerCase() ===
+                playerName?.trim().toLowerCase();
+            const fp = {
+                isGameStarted: data.isGameStarted,
+                mode: data.mode,
+                currentText: data.currentText,
+                currentDifficulty: data.currentDifficulty,
+                currentPlayerName: data.currentPlayerName,
+                playerStats: data.playerStats,
+            };
+            if (amI || data.mode !== 'choice') {
+                fp.truthLen = data.truthPool?.length ?? 0;
+                fp.dareLen = data.darePool?.length ?? 0;
+            }
+            return JSON.stringify(fp);
+        },
+        [playerName]
+    );
+
+    const roomData = useRoomGameState('truth-or-dare', defaultRoomState, {
+        getFingerprint: truthOrDareFingerprint,
+    });
     const lastVibratedTurnRef = useRef('');
+    const actionLockRef = useRef(false);
+    const [rtdbBusy, setRtdbBusy] = useState(false);
+    const syncOpts = useMemo(() => ({ minUiMs: getMinUiSyncMs() }), []);
+
+    useEffect(() => subscribePiQueue((depth) => setRtdbBusy(depth > 0)), []);
+
+    usePiGameSession(roomData.isGameStarted);
 
     useEffect(() => {
         lastVibratedTurnRef.current = '';
@@ -106,7 +142,7 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
             });
         }
 
-        set(ref(db, 'rooms/truth-or-dare/gameState'), {
+        await set(ref(db, 'rooms/truth-or-dare/gameState'), {
             isGameStarted: true,
             mode: 'choice',
             currentText: '',
@@ -115,19 +151,22 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
             truthPool: shuffleArray(allTruths),
             darePool: shuffleArray(allDares),
             playerStats: initialStats
-        });
-    }, [selectedCategories, getRandomPlayer]);
+        }, syncOpts);
+    }, [selectedCategories, getRandomPlayer, syncOpts]);
 
-    const drawContent = useCallback((type) => {
+    const drawContent = useCallback(async (type) => {
+        if (actionLockRef.current) return;
+        actionLockRef.current = true;
+        try {
         const poolKey = type === 'truth' ? 'truthPool' : 'darePool';
         const currentPool = roomData[poolKey] || [];
 
         if (currentPool.length === 0) {
-            update(ref(db, 'rooms/truth-or-dare/gameState'), {
+            await update(ref(db, 'rooms/truth-or-dare/gameState'), {
                 mode: type,
                 currentText: type === 'truth' ? "Koniec pytań w tej puli! Musisz wybrać Wyzwanie." : "Koniec wyzwań w tej puli! Musisz wybrać Prawdę.",
                 currentDifficulty: 0
-            });
+            }, syncOpts);
             return;
         }
 
@@ -136,11 +175,11 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
         if (isSafeMode) {
             availableOptions = availableOptions.filter(q => q.level <= 3);
             if (availableOptions.length === 0) {
-                update(ref(db, 'rooms/truth-or-dare/gameState'), {
+                await update(ref(db, 'rooms/truth-or-dare/gameState'), {
                     mode: type,
                     currentText: type === 'truth' ? "Brak bezpiecznych pytań! Musisz wybrać Wyzwanie." : "Brak bezpiecznych wyzwań! Musisz wybrać Prawdę.",
                     currentDifficulty: 0
-                });
+                }, syncOpts);
                 return;
             }
         } else {
@@ -178,24 +217,33 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
             }
         };
 
-        update(ref(db, 'rooms/truth-or-dare/gameState'), {
+        await update(ref(db, 'rooms/truth-or-dare/gameState'), {
             mode: type,
             currentText: selectedItem.text,
             currentDifficulty: selectedItem.level,
             [poolKey]: newPool,
             playerStats: newStats
-        });
-    }, [roomData, isSafeMode]);
+        }, syncOpts);
+        } finally {
+            actionLockRef.current = false;
+        }
+    }, [roomData, isSafeMode, syncOpts]);
 
     const nextTurn = useCallback(async () => {
-        const nextPlayer = await getRandomPlayer(roomData.currentPlayerName);
-        update(ref(db, 'rooms/truth-or-dare/gameState'), {
-            mode: 'choice',
-            currentText: '',
-            currentDifficulty: 0,
-            currentPlayerName: nextPlayer
-        });
-    }, [roomData.currentPlayerName, getRandomPlayer]);
+        if (actionLockRef.current) return;
+        actionLockRef.current = true;
+        try {
+            const nextPlayer = await getRandomPlayer(roomData.currentPlayerName);
+            await update(ref(db, 'rooms/truth-or-dare/gameState'), {
+                mode: 'choice',
+                currentText: '',
+                currentDifficulty: 0,
+                currentPlayerName: nextPlayer
+            }, syncOpts);
+        } finally {
+            actionLockRef.current = false;
+        }
+    }, [roomData.currentPlayerName, getRandomPlayer, syncOpts]);
 
     const forceResetTable = useCallback(() => {
         set(ref(db, 'rooms/truth-or-dare/gameState'), null);
@@ -213,7 +261,8 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
     }, []);
 
     const amICurrentPlayer = roomData.currentPlayerName?.trim() === playerName?.trim();
-    const cardStateClass = amICurrentPlayer ? 'tod-card-active' : 'tod-card-disabled';
+    const canAct = amICurrentPlayer && !rtdbBusy;
+    const cardStateClass = canAct ? 'tod-card-active' : 'tod-card-disabled';
 
     return (
         <div>
@@ -283,14 +332,14 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
                             <div className="cards-container">
                                 <div
                                     className={`tod-card tod-truth ${cardStateClass}`}
-                                    onClick={() => amICurrentPlayer && drawContent('truth')}
+                                    onClick={() => canAct && drawContent('truth')}
                                 >
                                     <h2 className="tod-card-title text-truth">PRAWDA</h2>
                                 </div>
 
                                 <div
                                     className={`tod-card tod-dare ${cardStateClass}`}
-                                    onClick={() => amICurrentPlayer && drawContent('dare')}
+                                    onClick={() => canAct && drawContent('dare')}
                                 >
                                     <h2 className="tod-card-title text-dare">WYZWANIE</h2>
                                 </div>
@@ -315,7 +364,7 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
 
                             {roomData.currentDifficulty === 0 && amICurrentPlayer && (
                                 <button
-                                    onClick={() => drawContent(roomData.mode === 'truth' ? 'dare' : 'truth')}
+                                    onClick={() => canAct && drawContent(roomData.mode === 'truth' ? 'dare' : 'truth')}
                                     className={`btn-emergency ${roomData.mode === 'truth' ? 'bg-dare' : 'bg-truth'}`}
                                 >
                                     Zmień na {roomData.mode === 'truth' ? 'Wyzwanie' : 'Prawdę'}
@@ -327,7 +376,7 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
                     {isHost && (
                         <div className="host-controls">
                             {roomData.mode !== 'choice' && (
-                                <button onClick={nextTurn} className="btn-main-action">
+                                <button onClick={nextTurn} className="btn-main-action" disabled={rtdbBusy}>
                                     Zakończ kolejkę i losuj gracza
                                 </button>
                             )}

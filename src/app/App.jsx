@@ -1,14 +1,30 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ref, set, push, remove, onValue, onDisconnect, get, update } from 'firebase/database';
-import { db } from '../lib/firebase';
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { ref, push, remove, onValue, onDisconnect } from 'firebase/database';
+import { set, get, update } from '../lib/rtdb';
+import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
+import { debounce } from '../lib/debounce';
 import gameData from '../data/gameContent.json';
-import NeverHaveIEver from '../games/never-have-i-ever/NeverHaveIEver';
-import Impostor from '../games/impostor/Impostor';
-import TruthOrDare from '../games/truth-or-dare/TruthOrDare';
-import Mafia from '../games/mafia/Mafia';
-import DarkStories from '../games/dark-stories/DarkStories';
-import versionData from '../../version.json';
+import GlobalPlayersList from '../components/GlobalPlayersList';
+import MigrationBanner from '../components/MigrationBanner';
+import ConnectionStatus from '../components/ConnectionStatus';
+import IosWifiHelp from '../components/IosWifiHelp';
+import { useServerBusy } from '../context/useServerBusy';
+import { useLongPress } from '../hooks/useLongPress';
+import {
+    isLowPowerDevice,
+    getJoinGraceMs,
+    getPresenceMissingGraceMs,
+    getPlayersDebounceMs,
+} from '../lib/lowPower';
 import '../styles/app.css';
+
+const NeverHaveIEver = lazy(() => import('../games/never-have-i-ever/NeverHaveIEver'));
+const Impostor = lazy(() => import('../games/impostor/Impostor'));
+const TruthOrDare = lazy(() => import('../games/truth-or-dare/TruthOrDare'));
+const Mafia = lazy(() => import('../games/mafia/Mafia'));
+const DarkStories = lazy(() => import('../games/dark-stories/DarkStories'));
+
+const PRESENCE_DEBOUNCE_MS = 250;
 
 const themePresets = [
     { id: 'default', label: 'Fioletowy (domyślny)', stops: ['#0a0f1e', '#2a113a', '#8c215e'] },
@@ -18,6 +34,7 @@ const themePresets = [
 ];
 
 function App() {
+    const { runWithBusy } = useServerBusy();
     const [selectedGame, setSelectedGame] = useState(null);
     const [playerName, setPlayerName] = useState('');
     const [isJoined, setIsJoined] = useState(false);
@@ -31,7 +48,6 @@ function App() {
     const [hostExists, setHostExists] = useState(false);
 
     const [hostLost, setHostLost] = useState(false);
-    const [migrationCountdown, setMigrationCountdown] = useState(null);
     const [isRoomLocked, setIsRoomLocked] = useState(false);
 
     const [lobbyMessage, setLobbyMessage] = useState(''); // Komunikat o wyrzuceniu widoczny w lobby
@@ -41,11 +57,30 @@ function App() {
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [themePreset, setThemePreset] = useState('default');
-    const [soundEnabled, setSoundEnabled] = useState(true);
-    const [vibrationEnabled, setVibrationEnabled] = useState(true);
+    const [soundEnabled, setSoundEnabled] = useState(() => !isLowPowerDevice());
+    const [vibrationEnabled, setVibrationEnabled] = useState(() => !isLowPowerDevice());
     const [adminCommand, setAdminCommand] = useState('');
     const [isAdminMode, setIsAdminMode] = useState(false);
+    const toggleAdminPanel = useCallback(() => {
+        setShowAdminPanel((prev) => !prev);
+    }, []);
+    const logoLongPress = useLongPress(toggleAdminPanel, { delayMs: 650 });
     const prevPlayersCountRef = useRef(0);
+    const isHostRef = useRef(isHost);
+    const soundEnabledRef = useRef(soundEnabled);
+    const isJoinedRef = useRef(isJoined);
+    const myPlayerIdRef = useRef(myPlayerId);
+    const joinGraceUntilRef = useRef(0);
+    const missingPlayerSinceRef = useRef(0);
+    const isJoiningRef = useRef(false);
+    const isOnlineHealSentRef = useRef(false);
+
+    useEffect(() => {
+        isHostRef.current = isHost;
+        soundEnabledRef.current = soundEnabled;
+        isJoinedRef.current = isJoined;
+        myPlayerIdRef.current = myPlayerId;
+    }, [isHost, soundEnabled, isJoined, myPlayerId]);
 
     const playJoinSound = useCallback(() => {
         if (!soundEnabled || typeof window === 'undefined') return;
@@ -130,18 +165,27 @@ function App() {
         [selectedGame]
     );
 
-    /** Pełny adres z parametrem `game` — QR i kopiowanie linku dla hosta. */
+    /** Host z bazy (nie tylko przełącznik w lobby) — od tego zależy kick i zamykanie pokoju. */
+    const effectiveIsHost = useMemo(() => {
+        if (!isJoined || !myPlayerId) return isHost;
+        const me = playersList.find((p) => p.id === myPlayerId);
+        if (!me) return isHost;
+        return me.isHost === true && me.isOnline !== false;
+    }, [isJoined, myPlayerId, playersList, isHost]);
+
+    /** Pełny adres z parametrem `game` — QR i kopiowanie (kanoniczny origin na Malinie). */
     const roomInviteUrl = useMemo(() => {
-        if (!selectedGame || !isJoined || !isHost || typeof window === 'undefined') return '';
+        if (!selectedGame || !isJoined || !effectiveIsHost || typeof window === 'undefined') return '';
         try {
-            const u = new URL(window.location.href);
+            const base = getPartyOrigin() || window.location.origin;
+            const u = new URL(base);
             u.searchParams.set('game', selectedGame);
             u.hash = '';
             return u.toString();
         } catch {
             return '';
         }
-    }, [selectedGame, isJoined, isHost]);
+    }, [selectedGame, isJoined, effectiveIsHost]);
 
     // Wejście z linku / QR: ?game=<id_gry>
     useEffect(() => {
@@ -170,36 +214,22 @@ function App() {
     useEffect(() => {
         if (!selectedGame) return;
 
-        const playersRef = ref(db, `rooms/${selectedGame}/players`);
-        const unsubscribe = onValue(playersRef, (snapshot) => {
-            let data = snapshot.val() || {};
+        let playersTimeoutId;
+        let lastPlayersJson = '';
 
-            const zombieKeys = Object.keys(data).filter(
-                (key) => !data[key]?.name || String(data[key].name).trim() === ''
-            );
-            if (zombieKeys.length > 0) {
-                const updates = {};
-                zombieKeys.forEach((key) => {
-                    updates[`rooms/${selectedGame}/players/${key}`] = null;
-                });
-                update(ref(db), updates);
-                data = { ...data };
-                zombieKeys.forEach((k) => {
-                    delete data[k];
-                });
-            }
-
-            const playersArray = Object.keys(data).map(key => ({
-                id: key,
-                ...data[key]
-            }));
+        const applyPlayersSnapshot = (data) => {
+            const playersArray = Object.keys(data)
+                .map((key) => ({
+                    id: key,
+                    ...data[key],
+                }))
+                .filter((p) => !p.isKicked);
             setPlayersList(playersArray);
 
-            // Dźwięk przy dołączeniu: tylko dla Hosta, gdy liczba graczy wzrosła
             try {
                 const newCount = playersArray.length;
                 const prevCount = prevPlayersCountRef.current || 0;
-                if (isHost && soundEnabled && prevCount > 0 && newCount > prevCount) {
+                if (isHostRef.current && soundEnabledRef.current && prevCount > 0 && newCount > prevCount) {
                     playJoinSound();
                 }
                 prevPlayersCountRef.current = newCount;
@@ -207,25 +237,57 @@ function App() {
                 /* join sound */
             }
 
-            const activeHost = playersArray.find(player => player.isHost === true && player.isOnline !== false);
+            const activeHost = playersArray.find(
+                (player) => player.isHost === true && player.isOnline !== false
+            );
             setHostExists(!!activeHost);
 
-            if (isJoined && myPlayerId) {
-                const myData = data[myPlayerId];
+            if (isJoinedRef.current && myPlayerIdRef.current) {
+                const myData = data[myPlayerIdRef.current];
+                if (myData && !myData.isKicked) {
+                    setHostLost(!activeHost);
+                }
+            } else {
+                setHostLost(false);
+            }
+        };
 
-                // PANCERNE WYRZUCANIE: Jeśli nasz profil zniknął lub dostał flagę isKicked
-                if (!myData || myData.isKicked) {
-                    if (myData?.isKicked) {
-                        // Anulujemy onDisconnect i sprzątamy swój rekord, by zapobiec pętlom ponownego wchodzenia
-                        onDisconnect(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`)).cancel();
-                        remove(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
-                    }
+        const handlePresenceAndKick = (data) => {
+            if (!isJoinedRef.current || !myPlayerIdRef.current || isJoiningRef.current) return;
+            const pid = myPlayerIdRef.current;
+            const myData = data[pid];
 
-                    // Jeśli nie wyszliśmy sami, pokazujemy informację w lobby
-                    if (!isLeavingVoluntarily.current) {
-                        setLobbyMessage('⚠️ Zostałeś wyrzucony z pokoju przez Hosta.');
-                    }
+            if (myData?.isKicked) {
+                missingPlayerSinceRef.current = 0;
+                onDisconnect(ref(db, `rooms/${selectedGame}/players/${pid}`)).cancel();
+                remove(ref(db, `rooms/${selectedGame}/players/${pid}`));
+                if (!isLeavingVoluntarily.current) {
+                    setLobbyMessage('⚠️ Zostałeś wyrzucony z pokoju przez Hosta.');
+                }
+                setSelectedGame(null);
+                setIsJoined(false);
+                setPlayerName('');
+                setIsHost(false);
+                setMyPlayerId(null);
+                setHostExists(false);
+                setHostLost(false);
+                setNameError('');
+                return;
+            }
 
+            if (!myData) {
+                if (!missingPlayerSinceRef.current) {
+                    missingPlayerSinceRef.current = Date.now();
+                }
+                const missingFor = Date.now() - missingPlayerSinceRef.current;
+                const pastJoinGrace = Date.now() > joinGraceUntilRef.current;
+                const pastMissingGrace = missingFor >= getPresenceMissingGraceMs();
+                if (
+                    pastJoinGrace &&
+                    pastMissingGrace &&
+                    !isLeavingVoluntarily.current
+                ) {
+                    setLobbyMessage('⚠️ Utracono połączenie z pokojem. Dołącz ponownie.');
                     setSelectedGame(null);
                     setIsJoined(false);
                     setPlayerName('');
@@ -234,21 +296,59 @@ function App() {
                     setHostExists(false);
                     setHostLost(false);
                     setNameError('');
-                } else {
-                    if (myData.isOnline === false) {
-                        set(ref(db, `rooms/${selectedGame}/players/${myPlayerId}/isOnline`), true);
-                    }
-                    setIsHost(myData.isHost || false);
+                }
+                return;
+            }
 
-                    if (!activeHost) {
-                        setHostLost(true);
-                    } else {
-                        setHostLost(false);
-                    }
+            missingPlayerSinceRef.current = 0;
+
+            if (myData.isOnline === false) {
+                if (!isOnlineHealSentRef.current) {
+                    isOnlineHealSentRef.current = true;
+                    set(ref(db, `rooms/${selectedGame}/players/${pid}/isOnline`), true);
                 }
             } else {
-                setHostLost(false);
+                isOnlineHealSentRef.current = false;
             }
+            setIsHost(myData.isHost || false);
+        };
+
+        const playersDebounceMs = getPlayersDebounceMs();
+
+        const playersRef = ref(db, `rooms/${selectedGame}/players`);
+        const unsubscribe = onValue(playersRef, (snapshot) => {
+            let data = snapshot.val() || {};
+
+            if (isHostRef.current) {
+                const zombieKeys = Object.keys(data).filter((key) => {
+                    const p = data[key];
+                    if (!p) return false;
+                    if (String(p.name || '').trim()) return false;
+                    if (p.isOnline === true) return false;
+                    return true;
+                });
+                if (zombieKeys.length > 0) {
+                    const updates = {};
+                    zombieKeys.forEach((key) => {
+                        updates[`rooms/${selectedGame}/players/${key}`] = null;
+                    });
+                    update(ref(db), updates);
+                    data = { ...data };
+                    zombieKeys.forEach((k) => {
+                        delete data[k];
+                    });
+                }
+            }
+
+            const json = JSON.stringify(data);
+            if (json === lastPlayersJson) return;
+            lastPlayersJson = json;
+
+            clearTimeout(playersTimeoutId);
+            playersTimeoutId = setTimeout(() => {
+                handlePresenceAndKick(data);
+                applyPlayersSnapshot(data);
+            }, playersDebounceMs);
         });
 
         const lockedRef = ref(db, `rooms/${selectedGame}/isLocked`);
@@ -257,95 +357,68 @@ function App() {
         });
 
         return () => {
+            clearTimeout(playersTimeoutId);
             unsubscribe();
             unsubscribeLocked();
         };
-    }, [selectedGame, isJoined, myPlayerId, isHost, soundEnabled, playJoinSound]);
+    }, [selectedGame, isJoined, myPlayerId, playJoinSound]);
 
-    // =========================================================================
-    // POPRAWIONY EFEKT 2: STOPER I MIGRACJA HOSTA (BEZ BŁĘDÓW ESLINT!)
-    // =========================================================================
     useEffect(() => {
-        let timer;
-
-        const triggerMigration = async () => {
-            const snapshot = await get(ref(db, `rooms/${selectedGame}/players`));
-            const data = snapshot.val();
-            if (data) {
-                const hasActiveHostNow = Object.values(data).some(p => p.isHost && p.isOnline !== false);
-                if (!hasActiveHostNow) {
-                    const onlinePlayerKeys = Object.keys(data).filter(k => data[k].isOnline !== false).sort();
-
-                    if (onlinePlayerKeys[0] === myPlayerId) {
-                        set(ref(db, `rooms/${selectedGame}/players/${myPlayerId}/isHost`), true);
-
-                        Object.keys(data).forEach(k => {
-                            if (data[k].isHost && k !== myPlayerId) {
-                                set(ref(db, `rooms/${selectedGame}/players/${k}/isHost`), false);
-                            }
-                        });
-                    }
-                }
+        if (!isJoined || typeof document === 'undefined') return undefined;
+        const onVisibility = () => {
+            if (document.hidden) {
+                joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
             }
         };
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => document.removeEventListener('visibilitychange', onVisibility);
+    }, [isJoined]);
 
-        if (hostLost && myPlayerId && isJoined) {
-            // NAPRAWA: Opakowanie w setTimeout(..., 0) przenosi akcję do kolejki asynchronicznej,
-            // co całkowicie likwiduje błąd ESLinta i zapobiega kaskadowym renderom!
-            const t = setTimeout(() => setMigrationCountdown(30), 0);
+    const triggerHostMigration = useCallback(async () => {
+        if (!selectedGame || !myPlayerId) return;
+        const snapshot = await get(ref(db, `rooms/${selectedGame}/players`));
+        const data = snapshot.val();
+        if (!data) return;
 
-            timer = setInterval(() => {
-                setMigrationCountdown((prev) => {
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        triggerMigration();
-                        return null;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
+        const hasActiveHostNow = Object.values(data).some((p) => p.isHost && p.isOnline !== false);
+        if (hasActiveHostNow) return;
 
-            return () => {
-                clearTimeout(t);
-                clearInterval(timer);
-            };
-        } else {
-            // NAPRAWA: Bezpieczne, asynchroniczne zerowanie licznika
-            const t = setTimeout(() => setMigrationCountdown(null), 0);
-            return () => clearTimeout(t);
+        const onlinePlayerKeys = Object.keys(data)
+            .filter((k) => data[k].isOnline !== false)
+            .sort();
+
+        if (onlinePlayerKeys[0] === myPlayerId) {
+            set(ref(db, `rooms/${selectedGame}/players/${myPlayerId}/isHost`), true);
+            Object.keys(data).forEach((k) => {
+                if (data[k].isHost && k !== myPlayerId) {
+                    set(ref(db, `rooms/${selectedGame}/players/${k}/isHost`), false);
+                }
+            });
         }
-    }, [hostLost, myPlayerId, isJoined, selectedGame]);
+    }, [selectedGame, myPlayerId]);
 
-    // =========================================================================
-    // POPRAWIONY EFEKT 3: GLOBALNE NASŁUCHIWANIE GRACZY ONLINE + CZYSTKA MENU GŁÓWNEGO
-    // =========================================================================
+    // Menu główne: 5 listenerów players — debounce zbiorczy (mniej renderów na Malinie)
     useEffect(() => {
         if (selectedGame) return;
+
+        const pendingRef = { current: {} };
+        const flushPresence = debounce(() => {
+            const batch = { ...pendingRef.current };
+            pendingRef.current = {};
+            setPresenceByGame((prev) => ({ ...prev, ...batch }));
+        }, PRESENCE_DEBOUNCE_MS);
 
         const unsubs = gameData.games.map((game) => {
             const gameId = game.id;
             const playersRef = ref(db, `rooms/${gameId}/players`);
             return onValue(playersRef, (snapshot) => {
-                let raw = snapshot.val() || {};
-                const zombieKeys = Object.keys(raw).filter(
-                    (pId) => !raw[pId]?.name || String(raw[pId].name).trim() === ''
-                );
-                if (zombieKeys.length > 0) {
-                    const updates = {};
-                    zombieKeys.forEach((k) => {
-                        updates[`rooms/${gameId}/players/${k}`] = null;
-                    });
-                    update(ref(db), updates);
-                    raw = { ...raw };
-                    zombieKeys.forEach((k) => {
-                        delete raw[k];
-                    });
-                }
-                setPresenceByGame((prev) => ({ ...prev, [gameId]: raw }));
+                pendingRef.current[gameId] = snapshot.val() || {};
+                flushPresence();
             });
         });
 
         return () => {
+            flushPresence.cancel();
             unsubs.forEach((u) => u());
             setPresenceByGame({});
         };
@@ -358,6 +431,7 @@ function App() {
 
         if (cleanedCmd === '') return;
 
+        await runWithBusy(async () => {
         try {
             if (cleanedCmd === 'CLEAR') {
                 if (window.confirm("Reseetujemy całą bazę? Wszyscy zostaną wyrzuceni.")) {
@@ -500,7 +574,8 @@ function App() {
             console.error(e);
             alert('❌ Błąd podczas wykonywania komendy. Sprawdź konsolę.');
         }
-    }, [adminCommand, selectedGame, myPlayerId, isAdminMode]);
+        });
+    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, runWithBusy]);
 
     // 5. DOŁĄCZANIE DO POKOJU (NADPISYWANIE DUCHÓW / ZABEZPIECZENIEM PRZED BLOKADĄ)
     const handleJoin = async () => {
@@ -511,8 +586,8 @@ function App() {
             setNameError('Podaj imię, aby wejść do pokoju.');
             return;
         }
-        
 
+        await runWithBusy(async () => {
         const lockedSnapshot = await get(ref(db, `rooms/${selectedGame}/isLocked`));
         const isLocked = lockedSnapshot.val() || false;
 
@@ -560,22 +635,84 @@ function App() {
             setMyPlayerId(newPlayerRef.key);
         }
 
-        set(targetPlayerRef, { name: cleanedName, isHost: finalIsHost, isOnline: true });
-        onDisconnect(targetPlayerRef).update({ isOnline: false });
-        setIsJoined(true);
-        setNameError('');
+        joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
+        missingPlayerSinceRef.current = 0;
+        isJoiningRef.current = true;
+
+        try {
+            await set(targetPlayerRef, {
+                name: cleanedName,
+                isHost: finalIsHost,
+                isOnline: true,
+                isKicked: false,
+                joinedAt: Date.now(),
+            });
+
+            const verify = await get(targetPlayerRef);
+            if (!verify.val()?.name) {
+                setNameError('Nie udało się zapisać w pokoju. Spróbuj ponownie.');
+                return;
+            }
+
+            try {
+                onDisconnect(targetPlayerRef).update({ isOnline: false });
+            } catch (discErr) {
+                console.warn('[join] onDisconnect:', discErr);
+            }
+
+            setIsJoined(true);
+            setNameError('');
+            joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
+        } catch (err) {
+            console.error(err);
+            joinGraceUntilRef.current = 0;
+            setNameError('Nie udało się dołączyć. Sprawdź połączenie z bazą (na dole ekranu).');
+        } finally {
+            isJoiningRef.current = false;
+        }
+        });
     };
 
     const kickPlayer = useCallback(async (playerId) => {
-        if (!selectedGame) return;
-        try {
-            await set(ref(db, `rooms/${selectedGame}/players/${playerId}/isKicked`), true);
-            setLobbyMessage('🧹 Host: Wyrzucono gracza z pokoju.');
-        } catch (err) {
-            console.error(err);
-            alert('❌ Błąd przy wyrzucaniu gracza.');
-        }
-    }, [selectedGame]);
+        if (!selectedGame || !myPlayerId) return;
+        await runWithBusy(async () => {
+            try {
+                const meSnap = await get(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
+                if (!meSnap.val()?.isHost) {
+                    alert('❌ Tylko aktywny Host może wyrzucać graczy. Odśwież stronę lub użyj HOST ME w konsoli.');
+                    return;
+                }
+                const targetRef = ref(db, `rooms/${selectedGame}/players/${playerId}`);
+                const targetSnap = await get(targetRef);
+                const target = targetSnap.val();
+                if (!target) return;
+                if (target.isHost) {
+                    alert('❌ Nie możesz wyrzucić Hosta.');
+                    return;
+                }
+
+                await update(targetRef, { isKicked: true, isOnline: false });
+
+                if (target.isOnline === false) {
+                    await remove(targetRef);
+                } else {
+                    window.setTimeout(async () => {
+                        try {
+                            const again = await get(targetRef);
+                            if (again.val()?.isKicked) await remove(targetRef);
+                        } catch {
+                            /* backup cleanup */
+                        }
+                    }, 3000);
+                }
+
+                setLobbyMessage(`🧹 Host: Wyrzucono ${target.name || 'gracza'} z pokoju.`);
+            } catch (err) {
+                console.error(err);
+                alert('❌ Błąd przy wyrzucaniu gracza. Sprawdź połączenie z bazą (na dole ekranu).');
+            }
+        });
+    }, [selectedGame, myPlayerId, runWithBusy]);
 
     const adminKick = useCallback(async (gameId, playerKey) => {
         try {
@@ -614,11 +751,32 @@ function App() {
         <div className="app-container">
             {/* Logo z obsługą double click (Easter egg panelu admina) */}
             <h1
-                onDoubleClick={() => setShowAdminPanel(prev => !prev)}
+                onDoubleClick={toggleAdminPanel}
                 className="main-logo-clickable"
+                title="Przytrzymaj 0,6 s (telefon) lub kliknij dwukrotnie — konsola admina"
+                {...logoLongPress}
             >
                 Party Games
             </h1>
+
+            <IosWifiHelp />
+
+            {firebaseConnection.mode === 'emulator' && (
+                <div className="party-ap-banner" role="alert">
+                    {firebaseConnection.onPartyGateway ? (
+                        <>
+                            Jesteś na <strong>{PI_AP_GATEWAY}</strong> — dobrze. Goście: Wi‑Fi{' '}
+                            <strong>PartBox-Gry</strong>, ten sam adres w przeglądarce.
+                        </>
+                    ) : (
+                        <>
+                            Impreza: Wi‑Fi <strong>PartBox-Gry</strong> i{' '}
+                            <a href={`http://${PI_AP_GATEWAY}`}>http://{PI_AP_GATEWAY}</a> u wszystkich
+                            (nie mieszaj z IP w LAN).
+                        </>
+                    )}
+                </div>
+            )}
 
             <button
                 type="button"
@@ -692,7 +850,31 @@ function App() {
                         </button>
                     </div>
 
-                    <p className="settings-hint">Opcje zapamiętamy później; teraz tylko ustawienia UI.</p>
+                    <div className="settings-panel__group">
+                        <button
+                            type="button"
+                            className="settings-toggle"
+                            onClick={() => {
+                                toggleAdminPanel();
+                                setShowSettings(false);
+                            }}
+                            aria-pressed={showAdminPanel}
+                        >
+                            <span>Konsola administratora</span>
+                            <span className={`settings-toggle__icon ${showAdminPanel ? 'on' : 'off'}`}>
+                                {showAdminPanel ? '✔' : '✕'}
+                            </span>
+                        </button>
+                        <p className="settings-hint settings-hint--tight">
+                            Komendy: CLEAR, RESET, ADMIN… Albo przytrzymaj logo „Party Games” ~0,6 s.
+                        </p>
+                    </div>
+
+                    <p className="settings-hint">
+                        {isLowPowerDevice()
+                            ? 'Malinka: tryb oszczędny. Na iPhonie wyłącz prywatny adres Wi‑Fi dla PartBox-Gry.'
+                            : 'Internet: pełne animacje i efekty.'}
+                    </p>
                 </div>
             )}
 
@@ -705,7 +887,7 @@ function App() {
                         type="text"
                         value={adminCommand}
                         onChange={(e) => setAdminCommand(e.target.value)}
-                        placeholder="Konsola: Wpisz komendę (np. CLEAR, RESET)..."
+                        placeholder="Konsola:"
                         onKeyDown={(e) => e.key === 'Enter' && handleAdminCommand()}
                         className="input-admin-console"
                     />
@@ -732,23 +914,11 @@ function App() {
                     <div className="players-section">
                         <h3>Wszyscy gracze online:</h3>
                         <div className="players-list">
-                            {globalPlayersList.length > 0 ? globalPlayersList.map(p => {
-                                const [gameId, pid] = p.id.split(':');
-                                return (
-                                    <span key={p.id} className={`player-tag ${p.isOnline === false ? 'player-offline' : ''}`}>
-                                        {p.name} <span className="global-player-game">({p.gameName})</span> {p.isOnline === false && '💤'}
-                                        {isAdminMode && (
-                                            <button
-                                                onClick={() => adminKick(gameId, pid)}
-                                                className="btn-admin-kick"
-                                                title="Admin: wyrzuć gracza"
-                                            >
-                                                🛑
-                                            </button>
-                                        )}
-                                    </span>
-                                );
-                            }) : <span className="empty-room-text">Brak graczy online. Rozpocznij imprezę!</span>}
+                            <GlobalPlayersList
+                                players={globalPlayersList}
+                                isAdminMode={isAdminMode}
+                                onAdminKick={adminKick}
+                            />
                         </div>
                     </div>
                 </div>
@@ -811,7 +981,7 @@ function App() {
                         <div>
                             <h2>Grasz w: {currentGameMeta?.name}</h2>
 
-                            {isHost && (
+                            {effectiveIsHost && (
                                 <div className="room-lock-container">
                                     <button
                                         onClick={() => set(ref(db, `rooms/${selectedGame}/isLocked`), !isRoomLocked)}
@@ -822,49 +992,53 @@ function App() {
                                 </div>
                             )}
 
-                            {migrationCountdown !== null && (
-                                <div className="migration-warning">
-                                    ⚠️ Host utracił połączenie. Przekazanie stołu za: {migrationCountdown}s...
-                                </div>
-                            )}
+                            <MigrationBanner
+                                hostLost={hostLost}
+                                myPlayerId={myPlayerId}
+                                isJoined={isJoined}
+                                selectedGame={selectedGame}
+                                onMigrate={triggerHostMigration}
+                            />
 
-                            {selectedGame === 'never-have-i-ever' && (
-                                <NeverHaveIEver isHost={isHost} onLeave={handleBackToMenu} roomInviteUrl={roomInviteUrl} />
-                            )}
+                            <Suspense fallback={<p className="game-loading">Ładowanie gry…</p>}>
+                                {selectedGame === 'never-have-i-ever' && (
+                                    <NeverHaveIEver isHost={effectiveIsHost} onLeave={handleBackToMenu} roomInviteUrl={roomInviteUrl} />
+                                )}
 
-                            {selectedGame === 'truth-or-dare' && (
-                                <TruthOrDare
-                                    isHost={isHost}
-                                    onLeave={handleBackToMenu}
-                                    playerName={playerName}
-                                    roomInviteUrl={roomInviteUrl}
-                                    vibrationEnabled={vibrationEnabled}
-                                />
-                            )}
+                                {selectedGame === 'truth-or-dare' && (
+                                    <TruthOrDare
+                                        isHost={effectiveIsHost}
+                                        onLeave={handleBackToMenu}
+                                        playerName={playerName}
+                                        roomInviteUrl={roomInviteUrl}
+                                        vibrationEnabled={vibrationEnabled}
+                                    />
+                                )}
 
-                            {selectedGame === 'impostor' && (
-                                <Impostor
-                                    isHost={isHost}
-                                    onLeave={handleBackToMenu}
-                                    myPlayerId={myPlayerId}
-                                    tablePlayers={playersList}
-                                    roomInviteUrl={roomInviteUrl}
-                                />
-                            )}
+                                {selectedGame === 'impostor' && (
+                                    <Impostor
+                                        isHost={effectiveIsHost}
+                                        onLeave={handleBackToMenu}
+                                        myPlayerId={myPlayerId}
+                                        tablePlayers={playersList}
+                                        roomInviteUrl={roomInviteUrl}
+                                    />
+                                )}
 
-                            {selectedGame === 'mafia' && (
-                                <Mafia
-                                    isHost={isHost}
-                                    onLeave={handleBackToMenu}
-                                    myPlayerId={myPlayerId}
-                                    tablePlayers={playersList}
-                                    roomInviteUrl={roomInviteUrl}
-                                />
-                            )}
+                                {selectedGame === 'mafia' && (
+                                    <Mafia
+                                        isHost={effectiveIsHost}
+                                        onLeave={handleBackToMenu}
+                                        myPlayerId={myPlayerId}
+                                        tablePlayers={playersList}
+                                        roomInviteUrl={roomInviteUrl}
+                                    />
+                                )}
 
-                            {selectedGame === 'dark-stories' && (
-                                <DarkStories isHost={isHost} onLeave={handleBackToMenu} roomInviteUrl={roomInviteUrl} />
-                            )}
+                                {selectedGame === 'dark-stories' && (
+                                    <DarkStories isHost={effectiveIsHost} onLeave={handleBackToMenu} roomInviteUrl={roomInviteUrl} />
+                                )}
+                            </Suspense>
                         </div>
                     )}
 
@@ -876,11 +1050,12 @@ function App() {
                                 <span key={p.id} className={`player-tag ${p.isOnline === false ? 'player-offline' : ''}`}>
                                     {p.name} {p.isOnline === false && '💤'}
 
-                                    {(isJoined && isHost && p.id !== myPlayerId) && (
+                                    {(isJoined && effectiveIsHost && p.id !== myPlayerId) && (
                                         <button
+                                            type="button"
                                             onClick={() => kickPlayer(p.id)}
                                             className="btn-kick"
-                                            title="Wyrzuć gracza na stałe"
+                                            title={`Wyrzuć gracza ${p.name}`}
                                         >
                                             ✕
                                         </button>
@@ -902,8 +1077,7 @@ function App() {
                 </div>
             )}
 
-            {/* Wersja w rogu ekranu */}
-            <div className="version-tag">v{versionData.version}</div>
+            <ConnectionStatus />
         </div>
     );
 }
