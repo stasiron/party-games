@@ -6,7 +6,7 @@ import { set, update } from '../../lib/rtdb';
 
 import { db } from '../../lib/firebase';
 
-import gameData from '../../data/gameContent.json';
+import gameData from '../../data/gameContent.js';
 
 import { useRoomGameState } from '../../lib/useRoomGameState';
 

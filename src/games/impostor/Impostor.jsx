@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { ref } from 'firebase/database';
 import { set, get, update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
-import gameData from '../../data/gameContent.json';
+import gameData from '../../data/gameContent.js';
 import { getImpostorCategories, getCategoryLabel } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import { useRoomSettings } from '../../lib/useRoomSettings';

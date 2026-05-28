@@ -5,7 +5,7 @@ import { db } from '../../lib/firebase';
 import { getMinUiSyncMs } from '../../lib/lowPower';
 import { subscribePiQueue } from '../../lib/rtdbThrottle';
 import { usePiGameSession } from '../../lib/usePiGameSession';
-import gameData from '../../data/gameContent.json';
+import gameData from '../../data/gameContent.js';
 import { getTruthOrDareCategories } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import { shuffleArray } from '../../lib/shuffle';

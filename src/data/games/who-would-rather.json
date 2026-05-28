@@ -1,0 +1,51 @@
+{
+  "categories": [
+    {
+      "id": "rozgrzewka",
+      "name": "Rozgrzewka",
+      "desc": "Lekkie dylematy na rozruszanie ekipy."
+    },
+    {
+      "id": "impreza",
+      "name": "Imprezowe",
+      "desc": "Wybory z klubowego i nocnego życia."
+    },
+    {
+      "id": "bez-hamulcow",
+      "name": "Bez hamulców",
+      "desc": "Trudniejsze wybory — 18+."
+    }
+  ],
+  "dilemmas": {
+    "rozgrzewka": [
+      {
+        "a": "Mieć współlokatora, który sprząta po sobie, ale gada bez przerwy",
+        "b": "Mieć współlokatora milczącego, który zostawia bałagan w kuchni"
+      },
+      {
+        "a": "Zawsze mieć 10% baterii na telefonie",
+        "b": "Zawsze łapać Wi-Fi, które działa tylko przez 5 minut"
+      }
+    ],
+    "impreza": [
+      {
+        "a": "Tańczyć całą noc w niewygodnych butach",
+        "b": "Siedzieć przy barze w wygodnych trampkach, ale nudzić się"
+      },
+      {
+        "a": "Mieć idealnego DJ-a, ale tłum tak gęsty, że nie da się ruszyć",
+        "b": "Pusty parkiet, ale playlistę z radia z marketu"
+      }
+    ],
+    "bez-hamulcow": [
+      {
+        "a": "Wysłać wszystkim z kontaktów jedno żenujące zdjęcie z 3 lat temu",
+        "b": "Przeczytać na głos ostatnie 5 wiadomości z ulubionej osoby"
+      },
+      {
+        "a": "Przez tydzień nosić koszulkę z najgorszym żartem, jaki kiedykolwiek powiedziałeś",
+        "b": "Przez tydzień używać pseudonimu, który wymyśli grupa"
+      }
+    ]
+  }
+}

@@ -8,7 +8,7 @@
         ".read": true,
         ".write": true,
         "gameId": {
-          ".validate": "newData.isString() && (newData.val() === 'never-have-i-ever' || newData.val() === 'truth-or-dare' || newData.val() === 'impostor' || newData.val() === 'mafia' || newData.val() === 'dark-stories')"
+          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej)$/)"
         },
         "isLocked": {
           ".validate": "newData.isBoolean()"
@@ -72,7 +72,7 @@
         ".write": true,
         ".validate": "newData.val() === null || newData.hasChildren(['gameId', 'isLocked', 'onlineCount', 'updatedAt'])",
         "gameId": {
-          ".validate": "newData.isString() && (newData.val() === 'never-have-i-ever' || newData.val() === 'truth-or-dare' || newData.val() === 'impostor' || newData.val() === 'mafia' || newData.val() === 'dark-stories')"
+          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej)$/)"
         },
         "isLocked": {
           ".validate": "newData.isBoolean()"

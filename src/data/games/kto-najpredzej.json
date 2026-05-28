@@ -1,0 +1,33 @@
+{
+  "categories": [
+    {
+      "id": "rozgrzewka",
+      "name": "Rozgrzewka",
+      "desc": "Lekkie pytania na rozruszanie grupy."
+    },
+    {
+      "id": "impreza",
+      "name": "Imprezowe",
+      "desc": "Wieczorne wpadki i zachowania po kilku drinkach."
+    },
+    {
+      "id": "bez-hamulcow",
+      "name": "Bez hamulców",
+      "desc": "Cieplejsze tematy — 18+."
+    }
+  ],
+  "questions": {
+    "rozgrzewka": [
+      "Kto najprędzej kupiłby coś głupiego w internecie o 2 w nocy?",
+      "Kto najprędzej zapomniałby, że ma spotkanie, i wysłałby tylko „już jadę”?"
+    ],
+    "impreza": [
+      "Kto najprędzej zacząłby tańczyć na stole bez zachęty?",
+      "Kto najprędzej wysłałby głosówkę do niewłaściwej osoby po imprezie?"
+    ],
+    "bez-hamulcow": [
+      "Kto najprędzej przyznałby się do crusha przy wszystkich przy stole?",
+      "Kto najprędzej wziąłby winę za cudzy żart, żeby uratować sytuację?"
+    ]
+  }
+}

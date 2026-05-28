@@ -1,0 +1,147 @@
+{
+  "difficulties": [
+    {
+      "id": "latwy",
+      "name": "Łatwy",
+      "desc": "Proste zagadki, szybkie „aha!”."
+    },
+    {
+      "id": "sredni",
+      "name": "Średni",
+      "desc": "Wymaga kilku dobrych pytań i logicznego myślenia."
+    },
+    {
+      "id": "trudny",
+      "name": "Trudny",
+      "desc": "Mroczne i złożone — dla doświadczonych detektywów."
+    }
+  ],
+  "stories": {
+    "latwy": [
+      {
+        "prompt": "Mężczyzna pcha samochód pod hotel i nagle wie, że jest bankrutem.",
+        "solution": "Gra w Monopoly — stoi na polu z hotelem i nie ma już pieniędzy."
+      },
+      {
+        "prompt": "Kobieta wchodzi do baru, prosi barmana o szklankę wody. Barman sięga po broń. Kobieta dziękuje i wychodzi.",
+        "solution": "Miała czkawkę — strach przed bronią ją wyleczył."
+      },
+      {
+        "prompt": "Mężczyzna włącza radio, słyszy wiadomość, wyłącza radio i popełnia samobójstwo.",
+        "solution": "Był pilotem — w wiadomości usłyszał, że rozbił się samolot, w którym leciała jego żona."
+      },
+      {
+        "prompt": "Dwóch mężczyzn je jedzeniem. Jeden umiera. Drugi odchodzi zadowolony.",
+        "solution": "Jeden miał alergię — drugi celowo podał mu to, na co był uczulony (np. orzechy w deserze)."
+      },
+      {
+        "prompt": "Mężczyzna otwiera drzwi, widzi martwego człowieka i dzwoni na policję.",
+        "solution": "To aktor na planie filmu — myśli, że to prawdziwy ciało, a to rekwizyt lub kolega udający."
+      },
+      {
+        "prompt": "Mężczyzna włącza światło w piwnicy i natychmiast wyłącza. Następnego dnia jest aresztowany.",
+        "solution": "W piwnicy zobaczył coś przerażającego (np. zwłoki) — wyłączył światło i uciekł; aresztowano go, bo zostawił dowody lub ukrywał ciało."
+      },
+      {
+        "prompt": "Mężczyzna spada z wieży i przeżywa. Następnego dnia spada znowu i ginie.",
+        "solution": "Pierwszy raz spadł z parteru lub niskiego piętra (np. okno na parterze); drugi raz z wysokiego piętra."
+      },
+      {
+        "prompt": "Grupa przyjaciół gra w gry planszowe. Jeden wstaje, idzie do łazienki i już nie wraca żywy.",
+        "solution": "Połknął pionek gry (np. pionek z Monopoly) i się zakrztusił."
+      },
+      {
+        "prompt": "Mężczyzna dostaje list. Czyta go i natychmiast się zabija.",
+        "solution": "List informował go, że ma nieuleczalną chorobę lub że jego ukochana zginęła — nie mógł tego znieść."
+      },
+      {
+        "prompt": "Mężczyzna idzie do lasu z lusterkiem i wraca bez niego, ale uratowany.",
+        "solution": "Utknął w górach lub na morzu — użył lusterka, by dać sygnał świetlny ratownikom (helikopter, statek)."
+      }
+    ],
+    "sredni": [
+      {
+        "prompt": "Mężczyzna mieszka na 20. piętrze. Rano zawsze jedzie windą na dół. Wieczorem: w słoneczne dni wysiada na 10. piętrze i idzie pieszo; w deszczowe jedzie na 20. Dlaczego?",
+        "solution": "Jest karłem — nie sięga do przycisku 20. piętra. W deszcz nosi parasol i może wcisnąć wyższy przycisk parasolem."
+      },
+      {
+        "prompt": "Mężczyzna leży martwy w polu z nierozpakowanym pakunkiem obok.",
+        "solution": "Spadochroniarz — pakunek to nierozłożony spadochron."
+      },
+      {
+        "prompt": "W pokoju są świeca, wahadło i kot. Mężczyzna zamyka oczy, otwiera — kot leży martwy. Zamyka znowu — kot żyje. Trzeci raz zamyka oczy — mężczyzna popełnia samobójstwo.",
+        "solution": "Był fizykiem w laboratorium — za każdym razem, gdy zamykał oczy, eksperyment się powtarzał; kot żył i umierał losowo (schrödinger); nie mógł znieść odpowiedzialności."
+      },
+      {
+        "prompt": "Kobieta idzie na spotkanie, wraca wcześniej i zabija męża.",
+        "solution": "Zastała go z kochanką — zabiła w afekcie lub zemście."
+      },
+      {
+        "prompt": "Mężczyzna wchodzi do restauracji, zamawia albatrosa, je i następnego dnia umiera.",
+        "solution": "Albatros to rzadkie danie — był na statku, gdzie jedzenie albatrosa przynosi pech; albo danie było zatrute / alergia; klasyczna wersja: był rozbitkiem i albatros symbolizował ostatnią nadzieję — zjadł go i stracił wiarę."
+      },
+      {
+        "prompt": "Dwoje ludzi patrzy na siebie przez szklane drzwi. Jeden umiera, drugi żyje.",
+        "solution": "Jeden jest w komorze gazowej lub w zamkniętym pomieszczeniu bez tlenu; drugi jest po drugiej stronie i nie może pomóc (np. eksperyment, więzienie)."
+      },
+      {
+        "prompt": "Mężczyzna budzi się w nocy, patrzy na zegar i wie, że umrze przed świtem.",
+        "solution": "Ma budzik na śmierć — np. termin w szpitalu, egzekucja o świcie, lub zegar wskazuje, że minął czas przyjęcia leku ratującego życie."
+      },
+      {
+        "prompt": "Kobieta dostaje telefon. Słyszy jedno zdanie i rzuca się pod pociąg.",
+        "solution": "Dzwonił ktoś z wieży kolejowej / z przejazdu — ostrzegł, że pociąg jedzie, a ona stała na torach; albo usłyszała, że ukochany zginął pod pociągiem."
+      },
+      {
+        "prompt": "Mężczyzna gra na pianinie w pustym domu. Nagle przestaje i się zabija.",
+        "solution": "Grał utwór, który przypomniał mu tragiczną stratę (np. żona grała ten utwór przed śmiercią); albo usłyszał dźwięk, który oznaczał, że ktoś wszedł (intruz)."
+      },
+      {
+        "prompt": "W lesie leży martwy mężczyzna z nieotwartą butelką wody w dłoni.",
+        "solution": "Spadł z helikoptera lub samolotu w pustyni — butelka była pusta, nie mógł jej otworzyć (np. zamknięta na wieczne, uszkodzona) lub to była butelka z trucizną, którą myślał że to woda."
+      }
+    ],
+    "trudny": [
+      {
+        "prompt": "Mężczyzna patrzy na zdjęcie i mówi: „To nie ja.” Następnie się zabija.",
+        "solution": "Na zdjęciu jest on młodszy z bratem bliźniakiem — myślał, że to on na zdjęciu, ale to brat; zrozumiał, że przez lata żył tożsamością brata lub że „on” na zdjęciu już nie żyje i on przejął jego życie."
+      },
+      {
+        "prompt": "Kobieta siedzi w ciemnym pokoju. Światło się zapala — widzi ciało i krzyczy. Światło gaśnie. Gdy zapala się znów, ona leży martwa.",
+        "solution": "To teatr lub dom horrorów — „ciało” to rekwizyt; ktoś (mąż, technik) wyłączył światło i ją zabił; przy drugim zapaleniu ona jest ofiarą."
+      },
+      {
+        "prompt": "Mężczyzna wchodzi do windy na parterze budynku. Wychodzi na parterze tego samego budynku — i jest szczęśliwy.",
+        "solution": "Myślał, że winda jedzie w górę (np. czuł ruch), ale utknęła lub spadła — wyszedł żywy na parterze po awarii."
+      },
+      {
+        "prompt": "Dwoje ludzi gra w szachy. Jeden stawia szacha matem. Drugi zabija pierwszego.",
+        "solution": "Gra na żywo w więzieniu lub podczas wojny — przegrany nie akceptuje porażki i zabija zwycięzcę; albo „szach mat” to sygnał do egzekucji przegranego stronnika."
+      },
+      {
+        "prompt": "Mężczyzna budzi się w piwnicy bez drzwi. Jest jedzenie i woda. Po tygodniu umiera, choć jedzenie się nie skończyło.",
+        "solution": "Jedzenie było zatrute lub powoli go zabijało; albo zmarł z braku światła / witaminy D / samotności; albo woda była zatruta."
+      },
+      {
+        "prompt": "Kobieta wraca do domu po pracy. Widzi męża na kanapie. Siada obok niego i umiera.",
+        "solution": "Mąż już nie żył (zawał, samobójstwo) — ona nie zauważyła od razu; usiadła i zmarła z szoku lub z tej samej przyczyny (gaz, tlenek węgla w domu)."
+      },
+      {
+        "prompt": "Mężczyzna dostaje medal za odwagę. Tego samego dnia zabija swojego brata.",
+        "solution": "Medal dostał za ratowanie ludzi w katastrofie — w tej katastrofie zginęli rodzice; brat obwiniał go lub odwrotnie; zabił w zemście albo brat był „winny” wypadkowi."
+      },
+      {
+        "prompt": "W pokoju jest tylko kałuża wody i martwy mężczyzna. Okna i drzwi są zamknięte od środka.",
+        "solution": "Mężczyzna był zamrożonym blokiem lodu (np. dostarczonym jako rzeźba) — stopił się w pokoju; kałuża to woda z lodu."
+      },
+      {
+        "prompt": "Mężczyzna pisze list, wkłada do koperty i idzie na pocztę. Nie wraca.",
+        "solution": "List to list pożegnalny — popełnia samobójstwo w drodze lub na poczcie (skok, samochód); albo zginął w wypadku w drodze."
+      },
+      {
+        "prompt": "Kobieta patrzy w lustro, uśmiecha się i umiera.",
+        "solution": "Widziała w lustrze odbicie zagrożenia za sobą (morderca); albo miała urządzenie medyczne — uśmiech to ostatnia reakcja przed zawałem; albo lustro w windzie — uśmiechnęła się, bo myślała że jest bezpieczna, a winda spadła."
+      }
+    ]
+  }
+}

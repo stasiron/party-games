@@ -1,0 +1,519 @@
+{
+  "categories": [
+    {
+      "id": "klasyk",
+      "name": "Klasycznie",
+      "desc": "Zabawne i bezpieczne."
+    },
+    {
+      "id": "ostro",
+      "name": "Bez cenzury",
+      "desc": "Dla odważnych i pełnoletnich."
+    },
+    {
+      "id": "szalone",
+      "name": "Wariackie akcje",
+      "desc": "Kreatywne zadania i abstrakcyjne pytania."
+    }
+  ],
+  "content": {
+    "klasyk": {
+      "truth": [
+        {
+          "text": "Jaki jest twój najbardziej żenujący nawyk?",
+          "level": 2
+        },
+        {
+          "text": "Kogo z tego pokoju zabrałbyś na bezludną wyspę?",
+          "level": 4
+        },
+        {
+          "text": "Jaka była najgorsza wymówka, której użyłeś, by gdzieś nie pójść?",
+          "level": 1
+        },
+        {
+          "text": "Czy kiedykolwiek kłamałeś, żeby kogoś nie urazić?",
+          "level": 2
+        },
+        {
+          "text": "Jaki jest twój największy irracjonalny lęk?",
+          "level": 2
+        },
+        {
+          "text": "Ile najdłużej nie brałeś prysznica?",
+          "level": 3
+        },
+        {
+          "text": "Jaka piosenka jest twoją 'guilty pleasure'?",
+          "level": 1
+        },
+        {
+          "text": "Czy kiedykolwiek podglądałeś kogoś w social mediach?",
+          "level": 2
+        },
+        {
+          "text": "Co najdziwniejszego zjadłeś w życiu?",
+          "level": 2
+        },
+        {
+          "text": "Czy zdarzyło ci się kiedyś udawać, że kogoś lubisz, choć go nie znosisz?",
+          "level": 3
+        },
+        {
+          "text": "Jaki był twój najbardziej obciachowy strój w życiu?",
+          "level": 2
+        },
+        {
+          "text": "Kto z obecnych ma według ciebie najlepszy styl ubierania?",
+          "level": 2
+        },
+        {
+          "text": "Co zrobiłbyś jako pierwsze, gdybyś wygrał milion na loterii?",
+          "level": 1
+        },
+        {
+          "text": "Czy kiedykolwiek płakałeś w miejscu publicznym i dlaczego?",
+          "level": 3
+        },
+        {
+          "text": "Jakie jest twoje najwcześniejsze wspomnienie z dzieciństwa?",
+          "level": 1
+        },
+        {
+          "text": "Czy masz jakieś przezwisko, którego szczerze nienawidzisz?",
+          "level": 2
+        },
+        {
+          "text": "Jaki był najgorszy prezent, jaki kiedykolwiek dostałeś?",
+          "level": 2
+        },
+        {
+          "text": "Czy kiedykolwiek zepsułeś coś wartościowego i nikomu się nie przyznałeś?",
+          "level": 4
+        },
+        {
+          "text": "Jaka była najgłupsza rzecz, jaką kupiłeś pod wpływem emocji?",
+          "level": 2
+        },
+        {
+          "text": "Kto z tego pokoju najlepiej radzi sobie w kryzysowych sytuacjach?",
+          "level": 2
+        }
+      ],
+      "dare": [
+        {
+          "text": "Zrób 10 pompek.",
+          "level": 3
+        },
+        {
+          "text": "Zatańcz bez muzyki przez 30 sekund.",
+          "level": 2
+        },
+        {
+          "text": "Niech osoba po twojej prawej ułoży ci nową fryzurę.",
+          "level": 4
+        },
+        {
+          "text": "Mów z obcym akcentem przez następne dwie rundy.",
+          "level": 3
+        },
+        {
+          "text": "Daj sobie narysować coś na czole zmywalnym pisakiem.",
+          "level": 4
+        },
+        {
+          "text": "Zrób jaskółkę i stój na jednej nodze przez 45 sekund.",
+          "level": 2
+        },
+        {
+          "text": "Zjedz plasterek cytryny bez robienia kwaśnej miny.",
+          "level": 3
+        },
+        {
+          "text": "Pozwól grupie przejrzeć twoją galerię zdjęć przez 30 sekund.",
+          "level": 5
+        },
+        {
+          "text": "Recytuj wiersz lub śpiewaj piosenkę operowym głosem.",
+          "level": 3
+        },
+        {
+          "text": "Wymień 3 cechy, które naprawdę cenisz w osobie naprzeciwko ciebie.",
+          "level": 2
+        },
+        {
+          "text": "Rób miny do kamery telefonu przez minutę bez śmiechu.",
+          "level": 2
+        },
+        {
+          "text": "Pozwól komuś wysłać losowe emoji do piątej osoby z twojej listy kontaktów.",
+          "level": 5
+        },
+        {
+          "text": "Udawaj, że jesteś kelnerem i zbierz zamówienia od każdego w pokoju.",
+          "level": 2
+        },
+        {
+          "text": "Przez kolejną rundę powtarzaj wszystko, co powie osoba po twojej lewej.",
+          "level": 3
+        },
+        {
+          "text": "Zrób najśmieszniejszą minę, na jaką cię stać, i trzymaj ją przez 15 sekund.",
+          "level": 2
+        },
+        {
+          "text": "Przemów do losowego przedmiotu w pokoju, jakby był twoją miłością życia.",
+          "level": 3
+        },
+        {
+          "text": "Narysuj portret osoby siedzącej obok ciebie, używając niedominującej ręki.",
+          "level": 3
+        },
+        {
+          "text": "Załóż skarpetki na dłonie i trzymaj je tak przez następne 5 minut.",
+          "level": 3
+        },
+        {
+          "text": "Spróbuj polizać swój własny łokieć.",
+          "level": 1
+        },
+        {
+          "text": "Zrób 15 pajacyków najszybciej jak potrafisz.",
+          "level": 2
+        }
+      ]
+    },
+    "ostro": {
+      "truth": [
+        {
+          "text": "Jaka jest twoja największa tajemnica?",
+          "level": 5
+        },
+        {
+          "text": "Kto w tym pokoju podoba ci się najbardziej?",
+          "level": 4
+        },
+        {
+          "text": "Czy kiedykolwiek żałowałeś zerwania lub odrzucenia kogoś?",
+          "level": 4
+        },
+        {
+          "text": "Jaka była twoja najbardziej ryzykowna randka w życiu?",
+          "level": 5
+        },
+        {
+          "text": "Czy kiedykolwiek przejrzałeś telefon swojego partnera lub przyjaciółki bez pytania?",
+          "level": 4
+        },
+        {
+          "text": "O czym myślisz tuż przed zaśnięciem, a o czym nikomu nie mówisz?",
+          "level": 4
+        },
+        {
+          "text": "Czy kiedykolwiek flirtowałeś z kimś, wiedząc że jest w związku?",
+          "level": 5
+        },
+        {
+          "text": "Co jest dla ciebie absolutnym 'dealbreakerem' w relacji?",
+          "level": 3
+        },
+        {
+          "text": "Czy kiedykolwiek kłamałeś na temat swojej przeszłości, by komuś zaimponować?",
+          "level": 4
+        },
+        {
+          "text": "Która osoba z obecnych uważa się za najmądrzejszą, a wcale nią nie jest?",
+          "level": 4
+        },
+        {
+          "text": "Czy masz jakąś fantazję, której boisz się zrealizować?",
+          "level": 5
+        },
+        {
+          "text": "Jakie było twoje największe rozczarowanie miłosne?",
+          "level": 4
+        },
+        {
+          "text": "Kiedy ostatni raz płakałeś przez kogoś i kto to był?",
+          "level": 4
+        },
+        {
+          "text": "Czy kiedykolwiek żałowałeś przyjaźni z kimś z tej grupy?",
+          "level": 5
+        },
+        {
+          "text": "Co jest najbardziej samolubną rzeczą, jaką zrobiłeś w życiu?",
+          "level": 4
+        },
+        {
+          "text": "Czy kiedykolwiek celowo rozpuściłeś plotkę o kimś, kogo nie lubisz?",
+          "level": 5
+        },
+        {
+          "text": "Gdybyś musiał zerwać kontakt z jedną osobą z tego pokoju, kto by to był?",
+          "level": 5
+        },
+        {
+          "text": "Jaka jest najgorsza rzecz, jaką usłyszałeś za swoimi plecami?",
+          "level": 4
+        },
+        {
+          "text": "Czy czujesz zazdrość o sukcesy swoich bliskich znajomych?",
+          "level": 4
+        },
+        {
+          "text": "Czy kiedykolwiek byłeś zakochany w partnerze swojego przyjaciela/przyjaciółki?",
+          "level": 5
+        }
+      ],
+      "dare": [
+        {
+          "text": "Pocałuj w policzek osobę po twojej lewej.",
+          "level": 5
+        },
+        {
+          "text": "Wypij shota z czymś, co wybierze grupa.",
+          "level": 4
+        },
+        {
+          "text": "Pokaż ostatnią wiadomość SMS, jaką otrzymałeś od kogoś spoza tego pokoju.",
+          "level": 4
+        },
+        {
+          "text": "Zadzwoń do losowego znajomego i powiedz mu, że bierzesz ślub, po czym się rozłącz.",
+          "level": 5
+        },
+        {
+          "text": "Zrób masaż ramion osobie siedzącej naprzeciwko ciebie przez minutę.",
+          "level": 4
+        },
+        {
+          "text": "Pozwól grupie opublikować dowolny status na twoich social mediach.",
+          "level": 5
+        },
+        {
+          "text": "Zdejmij jeden element garderoby (nie licząc biżuterii i butów).",
+          "level": 4
+        },
+        {
+          "text": "Utrzymaj kontakt wzrokowy z wybraną przez grupę osobą przez pełną minutę bez słowa.",
+          "level": 4
+        },
+        {
+          "text": "Zatańcz zmysłowy taniec wokół krzesła przez 30 sekund.",
+          "level": 5
+        },
+        {
+          "text": "Odpowiedz szczerze na jedno dowolne, pikantne pytanie zadane przez całą grupę.",
+          "level": 5
+        },
+        {
+          "text": "Niech osoba po twojej prawej sprawdzi twoją historię wyszukiwania w przeglądarce.",
+          "level": 5
+        },
+        {
+          "text": "Przejedź kostką lodu po szyi i klatce piersiowej, dopóki się nie rozpuści.",
+          "level": 4
+        },
+        {
+          "text": "Pozwól osobie po lewej usiąść ci na kolanach na czas kolejnej rundy.",
+          "level": 4
+        },
+        {
+          "text": "Wyślij serduszko osobie, która podobała ci się w przeszłości.",
+          "level": 5
+        },
+        {
+          "text": "Zmień swoje zdjęcie profilowe na Messengerze/WhatsAppie na 10 minut na to, które wybierze grupa.",
+          "level": 4
+        },
+        {
+          "text": "Przeczytaj na głos ostatnią wysłaną przez siebie wiadomość na DM.",
+          "level": 4
+        },
+        {
+          "text": "Szepnij coś sekretnego do ucha osobie po twojej prawej.",
+          "level": 3
+        },
+        {
+          "text": "Daj się połaskotać przez 20 sekund bez prawa do ucieczki.",
+          "level": 3
+        },
+        {
+          "text": "Pozwól komuś z grupy wysłać snapa lub relację z twojego konta.",
+          "level": 5
+        },
+        {
+          "text": "Wymień jedną rzecz, która najbardziej pociąga cię w osobie siedzącej obok.",
+          "level": 4
+        }
+      ]
+    },
+    "szalone": {
+      "truth": [
+        {
+          "text": "Gdybyś mógł zamienić się ciałami ze zwierzęciem na jeden dzień, co byś wybrał?",
+          "level": 1
+        },
+        {
+          "text": "Czy wierzysz w istnienie kosmitów lub duchów?",
+          "level": 1
+        },
+        {
+          "text": "Jaka była najbardziej absurdalna teoria spiskowa, w którą na chwilę uwierzyłeś?",
+          "level": 2
+        },
+        {
+          "text": "Gdyby twoje życie było filmem, jaki nosiłoby tytuł?",
+          "level": 2
+        },
+        {
+          "text": "O czym myślisz, kiedy siedzisz sam w toalecie?",
+          "level": 1
+        },
+        {
+          "text": "Jaki supermoc chciałbyś mieć, gdybyś musiał wybrać supermoc kompletnie bezużyteczną?",
+          "level": 1
+        },
+        {
+          "text": "Co zrobiłbyś, gdyby jutro miała nastąpić apokalipsa zombie?",
+          "level": 2
+        },
+        {
+          "text": "Gdybyś musiał jeść jedno danie do końca życia, co by to było?",
+          "level": 1
+        },
+        {
+          "text": "Jakie jest twoje najdziwniejsze przyzwyczajenie jedzeniowe?",
+          "level": 2
+        },
+        {
+          "text": "Czy kiedykolwiek rozmawiałeś z rośliną, próbując sprawić, by szybciej rosła?",
+          "level": 1
+        },
+        {
+          "text": "Jaka jest najgłupsza piosenka, której tekst znasz w całości na pamięć?",
+          "level": 2
+        },
+        {
+          "text": "Gdybyś mógł cofnąć się w czasie, do jakiej epoki byś się udał?",
+          "level": 2
+        },
+        {
+          "text": "Jaki jest najdziwniejszy sen, który pamiętasz ze szczegółami?",
+          "level": 3
+        },
+        {
+          "text": "Czy kiedykolwiek próbowałeś przesunąć przedmiot wzrokiem (telekineza)?",
+          "level": 1
+        },
+        {
+          "text": "Gdybyś mógł zostać animowaną postacią, kim chciałbyś być?",
+          "level": 1
+        },
+        {
+          "text": "Co sądzisz o spaniu w skarpetkach? To normalne czy dziwne?",
+          "level": 1
+        },
+        {
+          "text": "Który z graczy przeżyłby najdłużej w horrorze, a kto zginąłby pierwszy?",
+          "level": 2
+        },
+        {
+          "text": "Gdyby meble potrafiły mówić, które z nich opowiedziałoby o tobie najgorsze rzeczy?",
+          "level": 2
+        },
+        {
+          "text": "Jakie jest twoje najbardziej kontrowersyjne zdanie na temat jedzenia (np. hawajska)?",
+          "level": 1
+        },
+        {
+          "text": "Czy kiedykolwiek trenowałeś kłótnię przed lustrem?",
+          "level": 2
+        }
+      ],
+      "dare": [
+        {
+          "text": "Udawaj kurczaka przez 30 sekund, biegając po pokoju.",
+          "level": 3
+        },
+        {
+          "text": "Mów jak robot do końca następnej rundy.",
+          "level": 2
+        },
+        {
+          "text": "Zrób pelerynę z koca i stój na krześle, krzycząc 'Jestem Batmanem!'.",
+          "level": 3
+        },
+        {
+          "text": "Spróbuj żonglować trzema losowymi przedmiotami wybranymi przez grupę.",
+          "level": 2
+        },
+        {
+          "text": "Zjedz łyżeczkę musztardy, ketchupu lub majonezu.",
+          "level": 3
+        },
+        {
+          "text": "Napisz na czacie grupowym losową literę i nic więcej nie tłumacz.",
+          "level": 2
+        },
+        {
+          "text": "Rozmawiaj ze swoją dłonią przez minutę, jakby była twoim menedżerem.",
+          "level": 3
+        },
+        {
+          "text": "Załóż ubranie tył na przód i zostań tak przez dwie rundy.",
+          "level": 2
+        },
+        {
+          "text": "Zrób dramatyczną scenę umierania niczym w filmie akcji.",
+          "level": 3
+        },
+        {
+          "text": "Użyj rąk osoby stojącej za tobą, żeby napić się wody ze szklanki.",
+          "level": 4
+        },
+        {
+          "text": "Narysuj wąsy na twarzy za pomocą cienia do powiek lub kredki.",
+          "level": 4
+        },
+        {
+          "text": "Zdejmij skarpetki za pomocą samych zębów.",
+          "level": 4
+        },
+        {
+          "text": "Mów szeptem przez następne 3 minuty, nawet jeśli ktoś będzie krzyczał.",
+          "level": 2
+        },
+        {
+          "text": "Spróbuj stać na głowie lub zrobić gwiazdę.",
+          "level": 3
+        },
+        {
+          "text": "Rób minę lwa polującego na ofiarę za każdym razem, gdy ktoś na ciebie spojrzy przez 5 minut.",
+          "level": 3
+        },
+        {
+          "text": "Wypowiedz alfabet od końca najszybciej jak potrafisz.",
+          "level": 2
+        },
+        {
+          "text": "Udawaj, że jesteś influencerem kulinarnym i zrecenzuj szklankę zwykłej wody.",
+          "level": 2
+        },
+        {
+          "text": "Zwiń się w kulkę na podłodze i udawaj kamień przez 1 minutę.",
+          "level": 2
+        },
+        {
+          "text": "Wymyśl krótki rap o osobie siedzącej po twojej lewej stronie i wykonaj go.",
+          "level": 4
+        },
+        {
+          "text": "Pozwól grupie ułożyć cię w dowolną śmieszną pozę i zrób zdjęcie.",
+          "level": 3
+        }
+      ]
+    }
+  }
+}

@@ -43,5 +43,9 @@ Rozwuj wersji:
 1.1.6 Hot fix - blad wejścia do pokoju
 1.1.7 Hot fix - blad wejścia do pokoju 2
 1.1.8 Hot fix - blad wyswietklania pokoi
-1.1.9 Hot fix - błąd rozgrywki ze strony goscia
+1.1.9 Hot fix - błąd rozgrywki ze strony gościa
+1.1.10 zażegnanie problemu
+1.2.0 zaimplementowanie nowe gry whoul you rather (a or b)
+1.2.1 Hot Fix nowej gry
+1.3.0 Zaimplementowanie nowej gry who would rather
 

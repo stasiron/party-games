@@ -5,7 +5,9 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { set, get, update, runTransaction } from '../lib/rtdb';
 import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
 import { auth as firebaseAuth, firestore } from '../lib/firebase/client';
-import gameData from '../data/gameContent.json';
+import gameData from '../data/gameContent.js';
+import { resolveGameId, isPlayableGameId } from '../data/gameIds.js';
+import { getComingSoonMessage, isGameComingSoon } from '../lib/gameCatalog.js';
 import GuestPlayersPanel from '../components/GuestPlayersPanel';
 import { isGuestPlayer } from '../lib/guestPlayers';
 import ConnectionStatus from '../components/ConnectionStatus';
@@ -26,6 +28,10 @@ const Impostor = lazy(() => import('../games/impostor/Impostor'));
 const TruthOrDare = lazy(() => import('../games/truth-or-dare/TruthOrDare'));
 const Mafia = lazy(() => import('../games/mafia/Mafia'));
 const DarkStories = lazy(() => import('../games/dark-stories/DarkStories'));
+const WhoWouldRather = lazy(() => import('../games/who-would-rather/WhoWouldRather'));
+const KtoNajpredzej = lazy(() => import('../games/kto-najpredzej/KtoNajpredzej'));
+const SecretHitler = lazy(() => import('../games/secret-hitler/SecretHitler'));
+const OneNightWerewolf = lazy(() => import('../games/one-night-werewolf/OneNightWerewolf'));
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 6;
@@ -379,6 +385,7 @@ function App() {
     }, [soundEnabled]);
 
     const gameById = useMemo(() => buildGameIndex(gameData.games), []);
+    const createHostRoomRef = useRef(null);
     const currentGameMeta = useMemo(
         () => (selectedGameType ? gameById.get(selectedGameType) || null : null),
         [selectedGameType, gameById]
@@ -482,6 +489,43 @@ function App() {
             setSelectedGameType(roomData.gameId);
             setLobbyMessage('');
             setShowAdminPanel(false);
+        }, 0);
+        return () => clearTimeout(t);
+    }, []);
+
+    // Szybkie wejście hosta: ?game=<gameId> (np. /?game=who-would-rather)
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const params = new URLSearchParams(window.location.search);
+        const roomFromUrl = (params.get('room') || '').trim();
+        if (roomFromUrl) return undefined;
+
+        const rawGame = (params.get('game') || '').trim();
+        if (!rawGame) return undefined;
+
+        const gameId = resolveGameId(rawGame);
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('game');
+            window.history.replaceState({}, '', url.toString());
+        } catch {
+            /* ignore URL cleanup */
+        }
+
+        if (!gameId) {
+            setLobbyMessage(`❌ Nieznana gra: ${rawGame}`);
+            return undefined;
+        }
+
+        if (isGameComingSoon(gameId)) {
+            setLobbyMessage(getComingSoonMessage(gameId));
+            return undefined;
+        }
+
+        setEntryRole('host');
+        setIsHost(true);
+        const t = setTimeout(() => {
+            createHostRoomRef.current?.(gameId);
         }, 0);
         return () => clearTimeout(t);
     }, []);
@@ -1362,46 +1406,71 @@ function App() {
         }
     }, [lastKnownRoomId, openRoomAsGuest]);
 
-    const createHostRoom = useCallback(async (gameId) => {
+    const createHostRoom = useCallback(async (rawGameId) => {
+        const gameId = resolveGameId(rawGameId);
+        if (!gameId) {
+            setLobbyMessage(`❌ Nieznana gra: ${rawGameId}`);
+            return;
+        }
+        if (!isPlayableGameId(gameId)) {
+            setLobbyMessage(getComingSoonMessage(gameId));
+            return;
+        }
         if (isRateLimited('create-room', RATE_LIMITS_MS.createRoom)) {
             setLobbyMessage('⏱️ Tworzysz pokoje zbyt szybko. Odczekaj chwilę.');
             return;
         }
         await runWithBusy(async () => {
-            let roomCode = generateRoomCode();
-            for (let attempt = 0; attempt < 8; attempt += 1) {
-                const existsSnap = await get(ref(db, `rooms/${roomCode}`));
-                if (!existsSnap.exists()) break;
-                roomCode = generateRoomCode();
+            try {
+                let roomCode = generateRoomCode();
+                for (let attempt = 0; attempt < 8; attempt += 1) {
+                    const existsSnap = await get(ref(db, `rooms/${roomCode}`));
+                    if (!existsSnap.exists()) break;
+                    roomCode = generateRoomCode();
+                }
+                const finalExistsSnap = await get(ref(db, `rooms/${roomCode}`));
+                if (finalExistsSnap.exists()) {
+                    setLobbyMessage('❌ Nie udało się utworzyć kodu pokoju. Spróbuj ponownie.');
+                    return;
+                }
+                const now = Date.now();
+                await update(ref(db), {
+                    [`rooms/${roomCode}`]: {
+                        gameId,
+                        isLocked: false,
+                        createdAt: now,
+                        gameState: null,
+                        settings: null,
+                    },
+                    [`roomsPublic/${roomCode}`]: {
+                        gameId,
+                        isLocked: false,
+                        onlineCount: 0,
+                        updatedAt: now,
+                    },
+                });
+                setEntryRole('host');
+                setSelectedGame(roomCode);
+                setSelectedGameType(gameId);
+                setIsHost(true);
+                setLobbyMessage('');
+            } catch (err) {
+                console.error('[createHostRoom]', err);
+                const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : '';
+                if (code.includes('PERMISSION_DENIED')) {
+                    setLobbyMessage(
+                        '❌ Baza odrzuciła tę grę (reguły Firebase). Wdróż database.rules.json: firebase deploy --only database'
+                    );
+                } else {
+                    setLobbyMessage('❌ Nie udało się utworzyć pokoju. Sprawdź połączenie z bazą.');
+                }
             }
-            const finalExistsSnap = await get(ref(db, `rooms/${roomCode}`));
-            if (finalExistsSnap.exists()) {
-                setLobbyMessage('❌ Nie udało się utworzyć kodu pokoju. Spróbuj ponownie.');
-                return;
-            }
-            const now = Date.now();
-            await update(ref(db), {
-                [`rooms/${roomCode}`]: {
-                    gameId,
-                    isLocked: false,
-                    createdAt: now,
-                    gameState: null,
-                    settings: null,
-                },
-                [`roomsPublic/${roomCode}`]: {
-                    gameId,
-                    isLocked: false,
-                    onlineCount: 0,
-                    updatedAt: now,
-                },
-            });
-            setEntryRole('host');
-            setSelectedGame(roomCode);
-            setSelectedGameType(gameId);
-            setIsHost(true);
-            setLobbyMessage('');
         });
     }, [runWithBusy, isRateLimited]);
+
+    useEffect(() => {
+        createHostRoomRef.current = createHostRoom;
+    }, [createHostRoom]);
 
     const kickPlayer = useCallback(async (playerId) => {
         if (!selectedGame || !myPlayerId) return;
@@ -1982,12 +2051,37 @@ function App() {
                         <>
                             <p>Wybierz tryb gry. Utworzymy nowy pokój.</p>
                             <div className="games-grid">
-                                {gameData.games.map((game) => (
-                                    <button key={game.id} onClick={() => createHostRoom(game.id)}>
-                                        <span className="game-title">{game.name}</span>
-                                        <span className="game-desc">{game.description}</span>
-                                    </button>
-                                ))}
+                                {gameData.games.map((game) => {
+                                    const soon = game.comingSoon === true;
+                                    return (
+                                        <button
+                                            key={game.id}
+                                            type="button"
+                                            className={soon ? 'game-btn game-btn--soon' : 'game-btn'}
+                                            disabled={soon}
+                                            aria-disabled={soon}
+                                            onClick={() => {
+                                                if (soon) {
+                                                    setLobbyMessage(getComingSoonMessage(game));
+                                                    return;
+                                                }
+                                                createHostRoom(game.id);
+                                            }}
+                                        >
+                                            <span className="game-title">
+                                                {game.name}
+                                                {soon && (
+                                                    <span className="game-badge-soon">Wkrótce</span>
+                                                )}
+                                            </span>
+                                            <span className="game-desc">
+                                                {soon
+                                                    ? 'Gra w trakcie tworzenia — niedostępna.'
+                                                    : game.description}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                             <button onClick={() => setEntryRole(null)} className="btn-link">Wróć</button>
                         </>
@@ -2143,6 +2237,36 @@ function App() {
 
                                 {selectedGameType === 'dark-stories' && (
                                     <DarkStories isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomInviteUrl={roomInviteUrl} roomId={selectedGame} />
+                                )}
+
+                                {selectedGameType === 'who-would-rather' && (
+                                    <WhoWouldRather
+                                        isHost={effectiveIsHost}
+                                        onLeave={handleLeaveRoom}
+                                        playerName={playerName}
+                                        myPlayerId={myPlayerId}
+                                        tablePlayers={playersList}
+                                        roomInviteUrl={roomInviteUrl}
+                                        vibrationEnabled={vibrationEnabled}
+                                        roomId={selectedGame}
+                                    />
+                                )}
+
+                                {selectedGameType === 'kto-najpredzej' && (
+                                    <KtoNajpredzej
+                                        isHost={effectiveIsHost}
+                                        onLeave={handleLeaveRoom}
+                                        roomInviteUrl={roomInviteUrl}
+                                        roomId={selectedGame}
+                                    />
+                                )}
+
+                                {selectedGameType === 'secret-hitler' && (
+                                    <SecretHitler isHost={effectiveIsHost} onLeave={handleLeaveRoom} />
+                                )}
+
+                                {selectedGameType === 'one-night-werewolf' && (
+                                    <OneNightWerewolf isHost={effectiveIsHost} onLeave={handleLeaveRoom} />
                                 )}
                             </Suspense>
                         </div>

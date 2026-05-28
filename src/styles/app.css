@@ -442,6 +442,56 @@ button:hover {
     border-color: var(--color-accent);
 }
 
+.game-btn--soon {
+    opacity: 0.55;
+    cursor: not-allowed;
+    position: relative;
+}
+
+.game-btn--soon:active {
+    transform: none;
+}
+
+.game-badge-soon {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.65rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-radius: 4px;
+    background: rgba(255, 200, 80, 0.25);
+    color: #ffd54f;
+    vertical-align: middle;
+}
+
+.coming-soon-game__lead {
+    margin: 0;
+    line-height: 1.45;
+}
+
+.coming-soon-game__panel {
+    text-align: center;
+    padding: 1.5rem 1rem;
+}
+
+.coming-soon-game__emoji {
+    font-size: 2.5rem;
+    margin: 0 0 0.5rem;
+}
+
+.coming-soon-game__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+}
+
+.coming-soon-game__text {
+    margin: 0;
+    opacity: 0.85;
+    line-height: 1.4;
+}
+
 .game-title {
     display: block;
     font-size: 1.3rem;
@@ -1334,10 +1384,114 @@ button:hover {
 }
 
 .btn-nhie-next,
-.btn-ds-next {
+.btn-ds-next,
+.btn-wwr-next {
     background-color: #ffffff !important;
     color: #000000 !important;
     font-weight: bold !important;
+}
+
+/* =========================================
+   KTO NAJPRĘDZEJ?
+   ========================================= */
+.knp-hint {
+    text-align: center;
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+    opacity: 0.85;
+}
+
+/* =========================================
+   CO WOLISZ? (would you rather)
+   ========================================= */
+.wwr-progress-text {
+    color: var(--color-accent);
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-top: 0;
+}
+
+.wwr-choice-text {
+    text-align: center;
+    margin: 0.75rem 0;
+    font-size: 1rem;
+    opacity: 0.55;
+}
+
+.wwr-choice-text.active {
+    opacity: 1;
+    font-weight: bold;
+}
+
+.wwr-option--active {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.wwr-dilemma-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 520px) {
+    .wwr-dilemma-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.wwr-option {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 120px;
+}
+
+.wwr-option--b {
+    border-color: var(--color-accent);
+}
+
+.wwr-option-label {
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.wwr-option-text {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.35;
+    flex: 1;
+}
+
+.wwr-nav-buttons {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+}
+
+.wwr-nav-buttons > button {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto !important;
+    margin-bottom: 0 !important;
+    box-sizing: border-box;
+}
+
+.btn-wwr-prev {
+    background-color: transparent !important;
+    padding: 15px 12px !important;
+}
+
+.btn-wwr-prev.disabled {
+    opacity: 0.3;
 }
 
 /* =========================================

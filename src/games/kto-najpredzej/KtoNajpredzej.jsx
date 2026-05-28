@@ -3,7 +3,7 @@ import { ref } from 'firebase/database';
 import { set } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
 import gameData from '../../data/gameContent.js';
-import { getNeverHaveIEverCategories } from '../../lib/gameContentUtils';
+import { getKtoNajpredzejCategories } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { shuffleArray } from '../../lib/shuffle';
@@ -11,9 +11,9 @@ import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
 
-function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
+function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
     const playableCategories = useMemo(
-        () => getNeverHaveIEverCategories(gameData.neverHaveIEver),
+        () => getKtoNajpredzejCategories(gameData.ktoNajpredzej),
         []
     );
 
@@ -25,32 +25,28 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
     const roomData = useRoomGameState(roomId, defaultRoomState);
     usePiGameSession(roomData.isGameStarted);
 
-    // OPTYMALIZACJA: Zapamiętywanie funkcji, by nie obciążać procesora przy re-renderach
     const toggleCategory = useCallback((catId) => {
         setSelectedCategories((prev) =>
-            prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
+            prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
         );
     }, []);
 
     const startGame = useCallback(() => {
         const allQuestions = [];
         selectedCategories.forEach((catId) => {
-            const pool = gameData.neverHaveIEver.questions[catId];
+            const pool = gameData.ktoNajpredzej.questions[catId];
             if (Array.isArray(pool)) {
                 allQuestions.push(...pool);
             }
         });
 
-        const shuffled = shuffleArray(allQuestions);
-
         set(ref(db, `rooms/${roomId}/gameState`), {
             isGameStarted: true,
-            shuffledQuestions: shuffled,
-            currentQuestionIndex: 0
+            shuffledQuestions: shuffleArray(allQuestions),
+            currentQuestionIndex: 0,
         });
     }, [selectedCategories, roomId]);
 
-    // OPTYMALIZACJA: Stabilna referencja dla ConfirmButton (memo zadziała perfekcyjnie)
     const forceResetTable = useCallback(() => {
         set(ref(db, `rooms/${roomId}/gameState`), null);
         setSelectedCategories([]);
@@ -77,12 +73,12 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
         <div>
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="Nigdy w życiu">
+                    <GameRules title="Kto najprędzej?">
                         <ol className="game-rules__list">
-                            <li>Host wybiera kategorie i czyta na głos kolejne stwierdzenie „Nigdy w życiu nie…”.</li>
-                            <li>Gracze, którzy to zrobili, podnoszą palec (lub piją łyk — ustalcie zasady na stole).</li>
-                            <li>Można krótko skomentować historię, potem Host przechodzi do następnego pytania.</li>
-                            <li>Bez osądzania — chodzi o zabawę i poznanie się nawzajem.</li>
+                            <li>Host wybiera kategorie i czyta na głos pytanie z ekranu.</li>
+                            <li>Wszyscy jednocześnie wskazują palcem osobę, która pasuje najbardziej (na głos, nie w aplikacji).</li>
+                            <li>Osoba z największą liczbą wskazań może krótko się wytłumaczyć — potem następne pytanie.</li>
+                            <li>Bez obwiniania — to zabawa, nie werdykt.</li>
                         </ol>
                     </GameRules>
 
@@ -120,12 +116,17 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
             ) : (
                 <div>
                     <p className="nhie-progress-text">
-                        Pytanie {roomData.currentQuestionIndex + 1} z {roomData.shuffledQuestions ? roomData.shuffledQuestions.length : 0}
+                        Pytanie {roomData.currentQuestionIndex + 1} z{' '}
+                        {roomData.shuffledQuestions ? roomData.shuffledQuestions.length : 0}
                     </p>
+
+                    <p className="knp-hint">Wskażcie palcem — kto pasuje najbardziej?</p>
 
                     <div className="content-panel content-panel--dark">
                         <h3 className="nhie-question-text">
-                            {roomData.shuffledQuestions ? roomData.shuffledQuestions[roomData.currentQuestionIndex] : "Ładowanie..."}
+                            {roomData.shuffledQuestions
+                                ? roomData.shuffledQuestions[roomData.currentQuestionIndex]
+                                : 'Ładowanie...'}
                         </h3>
                     </div>
 
@@ -141,10 +142,16 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
                                 </button>
                                 <button
                                     onClick={nextQuestion}
-                                    disabled={roomData.shuffledQuestions && roomData.currentQuestionIndex === roomData.shuffledQuestions.length - 1}
+                                    disabled={
+                                        roomData.shuffledQuestions &&
+                                        roomData.currentQuestionIndex === roomData.shuffledQuestions.length - 1
+                                    }
                                     className="btn-nhie-next"
                                 >
-                                    {(roomData.shuffledQuestions && roomData.currentQuestionIndex === roomData.shuffledQuestions.length - 1) ? 'Koniec pytań' : 'Następne'}
+                                    {roomData.shuffledQuestions &&
+                                    roomData.currentQuestionIndex === roomData.shuffledQuestions.length - 1
+                                        ? 'Koniec pytań'
+                                        : 'Następne'}
                                 </button>
                             </div>
                             <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
@@ -156,11 +163,11 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
             <div className="bottom-controls">
                 <ConfirmButton
                     onClick={isHost ? handleEndGame : onLeave}
-                    text={isHost ? "Zamknij pokój" : "Wyjdź z pokoju"}
+                    text={isHost ? 'Zamknij pokój' : 'Wyjdź z pokoju'}
                 />
             </div>
         </div>
     );
 }
 
-export default NeverHaveIEver;
+export default KtoNajpredzej;

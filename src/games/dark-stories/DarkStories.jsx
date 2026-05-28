@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { ref } from 'firebase/database';
 import { set } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
-import gameData from '../../data/gameContent.json';
+import gameData from '../../data/gameContent.js';
 import { getDarkStoriesDifficulties } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import { usePiGameSession } from '../../lib/usePiGameSession';

@@ -1,0 +1,49 @@
+[
+  {
+    "id": "never-have-i-ever",
+    "name": "Nigdy w życiu",
+    "description": "Klasyczna gra w odkrywanie sekretów."
+  },
+  {
+    "id": "truth-or-dare",
+    "name": "Prawda czy wyzwanie",
+    "description": "Odpowiedz szczerze lub wykonaj zadanie."
+  },
+  {
+    "id": "impostor",
+    "name": "Impostor",
+    "description": "Znajdź oszusta wśród graczy."
+  },
+  {
+    "id": "mafia",
+    "name": "Mafia",
+    "description": "Miasto zasypia, budzi się mafia. Gra z Mistrzem Gry."
+  },
+  {
+    "id": "dark-stories",
+    "name": "Czarne historie",
+    "description": "Zagadki na Tak/Nie — narrator zna mroczne rozwiązanie."
+  },
+  {
+    "id": "who-would-rather",
+    "name": "Co wolisz?",
+    "description": "Losowany gracz wybiera między dwoma opcjami A i B."
+  },
+  {
+    "id": "kto-najpredzej",
+    "name": "Kto najprędzej?",
+    "description": "Wskaż palcem, kto najbardziej pasuje do pytania."
+  },
+  {
+    "id": "secret-hitler",
+    "name": "Secret Hitler",
+    "description": "Polityczna gra dedukcyjna — faszyści vs liberałowie.",
+    "comingSoon": true
+  },
+  {
+    "id": "one-night-werewolf",
+    "name": "One Night Werewolf",
+    "description": "Jedna noc — wilkołaki, wieśniacy i role specjalne.",
+    "comingSoon": true
+  }
+]

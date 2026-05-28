@@ -1,0 +1,252 @@
+{
+  "roles": [
+    {
+      "id": "mafia",
+      "name": "Mafia",
+      "desc": "Budzi się w nocy, by eliminować graczy."
+    },
+    {
+      "id": "lekarz",
+      "name": "Lekarz",
+      "desc": "Wybiera osobę do ochrony przed atakiem."
+    },
+    {
+      "id": "agent",
+      "name": "Agent",
+      "desc": "Sprawdza tożsamość jednego gracza w nocy."
+    },
+    {
+      "id": "jester",
+      "name": "Błazen",
+      "desc": "Wygrywa, jeśli miasto go zlinczuje w dzień."
+    },
+    {
+      "id": "lovers",
+      "name": "Zakochani",
+      "desc": "Znają się. Jeśli jedno ginie, drugie też."
+    },
+    {
+      "id": "obywatel",
+      "name": "Obywatel",
+      "desc": "Zwykły mieszkaniec. Głosuje w dzień."
+    }
+  ],
+  "presets": {
+    "4": {
+      "mafia": 1,
+      "lekarz": 0,
+      "agent": 0,
+      "jester": 0,
+      "lovers": 0,
+      "obywatel": 3
+    },
+    "5": {
+      "mafia": 1,
+      "lekarz": 1,
+      "agent": 0,
+      "jester": 0,
+      "lovers": 0,
+      "obywatel": 3
+    },
+    "6": {
+      "mafia": 1,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 0,
+      "lovers": 0,
+      "obywatel": 3
+    },
+    "7": {
+      "mafia": 2,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 0,
+      "lovers": 0,
+      "obywatel": 3
+    },
+    "8": {
+      "mafia": 2,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 0,
+      "lovers": 0,
+      "obywatel": 4
+    },
+    "9": {
+      "mafia": 2,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 1,
+      "lovers": 0,
+      "obywatel": 4
+    },
+    "10": {
+      "mafia": 2,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 3
+    },
+    "11": {
+      "mafia": 2,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 4
+    },
+    "12": {
+      "mafia": 3,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 4
+    },
+    "13": {
+      "mafia": 3,
+      "lekarz": 1,
+      "agent": 1,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 5
+    },
+    "14": {
+      "mafia": 3,
+      "lekarz": 1,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 5
+    },
+    "15": {
+      "mafia": 4,
+      "lekarz": 1,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 5
+    },
+    "16": {
+      "mafia": 4,
+      "lekarz": 1,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 6
+    },
+    "17": {
+      "mafia": 4,
+      "lekarz": 1,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 7
+    },
+    "18": {
+      "mafia": 4,
+      "lekarz": 2,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 7
+    },
+    "19": {
+      "mafia": 5,
+      "lekarz": 1,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 8
+    },
+    "20": {
+      "mafia": 5,
+      "lekarz": 2,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 8
+    },
+    "21": {
+      "mafia": 5,
+      "lekarz": 2,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 9
+    },
+    "22": {
+      "mafia": 5,
+      "lekarz": 2,
+      "agent": 3,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 9
+    },
+    "23": {
+      "mafia": 6,
+      "lekarz": 2,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 10
+    },
+    "24": {
+      "mafia": 6,
+      "lekarz": 2,
+      "agent": 2,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 11
+    },
+    "25": {
+      "mafia": 6,
+      "lekarz": 2,
+      "agent": 3,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 11
+    },
+    "26": {
+      "mafia": 6,
+      "lekarz": 2,
+      "agent": 3,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 12
+    },
+    "27": {
+      "mafia": 7,
+      "lekarz": 2,
+      "agent": 3,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 12
+    },
+    "28": {
+      "mafia": 7,
+      "lekarz": 2,
+      "agent": 3,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 13
+    },
+    "29": {
+      "mafia": 7,
+      "lekarz": 2,
+      "agent": 3,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 14
+    },
+    "30": {
+      "mafia": 7,
+      "lekarz": 2,
+      "agent": 4,
+      "jester": 1,
+      "lovers": 2,
+      "obywatel": 14
+    }
+  }
+}
