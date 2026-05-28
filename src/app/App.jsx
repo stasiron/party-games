@@ -21,6 +21,7 @@ import {
     getPlayersDebounceMs,
 } from '../lib/lowPower';
 import { buildGameIndex, buildActiveRoomsFromPublic } from './utils/activeRooms';
+import versionData from '../../version.json';
 import '../styles/app.css';
 
 const NeverHaveIEver = lazy(() => import('../games/never-have-i-ever/NeverHaveIEver'));
@@ -30,8 +31,7 @@ const Mafia = lazy(() => import('../games/mafia/Mafia'));
 const DarkStories = lazy(() => import('../games/dark-stories/DarkStories'));
 const WhoWouldRather = lazy(() => import('../games/who-would-rather/WhoWouldRather'));
 const KtoNajpredzej = lazy(() => import('../games/kto-najpredzej/KtoNajpredzej'));
-const SecretHitler = lazy(() => import('../games/secret-hitler/SecretHitler'));
-const OneNightWerewolf = lazy(() => import('../games/one-night-werewolf/OneNightWerewolf'));
+const ComingSoonGame = lazy(() => import('../components/ComingSoonGame'));
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 6;
@@ -151,12 +151,15 @@ function App() {
     });
     const [showConnectionFooter, setShowConnectionFooter] = useState(() => {
         const stored = loadUiSettings();
-        if (typeof stored?.showConnectionFooter === 'boolean') return stored.showConnectionFooter;
+        if (typeof stored?.showConnectionFooter === 'boolean') {
+            return stored.showConnectionFooter;
+        }
         return false;
     });
     const [adminCommand, setAdminCommand] = useState('');
     const [isAdminMode, setIsAdminMode] = useState(false);
     const [adminBypassEnabled, setAdminBypassEnabled] = useState(false);
+    const adminBypassRef = useRef(false);
     const toggleAdminPanel = useCallback(() => {
         setShowAdminPanel((prev) => !prev);
     }, []);
@@ -446,6 +449,28 @@ function App() {
         if (now - last < cooldownMs) return true;
         actionRateRef.current.set(key, now);
         return false;
+    }, []);
+
+    useEffect(() => {
+        adminBypassRef.current = adminBypassEnabled;
+    }, [adminBypassEnabled]);
+
+    /** Tylko ta przeglądarka, która wpisała BYPASS (stan lokalny, nie synchronizowany z Firebase). */
+    const hasAdminPowers = adminBypassEnabled;
+
+    const isAdminRateLimited = useCallback(
+        (key, cooldownMs) => {
+            if (adminBypassRef.current) return false;
+            return isRateLimited(key, cooldownMs);
+        },
+        [isRateLimited]
+    );
+
+    const finishAdminCommand = useCallback(() => {
+        setAdminCommand('');
+        if (!adminBypassRef.current) {
+            setShowAdminPanel(false);
+        }
     }, []);
 
     /** Host z bazy (nie tylko przełącznik w lobby) — od tego zależy kick i zamykanie pokoju. */
@@ -859,10 +884,17 @@ function App() {
 
         if (cleanedCmd === '') return;
 
+        const isBypassToggle = cleanedCmd === 'BYPASS';
+        const isHelp = cleanedCmd === 'HELP';
+        if (!isBypassToggle && !isHelp && !adminBypassRef.current) {
+            setAdminCommand('');
+            return;
+        }
+
         await runWithBusy(async () => {
         try {
             if (['RESET', 'PURGE', 'PURGE PLAYERS', 'PURGE ROOMS', 'CLEAR'].includes(cleanedCmd)) {
-                if (isRateLimited('admin:destructive', RATE_LIMITS_MS.adminDestructive)) {
+                if (isAdminRateLimited('admin:destructive', RATE_LIMITS_MS.adminDestructive)) {
                     setLobbyMessage('⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą destrukcyjną.');
                     return;
                 }
@@ -873,7 +905,7 @@ function App() {
                 cleanedCmd.startsWith('HOST ') ||
                 cleanedCmd.startsWith('ADMIN ')
             ) {
-                if (isRateLimited('admin:mutation', RATE_LIMITS_MS.adminMutation)) {
+                if (isAdminRateLimited('admin:mutation', RATE_LIMITS_MS.adminMutation)) {
                     setLobbyMessage('⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą admina.');
                     return;
                 }
@@ -909,8 +941,7 @@ function App() {
                     },
                 });
                 setLobbyMessage(`🧹 Konsola: Wyczyszczono pokój ${selectedGame} (bez usuwania).`);
-                setAdminCommand('');
-                setShowAdminPanel(false);
+                finishAdminCommand();
                 return;
             }
 
@@ -933,8 +964,7 @@ function App() {
                     setJoinStatus('');
                     setLastJoinResult('');
                     setLobbyMessage('🧹 Konsola: RESET zakończony. Wszystko wyczyszczone.');
-                    setAdminCommand('');
-                    setShowAdminPanel(false);
+                    finishAdminCommand();
                 }
                 return;
             }
@@ -958,8 +988,7 @@ function App() {
                     setJoinStatus('');
                     setLastJoinResult('');
                     setLobbyMessage('🧹 Konsola: PURGE zakończony. Wszystkie pokoje usunięte, gracze rozłączeni.');
-                    setAdminCommand('');
-                    setShowAdminPanel(false);
+                    finishAdminCommand();
                 }
                 return;
             }
@@ -986,8 +1015,7 @@ function App() {
                     setJoinStatus('');
                     setLastJoinResult('');
                     setLobbyMessage('🧹 Konsola: PURGE PLAYERS zakończony. Wszyscy gracze rozłączeni, pokoje zostawione.');
-                    setAdminCommand('');
-                    setShowAdminPanel(false);
+                    finishAdminCommand();
                 }
                 return;
             }
@@ -1011,8 +1039,7 @@ function App() {
                     setJoinStatus('');
                     setLastJoinResult('');
                     setLobbyMessage('🧹 Konsola: PURGE ROOMS zakończony. Wszystkie pokoje usunięte.');
-                    setAdminCommand('');
-                    setShowAdminPanel(false);
+                    finishAdminCommand();
                 }
                 return;
             }
@@ -1022,18 +1049,20 @@ function App() {
                 const newState = !isAdminMode;
                 setIsAdminMode(newState);
                 setLobbyMessage(`🔧 Konsola: Tryb ADMIN ${newState ? 'włączony' : 'wyłączony'}.`);
-                setAdminCommand('');
-                setShowAdminPanel(false);
+                finishAdminCommand();
                 return;
             }
 
             if (cleanedCmd === 'BYPASS') {
                 const next = !adminBypassEnabled;
                 setAdminBypassEnabled(next);
-                if (next) setIsAdminMode(true);
-                setLobbyMessage(`🛡️ Konsola: BYPASS ${next ? 'włączony' : 'wyłączony'}.`);
+                adminBypassRef.current = next;
+                if (next) {
+                    setShowAdminPanel(true);
+                } else {
+                    setIsAdminMode(false);
+                }
                 setAdminCommand('');
-                setShowAdminPanel(false);
                 return;
             }
 
@@ -1052,17 +1081,15 @@ function App() {
                     revealAllRoles: true,
                 });
                 setLobbyMessage('👁️ Konsola: Ujawniono role graczy.');
-                setAdminCommand('');
-                setShowAdminPanel(false);
+                finishAdminCommand();
                 return;
             }
 
             if (cleanedCmd === 'HELP') {
                 setLobbyMessage(
-                    'Komendy: RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, ADMIN, BYPASS, REVEAL, ADMIN KICK <name>, HOST / HOST ME / HOST <name>.'
+                    'Komendy: RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, REVEAL, ADMIN KICK <name>, HOST / HOST ME / HOST <name>.'
                 );
-                setAdminCommand('');
-                setShowAdminPanel(false);
+                finishAdminCommand();
                 return;
             }
 
@@ -1089,8 +1116,7 @@ function App() {
                     // Admin wyrzuca natychmiast, niezależnie od stanu isOnline
                     await remove(ref(db, `rooms/${selectedGame}/players/${targetKey}`));
                     setLobbyMessage(`🧹 Konsola: Wyrzucono gracza ${target.name || targetKey} z pokoju.`);
-                    setAdminCommand('');
-                    setShowAdminPanel(false);
+                    finishAdminCommand();
                     return;
                 }
                 alert('❌ Nieznana podkomenda ADMIN. Użyj: ADMIN KICK <name>');
@@ -1120,8 +1146,7 @@ function App() {
                 updates[`rooms/${selectedGame}/players/${myPlayerId}/isHost`] = true;
                 await update(ref(db), updates);
                 setLobbyMessage(`🔁 Konsola: Przekazano rolę Hosta do ${data[myPlayerId]?.name || myPlayerId}.`);
-                setAdminCommand('');
-                setShowAdminPanel(false);
+                finishAdminCommand();
                 return;
             }
 
@@ -1161,8 +1186,7 @@ function App() {
                 updates[`rooms/${selectedGame}/players/${targetKey}/isHost`] = true;
                 await update(ref(db), updates);
                 setLobbyMessage(`🔁 Konsola: Przekazano rolę Hosta do ${data[targetKey]?.name || targetKey}.`);
-                setAdminCommand('');
-                setShowAdminPanel(false);
+                finishAdminCommand();
                 return;
             }
 
@@ -1172,7 +1196,7 @@ function App() {
             alert('❌ Błąd podczas wykonywania komendy. Sprawdź konsolę.');
         }
         });
-    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, runWithBusy, isRateLimited]);
+    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, runWithBusy, isAdminRateLimited, finishAdminCommand]);
 
     // 5. DOŁĄCZANIE DO POKOJU (NADPISYWANIE DUCHÓW / ZABEZPIECZENIEM PRZED BLOKADĄ)
     const handleJoin = async () => {
@@ -1521,7 +1545,7 @@ function App() {
     }, [selectedGame, myPlayerId, runWithBusy, clearPresenceIndex, isRateLimited]);
 
     const adminKick = useCallback(async (gameId, playerKey) => {
-        if (isRateLimited(`admin-kick:${gameId}`, RATE_LIMITS_MS.adminMutation)) {
+        if (isAdminRateLimited(`admin-kick:${gameId}`, RATE_LIMITS_MS.adminMutation)) {
             setLobbyMessage('⏱️ Za szybkie kolejne wyrzucenie przez admina.');
             return;
         }
@@ -1542,7 +1566,7 @@ function App() {
             console.error(e);
             alert('❌ Błąd przy wyrzucaniu gracza.');
         }
-    }, [clearPresenceIndex, isRateLimited]);
+    }, [clearPresenceIndex, isAdminRateLimited]);
 
     const adminDeleteRoom = useCallback(async (roomId) => {
         await runWithBusy(async () => {
@@ -1752,6 +1776,9 @@ function App() {
             >
                 Party Games
             </h1>
+            <p className="app-version" aria-label={`Wersja ${versionData.version}`}>
+                v{versionData.version}
+            </p>
 
             <IosWifiHelp />
 
@@ -2005,7 +2032,7 @@ function App() {
                             </span>
                         </button>
                         <p className="settings-hint settings-hint--tight">
-                            Komendy: HELP, RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, ADMIN, BYPASS, REVEAL… Albo przytrzymaj logo „Party Games” ~0,6 s.
+                            Konsola deweloperska. HELP, RESET, PURGE… Logo „Party Games” ~0,6 s.
                         </p>
                     </div>
 
@@ -2117,7 +2144,7 @@ function App() {
                                                 {room.isLocked ? ' · 🔒' : ''}
                                             </span>
                                         </button>
-                                        {isAdminMode && (
+                                        {hasAdminPowers && (
                                             <button
                                                 type="button"
                                                 className="btn-admin-kick"
@@ -2261,13 +2288,15 @@ function App() {
                                     />
                                 )}
 
-                                {selectedGameType === 'secret-hitler' && (
-                                    <SecretHitler isHost={effectiveIsHost} onLeave={handleLeaveRoom} />
-                                )}
-
-                                {selectedGameType === 'one-night-werewolf' && (
-                                    <OneNightWerewolf isHost={effectiveIsHost} onLeave={handleLeaveRoom} />
-                                )}
+                                {selectedGameType &&
+                                    isGameComingSoon(selectedGameType) &&
+                                    currentGameMeta && (
+                                        <ComingSoonGame
+                                            title={currentGameMeta.name}
+                                            isHost={effectiveIsHost}
+                                            onLeave={handleLeaveRoom}
+                                        />
+                                    )}
                             </Suspense>
                         </div>
                     )}
@@ -2305,7 +2334,7 @@ function App() {
                                         </button>
                                     )}
 
-                                    {isAdminMode && p.id && (
+                                    {hasAdminPowers && p.id && (
                                         <button
                                             onClick={() => adminKick(selectedGame, p.id)}
                                             className="btn-admin-kick"

@@ -45,5 +45,59 @@
     "name": "One Night Werewolf",
     "description": "Jedna noc — wilkołaki, wieśniacy i role specjalne.",
     "comingSoon": true
+  },
+  {
+    "id": "decrypto",
+    "name": "Decrypto",
+    "description": "Dwie drużyny — szyfrujecie hasła, przeciwnicy próbują je złamać.",
+    "comingSoon": true
+  },
+  {
+    "id": "fake-artist",
+    "name": "Fake Artist",
+    "description": "Wszyscy rysują — jeden nie wie, co jest na karcie.",
+    "comingSoon": true
+  },
+  {
+    "id": "just-one",
+    "name": "Just One",
+    "description": "Wspólne odgadywanie hasła — ale każde słowo może być tylko raz.",
+    "comingSoon": true
+  },
+  {
+    "id": "miners",
+    "name": "Miners",
+    "description": "Kopcie złoto w kopalni — uważajcie na zawalenia i zdradę.",
+    "comingSoon": true
+  },
+  {
+    "id": "say-anything",
+    "name": "Say Anything",
+    "description": "Pytanie na stole — obstawiacie, co odpowie wybrany gracz.",
+    "comingSoon": true
+  },
+  {
+    "id": "telepathy",
+    "name": "Telepathy",
+    "description": "Drużyny synchronizują wybory na siatce — bez zbędnych słów.",
+    "comingSoon": true
+  },
+  {
+    "id": "bleff",
+    "name": "Bleff",
+    "description": "Blefujcie definicje — głosujcie, co brzmi najbardziej wiarygodnie.",
+    "comingSoon": true
+  },
+  {
+    "id": "dutch",
+    "name": "Dutch",
+    "description": "Szybka gra karciana — pozbywajcie się kart w odpowiednim momencie.",
+    "comingSoon": true
+  },
+  {
+    "id": "jungle-speed",
+    "name": "Jungle Speed",
+    "description": "Refleks i symbole — rzućcie rękę na stos, gdy pasuje.",
+    "comingSoon": true
   }
 ]

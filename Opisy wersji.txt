@@ -45,7 +45,8 @@ Rozwuj wersji:
 1.1.8 Hot fix - blad wyswietklania pokoi
 1.1.9 Hot fix - błąd rozgrywki ze strony gościa
 1.1.10 zażegnanie problemu
-1.2.0 zaimplementowanie nowe gry whoul you rather (a or b)
+1.2.0 zaimplementowanie nowe gry whould you rather (a or b)
 1.2.1 Hot Fix nowej gry
 1.3.0 Zaimplementowanie nowej gry who would rather
-
+1.3.1 Implementacja wielu gier w czasie konstrukcji
+1.3.2 poprawa konsoli

@@ -2065,6 +2065,13 @@ html.low-power .server-busy__orb {
     touch-action: manipulation;
 }
 
+.app-version {
+    margin: -0.25rem 0 1rem;
+    font-size: 0.75rem;
+    opacity: 0.55;
+    text-align: center;
+}
+
 .admin-panel-container {
     margin: 12px 0 20px;
     text-align: left;
