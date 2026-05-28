@@ -30,17 +30,22 @@ export function useConnectionPing(enabled = true) {
     useEffect(() => subscribePiGameSession(setGameSessionActive), []);
 
     useEffect(() => {
+        const lowPower = isLowPowerDevice();
         const pingAllowed =
             enabled &&
-            (!isLowPowerDevice() || !gameSessionActive);
+            (!lowPower || !gameSessionActive);
         if (!pingAllowed || typeof window === 'undefined') return undefined;
 
-        const intervalMs = isLowPowerDevice()
+        const intervalMs = lowPower
             ? PING_INTERVAL_LOW_POWER_LOBBY_MS
             : PING_INTERVAL_MS;
+        let timeoutId;
+        let inFlight = false;
+        let active = true;
 
         const measure = async () => {
-            if (!mountedRef.current) return;
+            if (!mountedRef.current || !active || inFlight) return;
+            inFlight = true;
             setIsPinging(true);
             const t0 = performance.now();
             try {
@@ -56,12 +61,18 @@ export function useConnectionPing(enabled = true) {
                 }
             } finally {
                 if (mountedRef.current) setIsPinging(false);
+                inFlight = false;
+                if (active) {
+                    timeoutId = window.setTimeout(measure, intervalMs);
+                }
             }
         };
 
         measure();
-        const id = setInterval(measure, intervalMs);
-        return () => clearInterval(id);
+        return () => {
+            active = false;
+            if (timeoutId) window.clearTimeout(timeoutId);
+        };
     }, [enabled, gameSessionActive]);
 
     const isSlow = pingError || (pingMs !== null && pingMs >= SLOW_PING_MS);

@@ -52,8 +52,9 @@ function sleep(ms) {
  * Kolejka RTDB na Malinie — jedna operacja na raz, min. przerwa między zapisami.
  * minUiMs — świadome opóźnienie UI (gracz widzi krótką synchronizację zamiast freeze).
  */
-function enqueue(op, { isWrite = false, minUiMs = 0 } = {}) {
+function enqueue(op, { isWrite = false, minUiMs = 0, priority = false } = {}) {
     if (!isLowPowerDevice()) return op();
+    if (priority) return op();
 
     return new Promise((resolve, reject) => {
         chain = chain
@@ -82,12 +83,14 @@ function enqueue(op, { isWrite = false, minUiMs = 0 } = {}) {
 
 export function piSet(dbRef, value, options) {
     const minUiMs = options?.minUiMs ?? 0;
-    return enqueue(() => firebaseSet(dbRef, value), { isWrite: true, minUiMs });
+    const priority = options?.priority === true;
+    return enqueue(() => firebaseSet(dbRef, value), { isWrite: true, minUiMs, priority });
 }
 
 export function piUpdate(dbRef, values, options) {
     const minUiMs = options?.minUiMs ?? 0;
-    return enqueue(() => firebaseUpdate(dbRef, values), { isWrite: true, minUiMs });
+    const priority = options?.priority === true;
+    return enqueue(() => firebaseUpdate(dbRef, values), { isWrite: true, minUiMs, priority });
 }
 
 export function piGet(dbRef) {

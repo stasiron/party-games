@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:pi": "vite build --mode pi",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -13,7 +14,8 @@
     "firebase": "^12.13.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

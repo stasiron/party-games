@@ -23,24 +23,24 @@ export function getPresenceMissingGraceMs() {
 }
 
 export function getPlayersDebounceMs() {
-    return isLowPowerDevice() ? 300 : 120;
+    return isLowPowerDevice() ? 360 : 120;
 }
 
 export function getGameStateDebounceMs() {
-    return isLowPowerDevice() ? 400 : 80;
+    return isLowPowerDevice() ? 480 : 80;
 }
 
-/** Min. odstęp między zapisami RTDB na emulatorze (Java na Malinie). */
+/** Min. odstęp między zapisami w PartBox Sync. */
 export function getMinWriteGapMs() {
-    return isLowPowerDevice() ? 220 : 0;
+    return isLowPowerDevice() ? 35 : 0;
 }
 
-/** Odstęp między odczytami w kolejce (losowanie gracza + ping). */
+/** Odstęp między odczytami w kolejce (join/ping). */
 export function getMinReadGapMs() {
-    return isLowPowerDevice() ? 70 : 0;
+    return isLowPowerDevice() ? 25 : 0;
 }
 
-/** Krótkie opóźnienie po kliknięciu w grze — Malina nie dostaje lawiny update. */
+/** Krótkie opóźnienie UI po akcji — gracz widzi synchronizację. */
 export function getMinUiSyncMs() {
-    return isLowPowerDevice() ? 420 : 0;
+    return isLowPowerDevice() ? 180 : 0;
 }

@@ -2,10 +2,9 @@ import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } fro
 import { ref, push, remove, onValue, onDisconnect } from 'firebase/database';
 import { set, get, update } from '../lib/rtdb';
 import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
-import { debounce } from '../lib/debounce';
 import gameData from '../data/gameContent.json';
-import GlobalPlayersList from '../components/GlobalPlayersList';
-import MigrationBanner from '../components/MigrationBanner';
+import GuestPlayersPanel from '../components/GuestPlayersPanel';
+import { isGuestPlayer } from '../lib/guestPlayers';
 import ConnectionStatus from '../components/ConnectionStatus';
 import IosWifiHelp from '../components/IosWifiHelp';
 import { useServerBusy } from '../context/useServerBusy';
@@ -16,6 +15,7 @@ import {
     getPresenceMissingGraceMs,
     getPlayersDebounceMs,
 } from '../lib/lowPower';
+import { buildGameIndex, buildActiveRooms } from './utils/activeRooms';
 import '../styles/app.css';
 
 const NeverHaveIEver = lazy(() => import('../games/never-have-i-ever/NeverHaveIEver'));
@@ -24,7 +24,20 @@ const TruthOrDare = lazy(() => import('../games/truth-or-dare/TruthOrDare'));
 const Mafia = lazy(() => import('../games/mafia/Mafia'));
 const DarkStories = lazy(() => import('../games/dark-stories/DarkStories'));
 
-const PRESENCE_DEBOUNCE_MS = 250;
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_LENGTH = 6;
+const ORPHAN_ROOM_TTL_MS = 10 * 60 * 1000;
+const EMPTY_ROOM_TTL_MS = 5 * 60 * 1000;
+const ROOM_CLEANUP_COOLDOWN_MS = 30 * 1000;
+
+function generateRoomCode() {
+    let code = '';
+    for (let i = 0; i < ROOM_CODE_LENGTH; i += 1) {
+        const idx = Math.floor(Math.random() * ROOM_CODE_ALPHABET.length);
+        code += ROOM_CODE_ALPHABET[idx];
+    }
+    return code;
+}
 
 const themePresets = [
     { id: 'default', label: 'Fioletowy (domyślny)', stops: ['#0a0f1e', '#2a113a', '#8c215e'] },
@@ -35,15 +48,19 @@ const themePresets = [
 
 function App() {
     const { runWithBusy } = useServerBusy();
-    const [selectedGame, setSelectedGame] = useState(null);
+    const [selectedGame, setSelectedGame] = useState(null); // roomId
+    const [selectedGameType, setSelectedGameType] = useState(null);
+    const [entryRole, setEntryRole] = useState(null);
+    const [manualRoomCode, setManualRoomCode] = useState('');
+    const [activeRooms, setActiveRooms] = useState([]);
     const [playerName, setPlayerName] = useState('');
     const [isJoined, setIsJoined] = useState(false);
     const [isHost, setIsHost] = useState(false);
     const [nameError, setNameError] = useState('');
+    const [joinStatus, setJoinStatus] = useState('');
+    const [lastJoinResult, setLastJoinResult] = useState('');
 
     const [playersList, setPlayersList] = useState([]);
-    /** Tylko węzły `players` per gra — bez pobierania całego `rooms` (gameState / isLocked). */
-    const [presenceByGame, setPresenceByGame] = useState({});
     const [myPlayerId, setMyPlayerId] = useState(null);
     const [hostExists, setHostExists] = useState(false);
 
@@ -59,6 +76,7 @@ function App() {
     const [themePreset, setThemePreset] = useState('default');
     const [soundEnabled, setSoundEnabled] = useState(() => !isLowPowerDevice());
     const [vibrationEnabled, setVibrationEnabled] = useState(() => !isLowPowerDevice());
+    const [showConnectionFooter, setShowConnectionFooter] = useState(true);
     const [adminCommand, setAdminCommand] = useState('');
     const [isAdminMode, setIsAdminMode] = useState(false);
     const toggleAdminPanel = useCallback(() => {
@@ -74,6 +92,11 @@ function App() {
     const missingPlayerSinceRef = useRef(0);
     const isJoiningRef = useRef(false);
     const isOnlineHealSentRef = useRef(false);
+    const lastOnlineHealAtRef = useRef(0);
+    const lastZombieCleanupAtRef = useRef(0);
+    const hostMigrationLockRef = useRef(false);
+    const lastRoomsCleanupAtRef = useRef(0);
+    const cachedRoomRef = useRef({ players: null, isLocked: false, updatedAt: 0 });
 
     useEffect(() => {
         isHostRef.current = isHost;
@@ -141,29 +164,23 @@ function App() {
         }
     }, [soundEnabled]);
 
-    const globalPlayersList = useMemo(() => {
-        const all = [];
-        for (const gameId of Object.keys(presenceByGame)) {
-            const players = presenceByGame[gameId];
-            if (!players) continue;
-            const gameObj = gameData.games.find((g) => g.id === gameId);
-            const roomLabel = gameObj ? gameObj.name : gameId;
-            for (const pId of Object.keys(players)) {
-                const p = players[pId];
-                all.push({
-                    id: `${gameId}:${pId}`,
-                    gameName: roomLabel,
-                    ...p,
-                });
-            }
-        }
-        return all;
-    }, [presenceByGame]);
-
+    const gameById = useMemo(() => buildGameIndex(gameData.games), []);
     const currentGameMeta = useMemo(
-        () => (selectedGame ? gameData.games.find((g) => g.id === selectedGame) : null),
-        [selectedGame]
+        () => (selectedGameType ? gameById.get(selectedGameType) || null : null),
+        [selectedGameType, gameById]
     );
+
+    const resetRoomSession = useCallback(() => {
+        setSelectedGame(null);
+        setSelectedGameType(null);
+        setIsJoined(false);
+        setPlayerName('');
+        setIsHost(false);
+        setMyPlayerId(null);
+        setHostExists(false);
+        setHostLost(false);
+        setNameError('');
+    }, []);
 
     /** Host z bazy (nie tylko przełącznik w lobby) — od tego zależy kick i zamykanie pokoju. */
     const effectiveIsHost = useMemo(() => {
@@ -173,13 +190,13 @@ function App() {
         return me.isHost === true && me.isOnline !== false;
     }, [isJoined, myPlayerId, playersList, isHost]);
 
-    /** Pełny adres z parametrem `game` — QR i kopiowanie (kanoniczny origin na Malinie). */
+    /** Pełny adres z parametrem `room` — QR i kopiowanie (kanoniczny origin na Malinie). */
     const roomInviteUrl = useMemo(() => {
         if (!selectedGame || !isJoined || !effectiveIsHost || typeof window === 'undefined') return '';
         try {
             const base = getPartyOrigin() || window.location.origin;
             const u = new URL(base);
-            u.searchParams.set('game', selectedGame);
+            u.searchParams.set('room', selectedGame);
             u.hash = '';
             return u.toString();
         } catch {
@@ -187,13 +204,23 @@ function App() {
         }
     }, [selectedGame, isJoined, effectiveIsHost]);
 
-    // Wejście z linku / QR: ?game=<id_gry>
+    // Wejście z linku / QR: ?room=<roomId>
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const gameFromUrl = params.get('game');
-        if (!gameFromUrl || !gameData.games.some((g) => g.id === gameFromUrl)) return;
-        const t = setTimeout(() => {
-            setSelectedGame(gameFromUrl);
+        const roomFromUrl = (params.get('room') || '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '');
+        if (!roomFromUrl) return;
+        const t = setTimeout(async () => {
+            const roomSnap = await get(ref(db, `rooms/${roomFromUrl}`));
+            const roomData = roomSnap.val();
+            if (!roomData?.gameId) {
+                setLobbyMessage('❌ Ten pokój nie istnieje lub został zamknięty.');
+                return;
+            }
+            setEntryRole('guest');
+            setSelectedGame(roomFromUrl);
+            setSelectedGameType(roomData.gameId);
             setLobbyMessage('');
             setShowAdminPanel(false);
         }, 0);
@@ -208,6 +235,34 @@ function App() {
         root.style.setProperty('--bg-gradient-end', preset.stops[2]);
     }, [themePreset]);
 
+    useEffect(() => {
+        if (!selectedGame || selectedGameType) return;
+        let active = true;
+        const loadRoomType = async () => {
+            try {
+                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
+                const roomData = roomSnap.val();
+                if (!active) return;
+                if (!roomData?.gameId) {
+                    setLobbyMessage('❌ Pokój nie istnieje albo został zamknięty.');
+                    setSelectedGame(null);
+                    setSelectedGameType(null);
+                    return;
+                }
+                setSelectedGameType(roomData.gameId);
+            } catch {
+                if (!active) return;
+                setLobbyMessage('❌ Nie udało się wczytać pokoju. Spróbuj ponownie.');
+                setSelectedGame(null);
+                setSelectedGameType(null);
+            }
+        };
+        loadRoomType();
+        return () => {
+            active = false;
+        };
+    }, [selectedGame, selectedGameType]);
+
     // =========================================================================
     // POPRAWIONY EFEKT 1: NASŁUCHIWANIE GRACZY, SYSTEM ISKICKED I AUTOMATYCZNA CZYSTKA POKOJU
     // =========================================================================
@@ -218,6 +273,11 @@ function App() {
         let lastPlayersJson = '';
 
         const applyPlayersSnapshot = (data) => {
+            cachedRoomRef.current = {
+                ...cachedRoomRef.current,
+                players: data,
+                updatedAt: Date.now(),
+            };
             const playersArray = Object.keys(data)
                 .map((key) => ({
                     id: key,
@@ -264,14 +324,7 @@ function App() {
                 if (!isLeavingVoluntarily.current) {
                     setLobbyMessage('⚠️ Zostałeś wyrzucony z pokoju przez Hosta.');
                 }
-                setSelectedGame(null);
-                setIsJoined(false);
-                setPlayerName('');
-                setIsHost(false);
-                setMyPlayerId(null);
-                setHostExists(false);
-                setHostLost(false);
-                setNameError('');
+                resetRoomSession();
                 return;
             }
 
@@ -288,14 +341,7 @@ function App() {
                     !isLeavingVoluntarily.current
                 ) {
                     setLobbyMessage('⚠️ Utracono połączenie z pokojem. Dołącz ponownie.');
-                    setSelectedGame(null);
-                    setIsJoined(false);
-                    setPlayerName('');
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setHostExists(false);
-                    setHostLost(false);
-                    setNameError('');
+                    resetRoomSession();
                 }
                 return;
             }
@@ -303,8 +349,11 @@ function App() {
             missingPlayerSinceRef.current = 0;
 
             if (myData.isOnline === false) {
-                if (!isOnlineHealSentRef.current) {
+                const now = Date.now();
+                const healCooldownMs = 5000;
+                if (!isOnlineHealSentRef.current && now - lastOnlineHealAtRef.current >= healCooldownMs) {
                     isOnlineHealSentRef.current = true;
+                    lastOnlineHealAtRef.current = now;
                     set(ref(db, `rooms/${selectedGame}/players/${pid}/isOnline`), true);
                 }
             } else {
@@ -323,16 +372,21 @@ function App() {
                 const zombieKeys = Object.keys(data).filter((key) => {
                     const p = data[key];
                     if (!p) return false;
+                    if (p.isGuest === true) return false;
                     if (String(p.name || '').trim()) return false;
                     if (p.isOnline === true) return false;
                     return true;
                 });
                 if (zombieKeys.length > 0) {
-                    const updates = {};
-                    zombieKeys.forEach((key) => {
-                        updates[`rooms/${selectedGame}/players/${key}`] = null;
-                    });
-                    update(ref(db), updates);
+                    const now = Date.now();
+                    if (now - lastZombieCleanupAtRef.current >= 3000) {
+                        lastZombieCleanupAtRef.current = now;
+                        const updates = {};
+                        zombieKeys.forEach((key) => {
+                            updates[`rooms/${selectedGame}/players/${key}`] = null;
+                        });
+                        update(ref(db), updates);
+                    }
                     data = { ...data };
                     zombieKeys.forEach((k) => {
                         delete data[k];
@@ -353,15 +407,30 @@ function App() {
 
         const lockedRef = ref(db, `rooms/${selectedGame}/isLocked`);
         const unsubscribeLocked = onValue(lockedRef, (snapshot) => {
-            setIsRoomLocked(snapshot.val() || false);
+            const locked = snapshot.val() || false;
+            cachedRoomRef.current = {
+                ...cachedRoomRef.current,
+                isLocked: locked,
+                updatedAt: Date.now(),
+            };
+            setIsRoomLocked(locked);
+        });
+
+        const roomGameIdRef = ref(db, `rooms/${selectedGame}/gameId`);
+        const unsubscribeRoomRoot = onValue(roomGameIdRef, (snapshot) => {
+            if (snapshot.exists()) return;
+            if (!isJoinedRef.current || isLeavingVoluntarily.current) return;
+            setLobbyMessage('⚠️ Host zamknął pokój. Wrócono do ekranu wyboru.');
+            resetRoomSession();
         });
 
         return () => {
             clearTimeout(playersTimeoutId);
             unsubscribe();
             unsubscribeLocked();
+            unsubscribeRoomRoot();
         };
-    }, [selectedGame, isJoined, myPlayerId, playJoinSound]);
+    }, [selectedGame, playJoinSound, resetRoomSession]);
 
     useEffect(() => {
         if (!isJoined || typeof document === 'undefined') return undefined;
@@ -375,54 +444,71 @@ function App() {
     }, [isJoined]);
 
     const triggerHostMigration = useCallback(async () => {
-        if (!selectedGame || !myPlayerId) return;
-        const snapshot = await get(ref(db, `rooms/${selectedGame}/players`));
-        const data = snapshot.val();
-        if (!data) return;
+        if (!selectedGame || !myPlayerId || hostMigrationLockRef.current) return;
+        hostMigrationLockRef.current = true;
+        try {
+            const snapshot = await get(ref(db, `rooms/${selectedGame}/players`));
+            const data = snapshot.val();
+            if (!data) return;
 
-        const hasActiveHostNow = Object.values(data).some((p) => p.isHost && p.isOnline !== false);
-        if (hasActiveHostNow) return;
+            const hasActiveHostNow = Object.values(data).some((p) => p.isHost && p.isOnline !== false);
+            if (hasActiveHostNow) return;
 
-        const onlinePlayerKeys = Object.keys(data)
-            .filter((k) => data[k].isOnline !== false)
-            .sort();
+            const onlinePlayerKeys = Object.keys(data)
+                .filter((k) => data[k].isOnline !== false)
+                .sort();
 
-        if (onlinePlayerKeys[0] === myPlayerId) {
-            set(ref(db, `rooms/${selectedGame}/players/${myPlayerId}/isHost`), true);
-            Object.keys(data).forEach((k) => {
-                if (data[k].isHost && k !== myPlayerId) {
-                    set(ref(db, `rooms/${selectedGame}/players/${k}/isHost`), false);
-                }
-            });
+            if (onlinePlayerKeys[0] === myPlayerId) {
+                const updates = {};
+                Object.keys(data).forEach((k) => {
+                    updates[`rooms/${selectedGame}/players/${k}/isHost`] = (k === myPlayerId);
+                });
+                await update(ref(db), updates);
+            }
+        } finally {
+            hostMigrationLockRef.current = false;
         }
     }, [selectedGame, myPlayerId]);
 
-    // Menu główne: 5 listenerów players — debounce zbiorczy (mniej renderów na Malinie)
+    // Menu główne gościa: lista aktywnych pokoi
     useEffect(() => {
-        if (selectedGame) return;
+        if (selectedGame || entryRole !== 'guest') return;
+        const roomsRef = ref(db, 'rooms');
+        const unsub = onValue(roomsRef, (snapshot) => {
+            const raw = snapshot.val() || {};
+            const list = buildActiveRooms(raw, gameById);
+            setActiveRooms(list);
 
-        const pendingRef = { current: {} };
-        const flushPresence = debounce(() => {
-            const batch = { ...pendingRef.current };
-            pendingRef.current = {};
-            setPresenceByGame((prev) => ({ ...prev, ...batch }));
-        }, PRESENCE_DEBOUNCE_MS);
+            const now = Date.now();
+            if (now - lastRoomsCleanupAtRef.current < ROOM_CLEANUP_COOLDOWN_MS) return;
 
-        const unsubs = gameData.games.map((game) => {
-            const gameId = game.id;
-            const playersRef = ref(db, `rooms/${gameId}/players`);
-            return onValue(playersRef, (snapshot) => {
-                pendingRef.current[gameId] = snapshot.val() || {};
-                flushPresence();
+            const staleUpdates = {};
+            Object.entries(raw).forEach(([roomId, room]) => {
+                if (!room?.gameId) return;
+                const players = Object.values(room.players || {}).filter((p) => p && p.isKicked !== true);
+                const onlinePlayers = players.filter((p) => p.isOnline !== false);
+                const hasActiveHost = onlinePlayers.some((p) => p.isHost === true);
+                const ageMs = Math.max(0, now - Number(room.createdAt || 0));
+
+                const isEmptyTooLong = onlinePlayers.length === 0 && ageMs >= EMPTY_ROOM_TTL_MS;
+                const isOrphanTooLong = !hasActiveHost && ageMs >= ORPHAN_ROOM_TTL_MS;
+                if (isEmptyTooLong || isOrphanTooLong) {
+                    staleUpdates[`rooms/${roomId}`] = null;
+                }
             });
-        });
 
+            if (Object.keys(staleUpdates).length > 0) {
+                lastRoomsCleanupAtRef.current = now;
+                update(ref(db), staleUpdates).catch(() => {
+                    /* best effort cleanup */
+                });
+            }
+        });
         return () => {
-            flushPresence.cancel();
-            unsubs.forEach((u) => u());
-            setPresenceByGame({});
+            unsub();
+            setActiveRooms([]);
         };
-    }, [selectedGame]);
+    }, [selectedGame, entryRole, gameById]);
 
     // 4. OBSŁUGA TAJNYCH KOMEND ADMINISTRATORA pod logo
     const handleAdminCommand = useCallback(async () => {
@@ -434,25 +520,49 @@ function App() {
         await runWithBusy(async () => {
         try {
             if (cleanedCmd === 'CLEAR') {
-                if (window.confirm("Reseetujemy całą bazę? Wszyscy zostaną wyrzuceni.")) {
-                    gameData.games.forEach(game => {
-                        set(ref(db, `rooms/${game.id}/players`), null);
-                    });
-                    setLobbyMessage('🧹 Konsola: Wyczyszczono wszystkich graczy ze wszystkich pokoi.');
-                    setAdminCommand('');
-                    setShowAdminPanel(false);
+                if (!selectedGame) {
+                    alert('❌ CLEAR działa wewnątrz pokoju.');
+                    return;
                 }
+                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
+                const roomData = roomSnap.val() || {};
+                if (!roomData.gameId) {
+                    alert('❌ Nie znaleziono pokoju do czyszczenia.');
+                    return;
+                }
+                await set(ref(db, `rooms/${selectedGame}`), {
+                    gameId: roomData.gameId,
+                    isLocked: false,
+                    createdAt: roomData.createdAt || Date.now(),
+                    gameState: null,
+                    settings: null,
+                    roleHistory: null,
+                    players: null,
+                });
+                setLobbyMessage(`🧹 Konsola: Wyczyszczono pokój ${selectedGame} (bez usuwania).`);
+                setAdminCommand('');
+                setShowAdminPanel(false);
                 return;
             }
 
             if (cleanedCmd === 'RESET') {
-                if (!selectedGame) {
-                    alert('❌ Brak wybranego pokoju. Użyj CLEAR aby wyczyścić wszystkie pokoje.');
-                    return;
-                }
-                if (window.confirm("⚠️ Czy na pewno chcesz całkowicie wyczyścić ten pokój? Wszyscy obecni gracze zostaną wyrzuceni!")) {
-                    set(ref(db, `rooms/${selectedGame}`), null);
-                    setLobbyMessage('🧹 Konsola: Wyczyszczono aktualny pokój.');
+                if (window.confirm('⚠️ RESET usunie wszystkie pokoje i graczy. Kontynuować?')) {
+                    await set(ref(db, 'rooms'), null);
+                    setSelectedGame(null);
+                    setSelectedGameType(null);
+                    setEntryRole(null);
+                    setManualRoomCode('');
+                    setActiveRooms([]);
+                    setPlayersList([]);
+                    setIsJoined(false);
+                    setIsHost(false);
+                    setMyPlayerId(null);
+                    setHostExists(false);
+                    setHostLost(false);
+                    setNameError('');
+                    setJoinStatus('');
+                    setLastJoinResult('');
+                    setLobbyMessage('🧹 Konsola: RESET zakończony. Wszystko wyczyszczone.');
                     setAdminCommand('');
                     setShowAdminPanel(false);
                 }
@@ -464,6 +574,35 @@ function App() {
                 const newState = !isAdminMode;
                 setIsAdminMode(newState);
                 setLobbyMessage(`🔧 Konsola: Tryb ADMIN ${newState ? 'włączony' : 'wyłączony'}.`);
+                setAdminCommand('');
+                setShowAdminPanel(false);
+                return;
+            }
+
+            if (cleanedCmd === 'REVEAL') {
+                if (!selectedGame) {
+                    alert('❌ REVEAL działa tylko wewnątrz pokoju.');
+                    return;
+                }
+                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
+                const roomData = roomSnap.val() || {};
+                if (!['impostor', 'mafia'].includes(roomData.gameId)) {
+                    alert('❌ REVEAL działa tylko w grze Impostor lub Mafia.');
+                    return;
+                }
+                await update(ref(db, `rooms/${selectedGame}/gameState`), {
+                    revealAllRoles: true,
+                });
+                setLobbyMessage('👁️ Konsola: Ujawniono role graczy.');
+                setAdminCommand('');
+                setShowAdminPanel(false);
+                return;
+            }
+
+            if (cleanedCmd === 'HELP') {
+                setLobbyMessage(
+                    'Komendy: RESET (czyści wszystko), CLEAR (czyści bieżący pokój), ADMIN (tryb admin), REVEAL (ujawnia role w Impostor/Mafia), ADMIN KICK <name>, HOST / HOST ME / HOST <name>.'
+                );
                 setAdminCommand('');
                 setShowAdminPanel(false);
                 return;
@@ -579,8 +718,10 @@ function App() {
 
     // 5. DOŁĄCZANIE DO POKOJU (NADPISYWANIE DUCHÓW / ZABEZPIECZENIEM PRZED BLOKADĄ)
     const handleJoin = async () => {
+        const joinStartedAt = performance.now();
         isLeavingVoluntarily.current = false; //
         setLobbyMessage('');
+        setJoinStatus('');
         const cleanedName = playerName.trim();
         if (cleanedName === '') {
             setNameError('Podaj imię, aby wejść do pokoju.');
@@ -588,12 +729,24 @@ function App() {
         }
 
         await runWithBusy(async () => {
-        const lockedSnapshot = await get(ref(db, `rooms/${selectedGame}/isLocked`));
-        const isLocked = lockedSnapshot.val() || false;
-
+        setJoinStatus('Łączenie z pokojem...');
         const playersRef = ref(db, `rooms/${selectedGame}/players`);
-        const snapshot = await get(playersRef);
-        const data = snapshot.val() || {};
+        let data = cachedRoomRef.current.players;
+        let isLocked = cachedRoomRef.current.isLocked;
+        if (!data || Date.now() - cachedRoomRef.current.updatedAt > 1500) {
+            setJoinStatus('Pobieranie stanu pokoju...');
+            const [playersSnap, lockedSnap] = await Promise.all([
+                get(ref(db, `rooms/${selectedGame}/players`)),
+                get(ref(db, `rooms/${selectedGame}/isLocked`)),
+            ]);
+            data = playersSnap.val() || {};
+            isLocked = lockedSnap.val() || false;
+            cachedRoomRef.current = {
+                players: data,
+                isLocked,
+                updatedAt: Date.now(),
+            };
+        }
 
         const existingPlayerKey = Object.keys(data).find(
             key => data[key].name?.toLowerCase() === cleanedName.toLowerCase()
@@ -615,6 +768,13 @@ function App() {
                 return;
             }
 
+            if (existingPlayer.isGuest) {
+                setNameError(
+                    'Ta nazwa należy do gościa bez telefonu. Host może zmienić nazwę w panelu gości.'
+                );
+                return;
+            }
+
             if (existingPlayer.isOnline !== false) {
                 setNameError(
                     'Ta nazwa jest już zajęta przez aktywnego gracza. Wybierz inną lub poczekaj, aż gracz się rozłączy (💤).'
@@ -627,12 +787,34 @@ function App() {
             finalIsHost = !!existingPlayer.isHost;
             setIsHost(finalIsHost);
         } else {
-            if (isHost) {
-                set(ref(db, `rooms/${selectedGame}/gameState`), null);
-            }
             const newPlayerRef = push(playersRef);
             targetPlayerRef = newPlayerRef;
             setMyPlayerId(newPlayerRef.key);
+            if (isHost) {
+                await update(ref(db), {
+                    [`rooms/${selectedGame}/players/${newPlayerRef.key}`]: {
+                        name: cleanedName,
+                        isHost: true,
+                        isOnline: true,
+                        isKicked: false,
+                        joinedAt: Date.now(),
+                    },
+                    [`rooms/${selectedGame}/gameState`]: null,
+                }, { priority: true });
+                setIsJoined(true);
+                setNameError('');
+                joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
+                const elapsed = Math.round(performance.now() - joinStartedAt);
+                setLastJoinResult(`Ostatnie wejście: ${elapsed} ms`);
+                setJoinStatus('');
+                try {
+                    onDisconnect(targetPlayerRef).update({ isOnline: false });
+                } catch (discErr) {
+                    console.warn('[join] onDisconnect:', discErr);
+                }
+                isJoiningRef.current = false;
+                return;
+            }
         }
 
         joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
@@ -640,17 +822,20 @@ function App() {
         isJoiningRef.current = true;
 
         try {
+            setJoinStatus('Zapisywanie gracza...');
             await set(targetPlayerRef, {
                 name: cleanedName,
                 isHost: finalIsHost,
                 isOnline: true,
                 isKicked: false,
                 joinedAt: Date.now(),
-            });
+            }, { priority: true });
 
+            setJoinStatus('Weryfikacja wejścia...');
             const verify = await get(targetPlayerRef);
             if (!verify.val()?.name) {
                 setNameError('Nie udało się zapisać w pokoju. Spróbuj ponownie.');
+                setLastJoinResult('Błąd wejścia — spróbuj ponownie.');
                 return;
             }
 
@@ -663,15 +848,65 @@ function App() {
             setIsJoined(true);
             setNameError('');
             joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
+            const elapsed = Math.round(performance.now() - joinStartedAt);
+            setLastJoinResult(`Ostatnie wejście: ${elapsed} ms`);
+            setJoinStatus('');
         } catch (err) {
             console.error(err);
             joinGraceUntilRef.current = 0;
             setNameError('Nie udało się dołączyć. Sprawdź połączenie z bazą (na dole ekranu).');
+            setLastJoinResult('Błąd wejścia — sprawdź połączenie.');
+            setJoinStatus('');
         } finally {
             isJoiningRef.current = false;
         }
         });
     };
+
+    const openRoomAsGuest = useCallback(async (roomId) => {
+        const normalizedRoomId = String(roomId || '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '');
+        if (!normalizedRoomId) return;
+        const roomSnap = await get(ref(db, `rooms/${normalizedRoomId}`));
+        const roomData = roomSnap.val();
+        if (!roomData?.gameId) {
+            setLobbyMessage('❌ Ten pokój nie istnieje lub został zamknięty.');
+            return;
+        }
+        setSelectedGame(normalizedRoomId);
+        setSelectedGameType(roomData.gameId);
+        setIsHost(false);
+        setLobbyMessage('');
+    }, []);
+
+    const createHostRoom = useCallback(async (gameId) => {
+        await runWithBusy(async () => {
+            let roomCode = generateRoomCode();
+            for (let attempt = 0; attempt < 8; attempt += 1) {
+                const existsSnap = await get(ref(db, `rooms/${roomCode}`));
+                if (!existsSnap.exists()) break;
+                roomCode = generateRoomCode();
+            }
+            const finalExistsSnap = await get(ref(db, `rooms/${roomCode}`));
+            if (finalExistsSnap.exists()) {
+                setLobbyMessage('❌ Nie udało się utworzyć kodu pokoju. Spróbuj ponownie.');
+                return;
+            }
+            await set(ref(db, `rooms/${roomCode}`), {
+                gameId,
+                isLocked: false,
+                createdAt: Date.now(),
+                gameState: null,
+                settings: null,
+            });
+            setEntryRole('host');
+            setSelectedGame(roomCode);
+            setSelectedGameType(gameId);
+            setIsHost(true);
+            setLobbyMessage('');
+        });
+    }, [runWithBusy]);
 
     const kickPlayer = useCallback(async (playerId) => {
         if (!selectedGame || !myPlayerId) return;
@@ -731,21 +966,62 @@ function App() {
         }
     }, []);
 
-    const handleBackToMenu = () => {
+    const adminDeleteRoom = useCallback(async (roomId) => {
+        await runWithBusy(async () => {
+            try {
+                await set(ref(db, `rooms/${roomId}`), null);
+                setLobbyMessage(`🧹 Konsola: Usunięto pokój ${roomId}.`);
+            } catch (e) {
+                console.error(e);
+                alert('❌ Błąd przy usuwaniu pokoju.');
+            }
+        });
+    }, [runWithBusy]);
+
+    const handleBackToMenu = useCallback(() => {
         isLeavingVoluntarily.current = true; //
         if (myPlayerId) {
             remove(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
         }
+        resetRoomSession();
+    }, [myPlayerId, selectedGame, resetRoomSession]);
 
-        setSelectedGame(null);
-        setIsJoined(false);
-        setPlayerName('');
-        setIsHost(false);
-        setMyPlayerId(null);
-        setHostExists(false);
-        setHostLost(false);
-        setNameError('');
-    };
+    const handleCloseRoom = useCallback(async () => {
+        if (!selectedGame || !myPlayerId) {
+            handleBackToMenu();
+            return;
+        }
+        isLeavingVoluntarily.current = true;
+        await runWithBusy(async () => {
+            try {
+                const playersSnap = await get(ref(db, `rooms/${selectedGame}/players`));
+                const playersData = playersSnap.val() || {};
+                const markKickedUpdates = {
+                    [`rooms/${selectedGame}/isLocked`]: false,
+                    [`rooms/${selectedGame}/gameState`]: null,
+                };
+                Object.keys(playersData).forEach((playerId) => {
+                    if (playerId === myPlayerId) return;
+                    markKickedUpdates[`rooms/${selectedGame}/players/${playerId}/isKicked`] = true;
+                    markKickedUpdates[`rooms/${selectedGame}/players/${playerId}/isOnline`] = false;
+                });
+                await update(ref(db), markKickedUpdates);
+                await set(ref(db, `rooms/${selectedGame}`), null);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                handleBackToMenu();
+            }
+        });
+    }, [selectedGame, myPlayerId, runWithBusy, handleBackToMenu]);
+
+    const handleLeaveRoom = useCallback(() => {
+        if (effectiveIsHost) {
+            handleCloseRoom();
+            return;
+        }
+        handleBackToMenu();
+    }, [effectiveIsHost, handleCloseRoom, handleBackToMenu]);
 
     return (
         <div className="app-container">
@@ -854,6 +1130,20 @@ function App() {
                         <button
                             type="button"
                             className="settings-toggle"
+                            onClick={() => setShowConnectionFooter((prev) => !prev)}
+                            aria-pressed={showConnectionFooter}
+                        >
+                            <span>Stopka statusu połączenia</span>
+                            <span className={`settings-toggle__icon ${showConnectionFooter ? 'on' : 'off'}`}>
+                                {showConnectionFooter ? '✔' : '✕'}
+                            </span>
+                        </button>
+                    </div>
+
+                    <div className="settings-panel__group">
+                        <button
+                            type="button"
+                            className="settings-toggle"
                             onClick={() => {
                                 toggleAdminPanel();
                                 setShowSettings(false);
@@ -866,7 +1156,7 @@ function App() {
                             </span>
                         </button>
                         <p className="settings-hint settings-hint--tight">
-                            Komendy: CLEAR, RESET, ADMIN… Albo przytrzymaj logo „Party Games” ~0,6 s.
+                            Komendy: HELP, RESET, CLEAR, ADMIN, REVEAL… Albo przytrzymaj logo „Party Games” ~0,6 s.
                         </p>
                     </div>
 
@@ -896,34 +1186,94 @@ function App() {
 
             {!selectedGame ? (
                 <div>
-                    <p>Wybierz pokój gry, do którego chcesz dołączyć:</p>
-                    <div className="games-grid">
-                        {gameData.games.map((game) => (
-                            <button key={game.id} onClick={() => {
-                                setSelectedGame(game.id);
-                                setLobbyMessage('');
-                                setShowAdminPanel(false);
-                            }}>
-                                <span className="game-title">{game.name}</span>
-                                <span className="game-desc">{game.description}</span>
-                            </button>
-                        ))}
-                    </div>
+                    {!entryRole && (
+                        <>
+                            <p>Jak chcesz wejść do platformy?</p>
+                            <div className="actions-stack">
+                                <button onClick={() => setEntryRole('host')} className="entry-role-btn entry-role-btn--host">
+                                    Jestem Hostem
+                                </button>
+                                <button onClick={() => setEntryRole('guest')} className="entry-role-btn entry-role-btn--guest">Jestem Gościem</button>
+                            </div>
+                        </>
+                    )}
 
-                    {/* LISTA GRACZY ONLINE W GŁÓWNYM MENU */}
-                    <div className="players-section">
-                        <h3>Wszyscy gracze online:</h3>
-                        <div className="players-list">
-                            <GlobalPlayersList
-                                players={globalPlayersList}
-                                isAdminMode={isAdminMode}
-                                onAdminKick={adminKick}
+                    {entryRole === 'host' && (
+                        <>
+                            <p>Wybierz tryb gry. Utworzymy nowy pokój.</p>
+                            <div className="games-grid">
+                                {gameData.games.map((game) => (
+                                    <button key={game.id} onClick={() => createHostRoom(game.id)}>
+                                        <span className="game-title">{game.name}</span>
+                                        <span className="game-desc">{game.description}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <button onClick={() => setEntryRole(null)} className="btn-link">Wróć</button>
+                        </>
+                    )}
+
+                    {entryRole === 'guest' && (
+                        <>
+                            <p>Wybierz aktywny pokój albo wpisz kod/link od Hosta.</p>
+                            <input
+                                type="text"
+                                value={manualRoomCode}
+                                onChange={(e) => setManualRoomCode(
+                                    e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                                )}
+                                placeholder="Kod pokoju (roomId)"
+                                maxLength={ROOM_CODE_LENGTH}
                             />
-                        </div>
-                    </div>
+                            <div className="actions-stack join-code-actions">
+                                <button
+                                    onClick={() => openRoomAsGuest(manualRoomCode.trim())}
+                                    disabled={manualRoomCode.trim() === ''}
+                                >
+                                    Dołącz po kodzie
+                                </button>
+                            </div>
+                            <div className="games-grid">
+                                {activeRooms.map((room) => (
+                                    <div key={room.roomId}>
+                                        <button onClick={() => openRoomAsGuest(room.roomId)}>
+                                            <span className="game-title">{room.gameName}</span>
+                                            <span className="game-desc">
+                                                Pokój: {room.roomId} · Gracze online: {room.onlineCount}
+                                                {room.isLocked ? ' · 🔒' : ''}
+                                            </span>
+                                        </button>
+                                        {isAdminMode && (
+                                            <button
+                                                type="button"
+                                                className="btn-admin-kick"
+                                                onClick={() => adminDeleteRoom(room.roomId)}
+                                                title={`Admin: usuń pokój ${room.roomId}`}
+                                            >
+                                                🧹 Usuń pokój
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {activeRooms.length === 0 && (
+                                <p className="join-progress">Brak aktywnych pokoi. Poproś Hosta o link lub kod QR.</p>
+                            )}
+                            <button onClick={() => setEntryRole(null)} className="btn-link">Wróć</button>
+                        </>
+                    )}
                 </div>
             ) : (
                 <div>
+                    {!selectedGameType ? (
+                        <div className="content-panel content-panel--dark">
+                            <p>Ładowanie pokoju…</p>
+                            <div className="actions-stack">
+                                <button onClick={handleBackToMenu} className="btn-link">Wróć</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
                     {!isJoined ? (
                         <div>
                             <h2>Pokój: {currentGameMeta?.name}</h2>
@@ -943,36 +1293,12 @@ function App() {
                             />
 
                             {nameError && <p className="error-message">{nameError}</p>}
-
-                            {hostExists ? (
-                                <div className="host-status-container">
-                                    <button type="button" className="host-status-card disabled" disabled>
-                                        <span className="host-status-card__content">
-                                            <strong>Pokój ma już aktywnego Hosta</strong>
-                                            <span>Dołączasz jako gracz.</span>
-                                        </span>
-                                        <span className="host-status-card__icon">🔒</span>
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="host-checkbox-container">
-                                    <button
-                                        type="button"
-                                        className={`host-toggle ${isHost ? 'on' : 'off'}`}
-                                        onClick={() => setIsHost((prev) => !prev)}
-                                        aria-pressed={isHost}
-                                    >
-                                        <span>Jestem Hostem (Dowodzę stołem)</span>
-                                        <span className={`host-toggle__icon ${isHost ? 'on' : 'off'}`}>
-                                            {isHost ? '✔' : '✕'}
-                                        </span>
-                                    </button>
-                                </div>
-                            )}
+                            {joinStatus && <p className="join-progress">{joinStatus}</p>}
+                            {lastJoinResult && !nameError && <p className="join-progress">{lastJoinResult}</p>}
 
                             <div className="actions-stack">
                                 <button onClick={handleJoin} disabled={playerName.trim() === ''}>Wejdź do pokoju</button>
-                                <button onClick={handleBackToMenu} className="btn-link">Wróć do wyboru gier</button>
+                                <button onClick={handleBackToMenu} className="btn-link">Wróć</button>
                             </div>
 
                             
@@ -992,54 +1318,63 @@ function App() {
                                 </div>
                             )}
 
-                            <MigrationBanner
-                                hostLost={hostLost}
-                                myPlayerId={myPlayerId}
-                                isJoined={isJoined}
-                                selectedGame={selectedGame}
-                                onMigrate={triggerHostMigration}
-                            />
-
                             <Suspense fallback={<p className="game-loading">Ładowanie gry…</p>}>
-                                {selectedGame === 'never-have-i-ever' && (
-                                    <NeverHaveIEver isHost={effectiveIsHost} onLeave={handleBackToMenu} roomInviteUrl={roomInviteUrl} />
+                                {selectedGameType === 'never-have-i-ever' && (
+                                    <NeverHaveIEver isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomInviteUrl={roomInviteUrl} roomId={selectedGame} />
                                 )}
 
-                                {selectedGame === 'truth-or-dare' && (
+                                {selectedGameType === 'truth-or-dare' && (
                                     <TruthOrDare
                                         isHost={effectiveIsHost}
-                                        onLeave={handleBackToMenu}
+                                        onLeave={handleLeaveRoom}
                                         playerName={playerName}
+                                        myPlayerId={myPlayerId}
+                                        tablePlayers={playersList}
                                         roomInviteUrl={roomInviteUrl}
                                         vibrationEnabled={vibrationEnabled}
+                                        roomId={selectedGame}
                                     />
                                 )}
 
-                                {selectedGame === 'impostor' && (
+                                {selectedGameType === 'impostor' && (
                                     <Impostor
                                         isHost={effectiveIsHost}
-                                        onLeave={handleBackToMenu}
+                                        onLeave={handleLeaveRoom}
+                                        onCloseRoom={handleCloseRoom}
                                         myPlayerId={myPlayerId}
                                         tablePlayers={playersList}
                                         roomInviteUrl={roomInviteUrl}
+                                        isRoomLocked={isRoomLocked}
+                                        roomId={selectedGame}
                                     />
                                 )}
 
-                                {selectedGame === 'mafia' && (
+                                {selectedGameType === 'mafia' && (
                                     <Mafia
                                         isHost={effectiveIsHost}
-                                        onLeave={handleBackToMenu}
+                                        onLeave={handleLeaveRoom}
                                         myPlayerId={myPlayerId}
                                         tablePlayers={playersList}
                                         roomInviteUrl={roomInviteUrl}
+                                        isRoomLocked={isRoomLocked}
+                                        roomId={selectedGame}
                                     />
                                 )}
 
-                                {selectedGame === 'dark-stories' && (
-                                    <DarkStories isHost={effectiveIsHost} onLeave={handleBackToMenu} roomInviteUrl={roomInviteUrl} />
+                                {selectedGameType === 'dark-stories' && (
+                                    <DarkStories isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomInviteUrl={roomInviteUrl} roomId={selectedGame} />
                                 )}
                             </Suspense>
                         </div>
+                    )}
+
+                    {isJoined && effectiveIsHost && (
+                        <GuestPlayersPanel
+                            roomId={selectedGame}
+                            playersList={playersList}
+                            myPlayerId={myPlayerId}
+                            runWithBusy={runWithBusy}
+                        />
                     )}
 
                     {/* SEKCJA LISTY GRACZY W POKOJU */}
@@ -1047,8 +1382,13 @@ function App() {
                         <h3>Gracze przy stole:</h3>
                         <div className="players-list">
                             {playersList.length > 0 ? playersList.map(p => (
-                                <span key={p.id} className={`player-tag ${p.isOnline === false ? 'player-offline' : ''}`}>
-                                    {p.name} {p.isOnline === false && '💤'}
+                                <span
+                                    key={p.id}
+                                    className={`player-tag ${p.isOnline === false && !isGuestPlayer(p) ? 'player-offline' : ''} ${isGuestPlayer(p) ? 'player-guest' : ''}`}
+                                >
+                                    {p.name}
+                                    {isGuestPlayer(p) && ' 📵'}
+                                    {p.isOnline === false && !isGuestPlayer(p) && ' 💤'}
 
                                     {(isJoined && effectiveIsHost && p.id !== myPlayerId) && (
                                         <button
@@ -1074,10 +1414,12 @@ function App() {
                             )) : <span className="empty-room-text">Pusty pokój...</span>}
                         </div>
                     </div>
+                        </>
+                    )}
                 </div>
             )}
 
-            <ConnectionStatus />
+            {showConnectionFooter && <ConnectionStatus />}
         </div>
     );
 }

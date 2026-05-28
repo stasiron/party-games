@@ -24,7 +24,7 @@ function ConnectionStatus() {
     }, [isPi]);
 
     const backendLabel = isPi
-        ? `Raspberry Pi · lokalna baza (${firebaseConnection.emulatorHost}:${firebaseConnection.emulatorPort})`
+        ? `Raspberry Pi · PartBox Sync (${firebaseConnection.emulatorHost}:${firebaseConnection.emulatorPort})`
         : 'Google Cloud · baza w internecie';
 
     const perfLabel = lowPower

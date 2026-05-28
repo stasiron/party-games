@@ -4,12 +4,12 @@ import { db } from './firebase';
 import { getGameStateDebounceMs } from './lowPower';
 
 /**
- * @param {string} gameId
+ * @param {string} roomId
  * @param {object} defaultState
  * @param {{ mergeDefaults?: boolean, getFingerprint?: (data: object | null) => string }} options
  * getFingerprint — lekkie porównanie (np. bez pul kart) gdy gracz czeka w kolejce.
  */
-export function useRoomGameState(gameId, defaultState, { mergeDefaults = false, getFingerprint } = {}) {
+export function useRoomGameState(roomId, defaultState, { mergeDefaults = false, getFingerprint } = {}) {
     const [roomData, setRoomData] = useState(defaultState);
     const defaultRef = useRef(defaultState);
     const latestRef = useRef(defaultState);
@@ -22,7 +22,11 @@ export function useRoomGameState(gameId, defaultState, { mergeDefaults = false, 
         let timeoutId;
         let lastFingerprint = '';
         const debounceMs = getGameStateDebounceMs();
-        const roomRef = ref(db, `rooms/${gameId}/gameState`);
+        if (!roomId) {
+            setRoomData(defaultRef.current);
+            return undefined;
+        }
+        const roomRef = ref(db, `rooms/${roomId}/gameState`);
         const unsubscribe = onValue(roomRef, (snapshot) => {
             const data = snapshot.val();
             const base = defaultRef.current;
@@ -50,7 +54,7 @@ export function useRoomGameState(gameId, defaultState, { mergeDefaults = false, 
             clearTimeout(timeoutId);
             unsubscribe();
         };
-    }, [gameId, mergeDefaults, getFingerprint]);
+    }, [roomId, mergeDefaults, getFingerprint]);
 
     return roomData;
 }

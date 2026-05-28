@@ -5,9 +5,9 @@ import { db } from './firebase';
 const RTDB_DEBOUNCE_MS = 80;
 
 /**
- * Subscribes to `rooms/<gameId>/settings` and mirrors it in React state.
+ * Subscribes to `rooms/<roomId>/settings` and mirrors it in React state.
  */
-export function useRoomSettings(gameId, defaultSettings) {
+export function useRoomSettings(roomId, defaultSettings) {
     const [settings, setSettings] = useState(defaultSettings);
     const defaultRef = useRef(defaultSettings);
 
@@ -18,7 +18,11 @@ export function useRoomSettings(gameId, defaultSettings) {
     useEffect(() => {
         let timeoutId;
         let lastJson = '';
-        const settingsRef = ref(db, `rooms/${gameId}/settings`);
+        if (!roomId) {
+            setSettings(defaultRef.current);
+            return undefined;
+        }
+        const settingsRef = ref(db, `rooms/${roomId}/settings`);
         const unsubscribe = onValue(settingsRef, (snapshot) => {
             const data = snapshot.val();
             const base = defaultRef.current;
@@ -37,7 +41,7 @@ export function useRoomSettings(gameId, defaultSettings) {
             clearTimeout(timeoutId);
             unsubscribe();
         };
-    }, [gameId]);
+    }, [roomId]);
 
     return settings;
 }

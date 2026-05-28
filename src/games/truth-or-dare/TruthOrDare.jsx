@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ref } from 'firebase/database';
-import { set, get, update } from '../../lib/rtdb';
+import { set, update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
 import { getMinUiSyncMs } from '../../lib/lowPower';
 import { subscribePiQueue } from '../../lib/rtdbThrottle';
@@ -9,11 +9,28 @@ import gameData from '../../data/gameContent.json';
 import { getTruthOrDareCategories } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import { shuffleArray } from '../../lib/shuffle';
+import {
+    pickRandomPlayerName,
+    buildInitialStats,
+    buildPools,
+    chooseCard,
+    buildUpdatedPlayerStats,
+} from './engine';
 import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { isTurnForPhoneOwner, isCurrentPlayerGuest } from '../../lib/guestPlayers';
 
-function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnabled }) {
+function TruthOrDare({
+    isHost,
+    onLeave,
+    playerName,
+    myPlayerId,
+    tablePlayers = [],
+    roomInviteUrl,
+    vibrationEnabled,
+    roomId,
+}) {
     const playableCategories = useMemo(
         () => getTruthOrDareCategories(gameData.truthOrDare),
         []
@@ -38,9 +55,7 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
     const truthOrDareFingerprint = useCallback(
         (data) => {
             if (!data) return '';
-            const amI =
-                data.currentPlayerName?.trim().toLowerCase() ===
-                playerName?.trim().toLowerCase();
+            const amI = isTurnForPhoneOwner(tablePlayers, myPlayerId, data.currentPlayerName);
             const fp = {
                 isGameStarted: data.isGameStarted,
                 mode: data.mode,
@@ -55,10 +70,10 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
             }
             return JSON.stringify(fp);
         },
-        [playerName]
+        [tablePlayers, myPlayerId]
     );
 
-    const roomData = useRoomGameState('truth-or-dare', defaultRoomState, {
+    const roomData = useRoomGameState(roomId, defaultRoomState, {
         getFingerprint: truthOrDareFingerprint,
     });
     const lastVibratedTurnRef = useRef('');
@@ -84,13 +99,13 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
     }, [vibrationEnabled]);
 
     useEffect(() => {
-        if (!vibrationEnabled || !roomData.currentPlayerName || !playerName) return;
+        if (!vibrationEnabled || !roomData.currentPlayerName) return;
+        if (!isTurnForPhoneOwner(tablePlayers, myPlayerId, roomData.currentPlayerName)) return;
         const turnKey = roomData.currentPlayerName.trim();
-        if (turnKey !== playerName.trim()) return;
         if (lastVibratedTurnRef.current === turnKey) return;
         lastVibratedTurnRef.current = turnKey;
         triggerPlayerVibration();
-    }, [roomData.currentPlayerName, playerName, triggerPlayerVibration, vibrationEnabled]);
+    }, [roomData.currentPlayerName, tablePlayers, myPlayerId, triggerPlayerVibration, vibrationEnabled]);
 
     // OPTYMALIZACJA: Cachowanie funkcji
     const toggleCategory = useCallback((catId) => {
@@ -99,60 +114,23 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
         );
     }, []);
 
-    const getRandomPlayer = useCallback(async (excludeName) => {
-        const playersRef = ref(db, 'rooms/truth-or-dare/players');
-        const snapshot = await get(playersRef);
-        const data = snapshot.val();
-        if (data) {
-            let names = Object.values(data).map(p => p.name);
-            if (excludeName && names.length > 1) {
-                names = names.filter(name => name !== excludeName);
-            }
-            return names[Math.floor(Math.random() * names.length)];
-        }
-        return "Gracz";
-    }, []);
-
     const startGame = useCallback(async () => {
         if (selectedCategories.length === 0) return;
+        const { truths, dares } = buildPools(gameData.truthOrDare.content, selectedCategories);
+        const firstPlayer = pickRandomPlayerName(tablePlayers, null);
+        const initialStats = buildInitialStats(tablePlayers);
 
-        let allTruths = [];
-        let allDares = [];
-
-        selectedCategories.forEach((catId) => {
-            const pack = gameData.truthOrDare.content[catId];
-            if (!pack) return;
-            if (Array.isArray(pack.truth)) {
-                allTruths = [...allTruths, ...pack.truth];
-            }
-            if (Array.isArray(pack.dare)) {
-                allDares = [...allDares, ...pack.dare];
-            }
-        });
-
-        const firstPlayer = await getRandomPlayer(null);
-
-        const playersRef = ref(db, 'rooms/truth-or-dare/players');
-        const snapshot = await get(playersRef);
-        const data = snapshot.val();
-        let initialStats = {};
-        if (data) {
-            Object.values(data).forEach(p => {
-                initialStats[p.name] = { totalLevel: 0, count: 0 };
-            });
-        }
-
-        await set(ref(db, 'rooms/truth-or-dare/gameState'), {
+        await set(ref(db, `rooms/${roomId}/gameState`), {
             isGameStarted: true,
             mode: 'choice',
             currentText: '',
             currentDifficulty: 0,
             currentPlayerName: firstPlayer,
-            truthPool: shuffleArray(allTruths),
-            darePool: shuffleArray(allDares),
+            truthPool: shuffleArray(truths),
+            darePool: shuffleArray(dares),
             playerStats: initialStats
         }, syncOpts);
-    }, [selectedCategories, getRandomPlayer, syncOpts]);
+    }, [selectedCategories, syncOpts, roomId, tablePlayers]);
 
     const drawContent = useCallback(async (type) => {
         if (actionLockRef.current) return;
@@ -162,7 +140,7 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
         const currentPool = roomData[poolKey] || [];
 
         if (currentPool.length === 0) {
-            await update(ref(db, 'rooms/truth-or-dare/gameState'), {
+            await update(ref(db, `rooms/${roomId}/gameState`), {
                 mode: type,
                 currentText: type === 'truth' ? "Koniec pytań w tej puli! Musisz wybrać Wyzwanie." : "Koniec wyzwań w tej puli! Musisz wybrać Prawdę.",
                 currentDifficulty: 0
@@ -170,71 +148,54 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
             return;
         }
 
-        let availableOptions = [...currentPool];
+        const chosen = chooseCard({
+            currentPool,
+            safeMode: isSafeMode,
+            playerStats: roomData.playerStats || {},
+            currentPlayerName: roomData.currentPlayerName,
+        });
 
-        if (isSafeMode) {
-            availableOptions = availableOptions.filter(q => q.level <= 3);
-            if (availableOptions.length === 0) {
-                await update(ref(db, 'rooms/truth-or-dare/gameState'), {
+        if (!chosen) {
+            if (isSafeMode) {
+                await update(ref(db, `rooms/${roomId}/gameState`), {
                     mode: type,
                     currentText: type === 'truth' ? "Brak bezpiecznych pytań! Musisz wybrać Wyzwanie." : "Brak bezpiecznych wyzwań! Musisz wybrać Prawdę.",
                     currentDifficulty: 0
                 }, syncOpts);
-                return;
+            } else {
+                await update(ref(db, `rooms/${roomId}/gameState`), {
+                    mode: type,
+                    currentText: type === 'truth' ? "Koniec pytań w tej puli! Musisz wybrać Wyzwanie." : "Koniec wyzwań w tej puli! Musisz wybrać Prawdę.",
+                    currentDifficulty: 0
+                }, syncOpts);
             }
-        } else {
-            const stats = roomData.playerStats || {};
-            const myStats = stats[roomData.currentPlayerName] || { totalLevel: 0, count: 0 };
-            let roomTotalLevel = 0, roomTotalCount = 0;
-
-            Object.values(stats).forEach(s => {
-                roomTotalLevel += s.totalLevel;
-                roomTotalCount += s.count;
-            });
-
-            const roomAvg = roomTotalCount > 0 ? roomTotalLevel / roomTotalCount : 0;
-            const myAvg = myStats.count > 0 ? myStats.totalLevel / myStats.count : 0;
-
-            if (myAvg < roomAvg) {
-                const harderOptions = availableOptions.filter(q => q.level >= Math.floor(roomAvg));
-                if (harderOptions.length > 0) availableOptions = harderOptions;
-            }
+            return;
         }
 
-        const selectedItem =
-            availableOptions[Math.floor(Math.random() * availableOptions.length)];
-        const indexToRemove = currentPool.findIndex(q => q.text === selectedItem.text);
-        const newPool = [...currentPool];
-        if (indexToRemove !== -1) newPool.splice(indexToRemove, 1);
+        const newStats = buildUpdatedPlayerStats(
+            roomData.playerStats || {},
+            roomData.currentPlayerName,
+            chosen.selectedItem.level
+        );
 
-        const stats = roomData.playerStats || {};
-        const myStats = stats[roomData.currentPlayerName] || { totalLevel: 0, count: 0 };
-        const newStats = {
-            ...stats,
-            [roomData.currentPlayerName]: {
-                totalLevel: myStats.totalLevel + selectedItem.level,
-                count: myStats.count + 1
-            }
-        };
-
-        await update(ref(db, 'rooms/truth-or-dare/gameState'), {
+        await update(ref(db, `rooms/${roomId}/gameState`), {
             mode: type,
-            currentText: selectedItem.text,
-            currentDifficulty: selectedItem.level,
-            [poolKey]: newPool,
+            currentText: chosen.selectedItem.text,
+            currentDifficulty: chosen.selectedItem.level,
+            [poolKey]: chosen.nextPool,
             playerStats: newStats
         }, syncOpts);
         } finally {
             actionLockRef.current = false;
         }
-    }, [roomData, isSafeMode, syncOpts]);
+    }, [roomData, isSafeMode, syncOpts, roomId]);
 
     const nextTurn = useCallback(async () => {
         if (actionLockRef.current) return;
         actionLockRef.current = true;
         try {
-            const nextPlayer = await getRandomPlayer(roomData.currentPlayerName);
-            await update(ref(db, 'rooms/truth-or-dare/gameState'), {
+            const nextPlayer = pickRandomPlayerName(tablePlayers, roomData.currentPlayerName);
+            await update(ref(db, `rooms/${roomId}/gameState`), {
                 mode: 'choice',
                 currentText: '',
                 currentDifficulty: 0,
@@ -243,13 +204,13 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
         } finally {
             actionLockRef.current = false;
         }
-    }, [roomData.currentPlayerName, getRandomPlayer, syncOpts]);
+    }, [roomData.currentPlayerName, syncOpts, roomId, tablePlayers]);
 
     const forceResetTable = useCallback(() => {
-        set(ref(db, 'rooms/truth-or-dare/gameState'), null);
+        set(ref(db, `rooms/${roomId}/gameState`), null);
         setSelectedCategories([]);
         setIsSafeMode(false);
-    }, []);
+    }, [roomId]);
 
     const handleEndGame = useCallback(() => {
         forceResetTable();
@@ -261,8 +222,19 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
     }, []);
 
     const amICurrentPlayer = roomData.currentPlayerName?.trim() === playerName?.trim();
-    const canAct = amICurrentPlayer && !rtdbBusy;
+    const isGuestTurn = isCurrentPlayerGuest(tablePlayers, roomData.currentPlayerName);
+    const isSharedPhoneTurn = isTurnForPhoneOwner(
+        tablePlayers,
+        myPlayerId,
+        roomData.currentPlayerName
+    );
+    const canAct = isSharedPhoneTurn && !rtdbBusy;
     const cardStateClass = canAct ? 'tod-card-active' : 'tod-card-disabled';
+
+    const sharedPhoneGuestName = useMemo(() => {
+        if (!isGuestTurn || !isSharedPhoneTurn) return null;
+        return roomData.currentPlayerName;
+    }, [isGuestTurn, isSharedPhoneTurn, roomData.currentPlayerName]);
 
     return (
         <div>
@@ -318,16 +290,28 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
                             Kolej gracza:
                             {isSafeMode && <span className="tod-safe-mode-dot">●</span>}
                         </h2>
-                        <h1 className={`tod-turn-h1 ${amICurrentPlayer ? 'active' : 'inactive'}`}>
+                        <h1 className={`tod-turn-h1 ${isSharedPhoneTurn ? 'active' : 'inactive'}`}>
                             {roomData.currentPlayerName}
-                            {amICurrentPlayer && " (TO TY!)"}
+                            {amICurrentPlayer && ' (TO TY!)'}
+                            {sharedPhoneGuestName && ' (gość przy Twoim telefonie)'}
                         </h1>
                     </div>
 
+                    {sharedPhoneGuestName && isSharedPhoneTurn && (
+                        <p className="tod-shared-phone-banner">
+                            Współdzielony telefon — wybierz <strong>Prawdę</strong> lub{' '}
+                            <strong>Wyzwanie</strong> za: <strong>{sharedPhoneGuestName}</strong>
+                        </p>
+                    )}
+
                     {roomData.mode === 'choice' ? (
                         <>
-                            <p className={`tod-choice-text ${amICurrentPlayer ? 'active' : 'inactive'}`}>
-                                {amICurrentPlayer ? "Podejmij decyzję:" : "Czekamy na wybór gracza..."}
+                            <p className={`tod-choice-text ${isSharedPhoneTurn ? 'active' : 'inactive'}`}>
+                                {isSharedPhoneTurn
+                                    ? sharedPhoneGuestName
+                                        ? `Wybierz za gościa ${sharedPhoneGuestName}:`
+                                        : 'Podejmij decyzję:'
+                                    : 'Czekamy na wybór gracza...'}
                             </p>
                             <div className="cards-container">
                                 <div
@@ -362,7 +346,7 @@ function TruthOrDare({ isHost, onLeave, playerName, roomInviteUrl, vibrationEnab
                                 {roomData.currentText}
                             </h3>
 
-                            {roomData.currentDifficulty === 0 && amICurrentPlayer && (
+                            {roomData.currentDifficulty === 0 && isSharedPhoneTurn && (
                                 <button
                                     onClick={() => canAct && drawContent(roomData.mode === 'truth' ? 'dare' : 'truth')}
                                     className={`btn-emergency ${roomData.mode === 'truth' ? 'bg-dare' : 'bg-truth'}`}

@@ -11,7 +11,7 @@ import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
 
-function DarkStories({ isHost, onLeave, roomInviteUrl }) {
+function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
     const playableDifficulties = useMemo(
         () => getDarkStoriesDifficulties(gameData.darkStories),
         []
@@ -27,7 +27,7 @@ function DarkStories({ isHost, onLeave, roomInviteUrl }) {
         }),
         []
     );
-    const roomData = useRoomGameState('dark-stories', defaultRoomState, { mergeDefaults: true });
+    const roomData = useRoomGameState(roomId, defaultRoomState, { mergeDefaults: true });
     usePiGameSession(roomData.isGameStarted);
 
     const toggleDifficulty = useCallback((diffId) => {
@@ -37,42 +37,42 @@ function DarkStories({ isHost, onLeave, roomInviteUrl }) {
     }, []);
 
     const startGame = useCallback(() => {
-        let allStories = [];
+        const allStories = [];
         selectedDifficulties.forEach((diffId) => {
             const pool = gameData.darkStories.stories[diffId];
             if (Array.isArray(pool)) {
-                allStories = [...allStories, ...pool];
+                allStories.push(...pool);
             }
         });
 
         const shuffled = shuffleArray(allStories);
 
-        set(ref(db, 'rooms/dark-stories/gameState'), {
+        set(ref(db, `rooms/${roomId}/gameState`), {
             isGameStarted: true,
             shuffledStories: shuffled,
             currentStoryIndex: 0,
             solutionRevealed: false,
         });
-    }, [selectedDifficulties]);
+    }, [selectedDifficulties, roomId]);
 
     const forceResetTable = useCallback(() => {
-        set(ref(db, 'rooms/dark-stories/gameState'), null);
+        set(ref(db, `rooms/${roomId}/gameState`), null);
         setSelectedDifficulties([]);
-    }, []);
+    }, [roomId]);
 
     const currentStory = roomData.shuffledStories?.[roomData.currentStoryIndex];
 
     const navigateToStory = useCallback(
         (index) => {
             if (!roomData.shuffledStories?.length) return;
-            set(ref(db, 'rooms/dark-stories/gameState'), {
+            set(ref(db, `rooms/${roomId}/gameState`), {
                 isGameStarted: true,
                 shuffledStories: roomData.shuffledStories,
                 currentStoryIndex: index,
                 solutionRevealed: false,
             });
         },
-        [roomData.shuffledStories]
+        [roomData.shuffledStories, roomId]
     );
 
     const nextStory = useCallback(() => {
@@ -89,10 +89,10 @@ function DarkStories({ isHost, onLeave, roomInviteUrl }) {
 
     const toggleSolutionRevealed = useCallback(() => {
         set(
-            ref(db, 'rooms/dark-stories/gameState/solutionRevealed'),
+            ref(db, `rooms/${roomId}/gameState/solutionRevealed`),
             !roomData.solutionRevealed
         );
-    }, [roomData.solutionRevealed]);
+    }, [roomData.solutionRevealed, roomId]);
 
     const handleEndGame = useCallback(() => {
         forceResetTable();

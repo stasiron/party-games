@@ -305,12 +305,21 @@ body::before {
     align-items: center;
 }
 
+.app-container .actions-stack {
+    gap: 12px;
+}
+
+.join-code-actions {
+    margin-bottom: 18px;
+}
+
 .app-container .actions-stack > button,
 .app-container .actions-stack > .btn-main-action,
 .room-lock-container > button {
     width: 100% !important;
     max-width: 400px;
     box-sizing: border-box;
+    margin-bottom: 0 !important;
 }
 
 .categories-grid {
@@ -499,6 +508,23 @@ button:hover {
     box-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
 }
 
+.entry-role-btn {
+    min-height: 76px;
+    font-size: 1.28rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.01em;
+}
+
+.entry-role-btn--host {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+}
+
+.entry-role-btn--guest {
+    border-width: 2px !important;
+}
+
 .btn-emergency {
     margin-top: 25px;
     color: #fff;
@@ -514,17 +540,22 @@ button:hover {
 .btn-emergency:active { transform: scale(0.95); }
 
 .btn-link {
-    background-color: transparent !important;
-    border: none !important;
-    margin-top: 10px !important;
+    width: 100% !important;
+    max-width: 320px;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-radius: var(--radius-md) !important;
+    margin-top: 8px !important;
     font-size: 1rem !important;
-    text-decoration: underline;
-    padding: 10px !important;
+    font-weight: 600 !important;
+    text-decoration: none;
+    padding: 12px 16px !important;
 }
 
 .btn-link:hover {
-    color: #ccc !important;
-    background-color: transparent !important;
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.16) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
 }
 
 .btn-emergency-reset {
@@ -592,6 +623,12 @@ button:hover {
     font-size: 0.9rem;
     margin-top: 5px;
     font-weight: bold;
+}
+
+.join-progress {
+    color: rgba(224, 231, 255, 0.95);
+    font-size: 0.9rem;
+    margin-top: 6px;
 }
 
 .host-status-container,
@@ -806,6 +843,239 @@ button:hover {
 }
 
 .player-offline { opacity: 0.5; }
+
+.player-guest {
+    border: 1px dashed rgba(255, 255, 255, 0.35);
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Goście bez telefonu (panel hosta) */
+.guest-players-panel {
+    margin: 24px 0;
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border);
+    text-align: left;
+}
+
+.guest-players-panel__title {
+    margin: 0 0 8px;
+    font-size: 1.1rem;
+}
+
+.guest-players-panel__hint {
+    margin: 0 0 14px;
+    font-size: 0.85rem;
+    opacity: 0.85;
+    line-height: 1.4;
+}
+
+.guest-players-panel__add {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.guest-players-panel__add input {
+    flex: 1;
+    min-width: 140px;
+}
+
+.guest-players-panel__list {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.guest-players-panel__item {
+    padding: 12px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.guest-players-panel__name {
+    font-weight: 600;
+}
+
+.guest-players-panel__badge {
+    margin-left: 8px;
+    font-size: 0.8rem;
+    font-weight: normal;
+    opacity: 0.9;
+}
+
+.guest-players-panel__item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.guest-players-panel__link {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.guest-players-panel__link-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.75;
+}
+
+.guest-link-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.guest-link-chip {
+    padding: 8px 14px !important;
+    border-radius: 999px !important;
+    font-size: 0.85rem !important;
+    width: auto !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: inherit !important;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.guest-link-chip--active {
+    background: rgba(140, 33, 94, 0.45) !important;
+    border-color: var(--color-accent) !important;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.guest-link-chip:active {
+    transform: scale(0.97);
+}
+
+.guest-players-panel__remove {
+    font-size: 0.8rem !important;
+    padding: 4px 10px !important;
+    width: auto !important;
+    background: transparent !important;
+    border: 1px solid rgba(255, 80, 80, 0.5) !important;
+    color: var(--color-danger) !important;
+    border-radius: 999px !important;
+}
+
+.guest-players-panel__summary-arrow {
+    opacity: 0.6;
+}
+
+.guest-players-panel__summary {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+.guest-players-panel__summary p {
+    margin: 4px 0;
+}
+
+/* Współdzielony telefon — podgląd ról */
+.shared-phone-reveal__step {
+    text-align: center;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+}
+
+.shared-phone-reveal {
+    margin-bottom: 8px;
+}
+
+.shared-phone-reveal__actions {
+    position: relative;
+    z-index: 5;
+    margin: 12px 0 4px;
+}
+
+.shared-phone-reveal__confirm {
+    width: 100%;
+    margin: 0;
+}
+
+.shared-phone-reveal__hint {
+    text-align: center;
+    font-size: 0.85rem;
+    opacity: 0.75;
+    margin: 0;
+}
+
+.role-replay-bar {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.btn-role-replay {
+    width: 100%;
+    max-width: 360px;
+    padding: 12px 16px !important;
+    border-radius: var(--radius-md) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px dashed rgba(255, 255, 255, 0.35) !important;
+    font-size: 0.95rem !important;
+}
+
+.impostor-replay-hint {
+    font-size: 0.85rem;
+    opacity: 0.8;
+    margin-top: 12px;
+}
+
+.mafia-host-reveal-zone {
+    margin-bottom: 20px;
+}
+
+.mafia-host-reveal-toggle {
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.mafia-host-reveal-notice {
+    text-align: center;
+    font-size: 0.9rem;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 200, 80, 0.12);
+    border: 1px solid rgba(255, 200, 80, 0.35);
+}
+
+.btn-mafia-back-panel {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid var(--glass-border) !important;
+}
+
+.shared-phone-reveal__done {
+    text-align: center;
+    opacity: 0.85;
+    padding: 16px;
+}
+
+.tod-shared-phone-banner {
+    text-align: center;
+    margin: 0 0 16px;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 200, 80, 0.15);
+    border: 1px solid rgba(255, 200, 80, 0.35);
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
 
 .btn-kick {
     background: transparent !important;
@@ -1141,6 +1411,10 @@ button:hover {
     align-items: center;
     justify-content: center;
     gap: 20px;
+}
+
+.impostor-random-toggle {
+    margin: 0 0 12px;
 }
 
 .impostor-impostor-count-value {

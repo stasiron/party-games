@@ -11,7 +11,7 @@ import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
 
-function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
+function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
     const playableCategories = useMemo(
         () => getNeverHaveIEverCategories(gameData.neverHaveIEver),
         []
@@ -22,7 +22,7 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
         () => ({ isGameStarted: false, shuffledQuestions: [], currentQuestionIndex: 0 }),
         []
     );
-    const roomData = useRoomGameState('never-have-i-ever', defaultRoomState);
+    const roomData = useRoomGameState(roomId, defaultRoomState);
     usePiGameSession(roomData.isGameStarted);
 
     // OPTYMALIZACJA: Zapamiętywanie funkcji, by nie obciążać procesora przy re-renderach
@@ -33,40 +33,40 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl }) {
     }, []);
 
     const startGame = useCallback(() => {
-        let allQuestions = [];
+        const allQuestions = [];
         selectedCategories.forEach((catId) => {
             const pool = gameData.neverHaveIEver.questions[catId];
             if (Array.isArray(pool)) {
-                allQuestions = [...allQuestions, ...pool];
+                allQuestions.push(...pool);
             }
         });
 
         const shuffled = shuffleArray(allQuestions);
 
-        set(ref(db, 'rooms/never-have-i-ever/gameState'), {
+        set(ref(db, `rooms/${roomId}/gameState`), {
             isGameStarted: true,
             shuffledQuestions: shuffled,
             currentQuestionIndex: 0
         });
-    }, [selectedCategories]);
+    }, [selectedCategories, roomId]);
 
     // OPTYMALIZACJA: Stabilna referencja dla ConfirmButton (memo zadziała perfekcyjnie)
     const forceResetTable = useCallback(() => {
-        set(ref(db, 'rooms/never-have-i-ever/gameState'), null);
+        set(ref(db, `rooms/${roomId}/gameState`), null);
         setSelectedCategories([]);
-    }, []);
+    }, [roomId]);
 
     const nextQuestion = useCallback(() => {
         if (roomData.currentQuestionIndex < roomData.shuffledQuestions.length - 1) {
-            set(ref(db, 'rooms/never-have-i-ever/gameState/currentQuestionIndex'), roomData.currentQuestionIndex + 1);
+            set(ref(db, `rooms/${roomId}/gameState/currentQuestionIndex`), roomData.currentQuestionIndex + 1);
         }
-    }, [roomData.currentQuestionIndex, roomData.shuffledQuestions]);
+    }, [roomData.currentQuestionIndex, roomData.shuffledQuestions, roomId]);
 
     const prevQuestion = useCallback(() => {
         if (roomData.currentQuestionIndex > 0) {
-            set(ref(db, 'rooms/never-have-i-ever/gameState/currentQuestionIndex'), roomData.currentQuestionIndex - 1);
+            set(ref(db, `rooms/${roomId}/gameState/currentQuestionIndex`), roomData.currentQuestionIndex - 1);
         }
-    }, [roomData.currentQuestionIndex]);
+    }, [roomData.currentQuestionIndex, roomId]);
 
     const handleEndGame = useCallback(() => {
         forceResetTable();

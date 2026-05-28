@@ -1,0 +1,16 @@
+/* NIE USUWAC KOMENTARZA W TYM PLIKU!
+0.0.1 wybór pokoju gry
+0.0.2 wprowadzenie funkcjonalnosci hosta
+0.0.3 wprowadzenie wstepnych zalozen gry
+0.0.4 wstepnie zalozenia impostora
+0.0.5 wstepne zalozenia mafii
+0.1.0 Wprowadzenie pelnej funkcjonalnosci 3 gier
+0.2.0 Konsola Komend i Admina
+0.3.0 ustawienia
+0.4.0 Wielka optymalizacja
+0.5.0 Czarne historie
+0.6.0 KOdy QR i linki
+0.7.0 Optymalizacja
+0.8.0 OPtymalizacja maliny
+1.0.0 REWORK pierwszego menu, pokoi, bazy danych i calej funkcjonalnosci wejscia
+*/

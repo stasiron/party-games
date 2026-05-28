@@ -19,6 +19,9 @@ cat /etc/NetworkManager/dnsmasq-shared.d/partygames.conf 2>&1
 echo "=== party-web errors ==="
 tail -20 "$HOME/.pm2/logs/party-web-error.log" 2>/dev/null || echo "(brak)"
 
+echo "=== partbox-sync errors ==="
+tail -20 "$HOME/.pm2/logs/partbox-sync-error.log" 2>/dev/null || echo "(brak)"
+
 echo "=== HTTP test ==="
 command -v curl >/dev/null && curl -s -o /dev/null -w "10.42.0.1:80 -> %{http_code}\n" http://10.42.0.1/ || echo "curl brak"
 

@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { createContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { useConnectionPing } from '../lib/useConnectionPing';
 import { isLowPowerDevice } from '../lib/lowPower';
 import { subscribePiQueue } from '../lib/rtdbThrottle';
-import { ServerBusyContext } from './serverBusyContext.js';
+
+export const ServerBusyContext = createContext(null);
 
 export function ServerBusyProvider({ children }) {
     const [busyCount, setBusyCount] = useState(0);

@@ -15,7 +15,7 @@ function RoomInviteQR({ inviteUrl }) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            alert('Nie udało się skopiować linku. Spróbuj ręcznie z paska adresu (parametr game=...).');
+            alert('Nie udało się skopiować linku. Spróbuj ręcznie z paska adresu (parametr room=...).');
         }
     }, [inviteUrl]);
 
