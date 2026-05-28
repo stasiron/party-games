@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ref } from 'firebase/database';
 import { set } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
@@ -10,6 +10,7 @@ import { shuffleArray } from '../../lib/shuffle';
 import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { useCategorySelection } from '../../lib/useCategorySelection';
 
 function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
     const playableDifficulties = useMemo(
@@ -17,7 +18,11 @@ function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
         []
     );
 
-    const [selectedDifficulties, setSelectedDifficulties] = useState([]);
+    const {
+        selectedIds: selectedDifficulties,
+        toggleId: toggleDifficulty,
+        resetToAll: resetDifficultiesToAll,
+    } = useCategorySelection(playableDifficulties);
     const defaultRoomState = useMemo(
         () => ({
             isGameStarted: false,
@@ -29,12 +34,6 @@ function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
     );
     const roomData = useRoomGameState(roomId, defaultRoomState, { mergeDefaults: true });
     usePiGameSession(roomData.isGameStarted);
-
-    const toggleDifficulty = useCallback((diffId) => {
-        setSelectedDifficulties((prev) =>
-            prev.includes(diffId) ? prev.filter((id) => id !== diffId) : [...prev, diffId]
-        );
-    }, []);
 
     const startGame = useCallback(() => {
         const allStories = [];
@@ -57,8 +56,8 @@ function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
 
     const forceResetTable = useCallback(() => {
         set(ref(db, `rooms/${roomId}/gameState`), null);
-        setSelectedDifficulties([]);
-    }, [roomId]);
+        resetDifficultiesToAll();
+    }, [roomId, resetDifficultiesToAll]);
 
     const currentStory = roomData.shuffledStories?.[roomData.currentStoryIndex];
 
@@ -156,17 +155,16 @@ function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
                                     );
                                 })}
                             </div>
-                            {selectedDifficulties.length > 0 && (
-                                <div className="actions-stack">
-                                    <button
-                                        type="button"
-                                        onClick={startGame}
-                                        className="btn-accent"
-                                    >
-                                        Rozpocznij grę ({selectedDifficulties.length})
-                                    </button>
-                                </div>
-                            )}
+                            <div className="lobby-start-actions actions-stack">
+                                <button
+                                    type="button"
+                                    onClick={startGame}
+                                    className="btn-accent btn-lobby-start"
+                                    disabled={selectedDifficulties.length === 0}
+                                >
+                                    Rozpocznij grę ({selectedDifficulties.length})
+                                </button>
+                            </div>
                             <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
                     ) : (

@@ -13,6 +13,8 @@ import GameRules from '../../components/GameRules';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { getTablePlayers, getGuestsForOwner } from '../../lib/guestPlayers';
 import SharedPhoneRoleReveal from '../../components/SharedPhoneRoleReveal';
+import CollapsibleSection from '../../components/CollapsibleSection';
+import { useCategorySelection } from '../../lib/useCategorySelection';
 
 const DEFAULT_SETTINGS = { fairnessEnabled: false };
 
@@ -40,7 +42,11 @@ function Impostor({
 
     const maxImpostors = Math.max(1, lobbyPlayerCount - 1);
 
-    const [selectedCategories, setSelectedCategories] = useState([]);
+    const {
+        selectedIds: selectedCategories,
+        toggleId: toggleCategory,
+        resetToAll: resetCategoriesToAll,
+    } = useCategorySelection(playableCategories);
     const [impostorCount, setImpostorCount] = useState(1);
     const [randomImpostorCount, setRandomImpostorCount] = useState(false);
     const [randomImpostorMaxCount, setRandomImpostorMaxCount] = useState(maxImpostors);
@@ -89,12 +95,6 @@ function Impostor({
         }
         return [];
     }, [roomData.impostorIds, roomData.impostorId]);
-
-    const toggleCategory = useCallback((catId) => {
-        setSelectedCategories((prev) =>
-            prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
-        );
-    }, []);
 
     const changeImpostorCount = useCallback(
         (delta) => {
@@ -283,9 +283,9 @@ function Impostor({
             roundResult: '',
             revealAllRoles: false,
         });
-        setSelectedCategories([]);
+        resetCategoriesToAll();
         setShowRole(false);
-    }, [roomId]);
+    }, [roomId, resetCategoriesToAll]);
 
     const handleEndGame = useCallback(() => {
         forceResetTable();
@@ -357,123 +357,141 @@ function Impostor({
 
                     {isHost ? (
                         <>
-                            <div className="impostor-room-settings">
-                                <h3 className="impostor-room-settings__title">Ustawienia pokoju</h3>
-                                <button
-                                    type="button"
-                                    className="settings-toggle impostor-fairness-toggle"
-                                    onClick={toggleFairness}
-                                    aria-pressed={roomSettings.fairnessEnabled}
-                                >
-                                    <span className="impostor-fairness-toggle__text">
-                                        <strong>Sprawiedliwe losowanie</strong>
-                                        <span className="impostor-fairness-toggle__hint">
-                                            {roomSettings.fairnessEnabled
-                                                ? 'Większa szansa dla graczy, którzy dawno nie byli Impostorem — bez powtórek z poprzedniej rundy.'
-                                                : 'Czysta losowość — każdy ma równe szanse co rundę.'}
+                            <CollapsibleSection
+                                toggleLabel="▼ Ustawienia rundy (losowanie, Impostorzy)"
+                                toggleLabelOpen="▲ Ukryj ustawienia rundy"
+                                defaultOpen={false}
+                            >
+                                <div className="impostor-room-settings">
+                                    <button
+                                        type="button"
+                                        className="settings-toggle impostor-fairness-toggle"
+                                        onClick={toggleFairness}
+                                        aria-pressed={roomSettings.fairnessEnabled}
+                                    >
+                                        <span className="impostor-fairness-toggle__text">
+                                            <strong>Sprawiedliwe losowanie</strong>
+                                            <span className="impostor-fairness-toggle__hint">
+                                                {roomSettings.fairnessEnabled
+                                                    ? 'Większa szansa dla graczy, którzy dawno nie byli Impostorem — bez powtórek z poprzedniej rundy.'
+                                                    : 'Czysta losowość — każdy ma równe szanse co rundę.'}
+                                            </span>
                                         </span>
-                                    </span>
-                                    <span
-                                        className={`settings-toggle__icon ${roomSettings.fairnessEnabled ? 'on' : 'off'}`}
-                                    >
-                                        {roomSettings.fairnessEnabled ? '✔' : '✕'}
-                                    </span>
-                                </button>
-                            </div>
-
-                            <div className="impostor-impostor-count-box">
-                                <h3 className="impostor-impostor-count-title">Liczba Impostorów</h3>
-                                <button
-                                    type="button"
-                                    className="settings-toggle impostor-random-toggle"
-                                    onClick={() =>
-                                        setRandomImpostorCount((prev) => {
-                                            const next = !prev;
-                                            if (next) {
-                                                const defaultMax = Math.max(1, lobbyPlayerCount - 1);
-                                                const hardMax = Math.max(1, lobbyPlayerCount);
-                                                setRandomImpostorMaxCount(Math.min(hardMax, defaultMax));
-                                            }
-                                            return next;
-                                        })
-                                    }
-                                    aria-pressed={randomImpostorCount}
-                                >
-                                    <span>Losowa liczba Impostorów co rundę</span>
-                                    <span className={`settings-toggle__icon ${randomImpostorCount ? 'on' : 'off'}`}>
-                                        {randomImpostorCount ? '✔' : '✕'}
-                                    </span>
-                                </button>
-                                <div className="impostor-impostor-count-row">
-                                    <button
-                                        type="button"
-                                        onClick={() => changeImpostorCount(-1)}
-                                        className="btn-impostor-counter"
-                                        disabled={
-                                            randomImpostorCount
-                                                ? effectiveRandomImpostorMaxCount <= 1
-                                                : impostorCount <= 1
-                                        }
-                                    >
-                                        −
-                                    </button>
-                                    <span className="impostor-impostor-count-value">
-                                        {randomImpostorCount ? effectiveRandomImpostorMaxCount : impostorCount}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => changeImpostorCount(1)}
-                                        className="btn-impostor-counter"
-                                        disabled={
-                                            randomImpostorCount
-                                                ? effectiveRandomImpostorMaxCount >= Math.max(1, lobbyPlayerCount)
-                                                : impostorCount >= maxImpostors
-                                        }
-                                    >
-                                        +
+                                        <span
+                                            className={`settings-toggle__icon ${roomSettings.fairnessEnabled ? 'on' : 'off'}`}
+                                        >
+                                            {roomSettings.fairnessEnabled ? '✔' : '✕'}
+                                        </span>
                                     </button>
                                 </div>
-                                <p className="impostor-impostor-count-hint">
-                                    {randomImpostorCount
-                                        ? `Graczy przy stole: ${lobbyPlayerCount} (losowanie 1-${effectiveRandomImpostorMaxCount} Impostorów, max ${Math.max(1, lobbyPlayerCount)})`
-                                        : `Graczy przy stole: ${lobbyPlayerCount} (max ${maxImpostors} Impostorów)`}
-                                </p>
-                            </div>
 
-                            <p>Wybierz kategorie dla tej rundy (możesz kilka):</p>
-                            <div className="games-grid categories-grid">
-                                {playableCategories.map((cat) => {
-                                    const isSelected = selectedCategories.includes(cat.id);
-                                    return (
+                                <div className="impostor-impostor-count-box">
+                                    <h3 className="impostor-impostor-count-title">Liczba Impostorów</h3>
+                                    <button
+                                        type="button"
+                                        className="settings-toggle impostor-random-toggle"
+                                        onClick={() =>
+                                            setRandomImpostorCount((prev) => {
+                                                const next = !prev;
+                                                if (next) {
+                                                    const defaultMax = Math.max(1, lobbyPlayerCount - 1);
+                                                    const hardMax = Math.max(1, lobbyPlayerCount);
+                                                    setRandomImpostorMaxCount(Math.min(hardMax, defaultMax));
+                                                }
+                                                return next;
+                                            })
+                                        }
+                                        aria-pressed={randomImpostorCount}
+                                    >
+                                        <span>Losowa liczba Impostorów co rundę</span>
+                                        <span className={`settings-toggle__icon ${randomImpostorCount ? 'on' : 'off'}`}>
+                                            {randomImpostorCount ? '✔' : '✕'}
+                                        </span>
+                                    </button>
+                                    <div className="impostor-impostor-count-row">
                                         <button
-                                            key={cat.id}
-                                            onClick={() => toggleCategory(cat.id)}
-                                            className={
-                                                isSelected ? 'category-btn-selected' : 'category-btn-unselected'
+                                            type="button"
+                                            onClick={() => changeImpostorCount(-1)}
+                                            className="btn-impostor-counter"
+                                            disabled={
+                                                randomImpostorCount
+                                                    ? effectiveRandomImpostorMaxCount <= 1
+                                                    : impostorCount <= 1
                                             }
                                         >
-                                            <span className="game-title">{cat.name}</span>
-                                            <span className="game-desc">{cat.desc}</span>
+                                            −
                                         </button>
-                                    );
-                                })}
-                            </div>
-                            {selectedCategories.length > 0 && (
-                                <div className="actions-stack">
-                                    <button
-                                        onClick={startGame}
-                                        className="btn-accent"
-                                        disabled={!canStart}
-                                    >
-                                        Wylosuj z {selectedCategories.length} kategorii i rozdaj role
-                                    </button>
-                                    {lobbyPlayerCount < 2 && (
-                                        <p className="impostor-start-hint text-error">
-                                            Potrzebujesz co najmniej 2 graczy przy stole.
-                                        </p>
-                                    )}
+                                        <span className="impostor-impostor-count-value">
+                                            {randomImpostorCount ? effectiveRandomImpostorMaxCount : impostorCount}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => changeImpostorCount(1)}
+                                            className="btn-impostor-counter"
+                                            disabled={
+                                                randomImpostorCount
+                                                    ? effectiveRandomImpostorMaxCount >= Math.max(1, lobbyPlayerCount)
+                                                    : impostorCount >= maxImpostors
+                                            }
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    <p className="impostor-impostor-count-hint">
+                                        {randomImpostorCount
+                                            ? `Graczy przy stole: ${lobbyPlayerCount} (losowanie 1-${effectiveRandomImpostorMaxCount} Impostorów, max ${Math.max(1, lobbyPlayerCount)})`
+                                            : `Graczy przy stole: ${lobbyPlayerCount} (max ${maxImpostors} Impostorów)`}
+                                    </p>
                                 </div>
-                            )}
+                            </CollapsibleSection>
+
+                            <CollapsibleSection
+                                toggleLabel={`▼ Kategorie (${selectedCategories.length}/${playableCategories.length})`}
+                                toggleLabelOpen="▲ Ukryj kategorie"
+                                defaultOpen={true}
+                            >
+                                <p className="collapsible-section__lead">
+                                    Domyślnie zaznaczone są wszystkie — odznacz te, których nie chcesz w rundzie.
+                                </p>
+                                <div className="games-grid categories-grid">
+                                    {playableCategories.map((cat) => {
+                                        const isSelected = selectedCategories.includes(cat.id);
+                                        return (
+                                            <button
+                                                key={cat.id}
+                                                onClick={() => toggleCategory(cat.id)}
+                                                className={
+                                                    isSelected ? 'category-btn-selected' : 'category-btn-unselected'
+                                                }
+                                            >
+                                                <span className="game-title">{cat.name}</span>
+                                                <span className="game-desc">{cat.desc}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </CollapsibleSection>
+
+                            <div className="lobby-start-actions actions-stack">
+                                <button
+                                    type="button"
+                                    onClick={startGame}
+                                    className="btn-accent btn-lobby-start"
+                                    disabled={!canStart}
+                                >
+                                    Wylosuj z {selectedCategories.length} kategorii i rozdaj role
+                                </button>
+                                {selectedCategories.length === 0 && (
+                                    <p className="impostor-start-hint text-error">
+                                        Zaznacz co najmniej jedną kategorię.
+                                    </p>
+                                )}
+                                {lobbyPlayerCount < 2 && (
+                                    <p className="impostor-start-hint text-error">
+                                        Potrzebujesz co najmniej 2 graczy przy stole.
+                                    </p>
+                                )}
+                            </div>
                             <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
                     ) : (

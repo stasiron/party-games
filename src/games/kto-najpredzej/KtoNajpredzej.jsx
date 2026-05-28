@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ref } from 'firebase/database';
 import { set } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
@@ -10,6 +10,7 @@ import { shuffleArray } from '../../lib/shuffle';
 import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { useCategorySelection } from '../../lib/useCategorySelection';
 
 function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
     const playableCategories = useMemo(
@@ -17,19 +18,17 @@ function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
         []
     );
 
-    const [selectedCategories, setSelectedCategories] = useState([]);
+    const {
+        selectedIds: selectedCategories,
+        toggleId: toggleCategory,
+        resetToAll: resetCategoriesToAll,
+    } = useCategorySelection(playableCategories);
     const defaultRoomState = useMemo(
         () => ({ isGameStarted: false, shuffledQuestions: [], currentQuestionIndex: 0 }),
         []
     );
     const roomData = useRoomGameState(roomId, defaultRoomState);
     usePiGameSession(roomData.isGameStarted);
-
-    const toggleCategory = useCallback((catId) => {
-        setSelectedCategories((prev) =>
-            prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
-        );
-    }, []);
 
     const startGame = useCallback(() => {
         const allQuestions = [];
@@ -49,8 +48,8 @@ function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
 
     const forceResetTable = useCallback(() => {
         set(ref(db, `rooms/${roomId}/gameState`), null);
-        setSelectedCategories([]);
-    }, [roomId]);
+        resetCategoriesToAll();
+    }, [roomId, resetCategoriesToAll]);
 
     const nextQuestion = useCallback(() => {
         if (roomData.currentQuestionIndex < roomData.shuffledQuestions.length - 1) {
@@ -100,13 +99,16 @@ function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
                                     );
                                 })}
                             </div>
-                            {selectedCategories.length > 0 && (
-                                <div className="actions-stack">
-                                    <button onClick={startGame} className="btn-accent">
-                                        Rozpocznij grę ({selectedCategories.length})
-                                    </button>
-                                </div>
-                            )}
+                            <div className="lobby-start-actions actions-stack">
+                                <button
+                                    type="button"
+                                    onClick={startGame}
+                                    className="btn-accent btn-lobby-start"
+                                    disabled={selectedCategories.length === 0}
+                                >
+                                    Rozpocznij grę ({selectedCategories.length})
+                                </button>
+                            </div>
                             <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
                     ) : (

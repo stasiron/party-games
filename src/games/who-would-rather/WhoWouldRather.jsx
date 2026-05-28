@@ -14,6 +14,7 @@ import ConfirmButton from '../../components/ConfirmButton';
 import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
 import { isTurnForPhoneOwner, isCurrentPlayerGuest } from '../../lib/guestPlayers';
+import { useCategorySelection } from '../../lib/useCategorySelection';
 
 function WhoWouldRather({
     isHost,
@@ -30,7 +31,11 @@ function WhoWouldRather({
         []
     );
 
-    const [selectedCategories, setSelectedCategories] = useState([]);
+    const {
+        selectedIds: selectedCategories,
+        toggleId: toggleCategory,
+        resetToAll: resetCategoriesToAll,
+    } = useCategorySelection(playableCategories);
     const defaultRoomState = useMemo(
         () => ({
             isGameStarted: false,
@@ -72,12 +77,6 @@ function WhoWouldRather({
         lastVibratedTurnRef.current = turnKey;
         triggerPlayerVibration();
     }, [roomData.currentPlayerName, tablePlayers, myPlayerId, triggerPlayerVibration, vibrationEnabled]);
-
-    const toggleCategory = useCallback((catId) => {
-        setSelectedCategories((prev) =>
-            prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
-        );
-    }, []);
 
     const startGame = useCallback(async () => {
         if (selectedCategories.length === 0) return;
@@ -141,8 +140,8 @@ function WhoWouldRather({
 
     const forceResetTable = useCallback(() => {
         set(ref(db, `rooms/${roomId}/gameState`), null);
-        setSelectedCategories([]);
-    }, [roomId]);
+        resetCategoriesToAll();
+    }, [roomId, resetCategoriesToAll]);
 
     const handleEndGame = useCallback(() => {
         forceResetTable();
@@ -198,13 +197,16 @@ function WhoWouldRather({
                                     );
                                 })}
                             </div>
-                            {selectedCategories.length > 0 && (
-                                <div className="actions-stack">
-                                    <button onClick={startGame} className="btn-main-action">
-                                        Rozpocznij grę ({selectedCategories.length})
-                                    </button>
-                                </div>
-                            )}
+                            <div className="lobby-start-actions actions-stack">
+                                <button
+                                    type="button"
+                                    onClick={startGame}
+                                    className="btn-accent btn-lobby-start"
+                                    disabled={selectedCategories.length === 0}
+                                >
+                                    Rozpocznij grę ({selectedCategories.length})
+                                </button>
+                            </div>
                             <RoomInviteQR inviteUrl={roomInviteUrl} />
                         </>
                     ) : (

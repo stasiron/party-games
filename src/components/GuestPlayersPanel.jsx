@@ -8,6 +8,7 @@ import {
     getGuestsForOwner,
     pickDefaultPhoneOwner,
 } from '../lib/guestPlayers';
+import CollapsibleSection from './CollapsibleSection';
 
 function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
     const [guestName, setGuestName] = useState('');
@@ -88,9 +89,15 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
         [roomId, runWithBusy]
     );
 
+    const guestCountLabel = guests.length > 0 ? ` (${guests.length})` : '';
+
     return (
-        <div className="guest-players-panel">
-            <h3 className="guest-players-panel__title">Goście bez telefonu</h3>
+        <CollapsibleSection
+            className="guest-players-panel"
+            toggleLabel={`▼ Goście bez telefonu (współdzielenie)${guestCountLabel}`}
+            toggleLabelOpen={`▲ Ukryj gości bez telefonu${guestCountLabel}`}
+            defaultOpen={false}
+        >
             <p className="guest-players-panel__hint">
                 Dodaj osoby bez aplikacji. Nowy gość jest od razu przypisany do telefonu — możesz to
                 zmienić poniżej.
@@ -178,7 +185,7 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                     })}
                 </div>
             )}
-        </div>
+        </CollapsibleSection>
     );
 }
 

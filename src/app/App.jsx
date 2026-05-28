@@ -21,6 +21,8 @@ import {
     getPlayersDebounceMs,
 } from '../lib/lowPower';
 import { buildGameIndex, buildActiveRoomsFromPublic } from './utils/activeRooms';
+import { applyThemeSurface } from '../lib/themeSurface';
+import { themePresets, findThemePreset } from '../lib/themePresets';
 import versionData from '../../version.json';
 import '../styles/app.css';
 
@@ -97,13 +99,6 @@ function generateRoomCode() {
     }
     return code;
 }
-
-const themePresets = [
-    { id: 'default', label: '🟣 Fioletowy (domyślny)', stops: ['#0a0f1e', '#2a113a', '#8c215e'] },
-    { id: 'sunrise', label: '🌅 Żółto-zielono-niebieski', stops: ['#f8ff70', '#3ad59f', '#0099ff'] },
-    { id: 'sunset', label: '🌇 Różowo-pomarańczowy', stops: ['#ff5f6d', '#ffb56b', '#ffd47f'] },
-    { id: 'forest', label: '🌲 Zielono-granatowy', stops: ['#1b5e20', '#0d3b66', '#1e88e5'] },
-];
 
 function App() {
     const { runWithBusy } = useServerBusy();
@@ -556,11 +551,12 @@ function App() {
     }, []);
 
     useEffect(() => {
-        const preset = themePresets.find((preset) => preset.id === themePreset) || themePresets[0];
+        const preset = findThemePreset(themePreset);
         const root = document.documentElement;
         root.style.setProperty('--bg-gradient-start', preset.stops[0]);
         root.style.setProperty('--bg-gradient-middle', preset.stops[1]);
         root.style.setProperty('--bg-gradient-end', preset.stops[2]);
+        applyThemeSurface(root, preset);
     }, [themePreset]);
 
     useEffect(() => {

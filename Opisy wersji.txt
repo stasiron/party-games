@@ -52,3 +52,4 @@ Rozwuj wersji:
 1.3.2 poprawa konsoli
 1.3.3 Emocji update
 1.3.4 Content Update
+1.3.5 Visual Update
