@@ -77,7 +77,7 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
         <div>
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="Nigdy w życiu">
+                    <GameRules title="🙅 Nigdy w życiu">
                         <ol className="game-rules__list">
                             <li>Host wybiera kategorie i czyta na głos kolejne stwierdzenie „Nigdy w życiu nie…”.</li>
                             <li>Gracze, którzy to zrobili, podnoszą palec (lub piją łyk — ustalcie zasady na stole).</li>

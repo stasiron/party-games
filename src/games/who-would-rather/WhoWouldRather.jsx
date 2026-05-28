@@ -171,7 +171,7 @@ function WhoWouldRather({
         <div>
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="Co wolisz?">
+                    <GameRules title="🤔 Co wolisz?">
                         <ol className="game-rules__list">
                             <li>Host wybiera kategorie i startuje grę. Aplikacja losuje gracza i pokazuje dylemat.</li>
                             <li>Wybrany gracz mówi, czy wybiera <strong>A</strong> czy <strong>B</strong> — reszta słucha i komentuje.</li>

@@ -2,32 +2,32 @@
   "roles": [
     {
       "id": "mafia",
-      "name": "Mafia",
+      "name": "🔫 Mafia",
       "desc": "Budzi się w nocy, by eliminować graczy."
     },
     {
       "id": "lekarz",
-      "name": "Lekarz",
+      "name": "💉 Lekarz",
       "desc": "Wybiera osobę do ochrony przed atakiem."
     },
     {
       "id": "agent",
-      "name": "Agent",
+      "name": "🕵️ Agent",
       "desc": "Sprawdza tożsamość jednego gracza w nocy."
     },
     {
       "id": "jester",
-      "name": "Błazen",
+      "name": "🤡 Błazen",
       "desc": "Wygrywa, jeśli miasto go zlinczuje w dzień."
     },
     {
       "id": "lovers",
-      "name": "Zakochani",
+      "name": "💑 Zakochani",
       "desc": "Znają się. Jeśli jedno ginie, drugie też."
     },
     {
       "id": "obywatel",
-      "name": "Obywatel",
+      "name": "👤 Obywatel",
       "desc": "Zwykły mieszkaniec. Głosuje w dzień."
     }
   ],

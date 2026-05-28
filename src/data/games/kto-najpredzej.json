@@ -2,17 +2,17 @@
   "categories": [
     {
       "id": "rozgrzewka",
-      "name": "Rozgrzewka",
+      "name": "🔥 Rozgrzewka",
       "desc": "Lekkie pytania na rozruszanie grupy."
     },
     {
       "id": "impreza",
-      "name": "Imprezowe",
+      "name": "🎉 Imprezowe",
       "desc": "Wieczorne wpadki i zachowania po kilku drinkach."
     },
     {
       "id": "bez-hamulcow",
-      "name": "Bez hamulców",
+      "name": "🚀 Bez hamulców",
       "desc": "Cieplejsze tematy — 18+."
     }
   ],

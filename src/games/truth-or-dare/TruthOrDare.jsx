@@ -240,7 +240,7 @@ function TruthOrDare({
         <div>
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="Prawda czy wyzwanie">
+                    <GameRules title="🎭 Prawda czy wyzwanie">
                         <ol className="game-rules__list">
                             <li>Host wybiera kategorie i startuje grę. Aplikacja losuje gracza na kolejkę.</li>
                             <li>Wybrany gracz decyduje: <strong>Prawda</strong> lub <strong>Wyzwanie</strong> i wykonuje zadanie.</li>

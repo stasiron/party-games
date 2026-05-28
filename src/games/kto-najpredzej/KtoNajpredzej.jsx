@@ -73,7 +73,7 @@ function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
         <div>
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="Kto najprędzej?">
+                    <GameRules title="👆 Kto najprędzej?">
                         <ol className="game-rules__list">
                             <li>Host wybiera kategorie i czyta na głos pytanie z ekranu.</li>
                             <li>Wszyscy jednocześnie wskazują palcem osobę, która pasuje najbardziej (na głos, nie w aplikacji).</li>

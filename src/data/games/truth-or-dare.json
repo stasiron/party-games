@@ -2,17 +2,17 @@
   "categories": [
     {
       "id": "klasyk",
-      "name": "Klasycznie",
+      "name": "😊 Klasycznie",
       "desc": "Zabawne i bezpieczne."
     },
     {
       "id": "ostro",
-      "name": "Bez cenzury",
+      "name": "🔥 Bez cenzury",
       "desc": "Dla odważnych i pełnoletnich."
     },
     {
       "id": "szalone",
-      "name": "Wariackie akcje",
+      "name": "🤪 Wariackie akcje",
       "desc": "Kreatywne zadania i abstrakcyjne pytania."
     }
   ],

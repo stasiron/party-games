@@ -363,7 +363,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, 
 
                 <div>
 
-                    <GameRules title="Mafia">
+                    <GameRules title="🌃 Mafia">
 
                         <ol className="game-rules__list">
 

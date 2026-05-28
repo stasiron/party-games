@@ -99,10 +99,10 @@ function generateRoomCode() {
 }
 
 const themePresets = [
-    { id: 'default', label: 'Fioletowy (domyślny)', stops: ['#0a0f1e', '#2a113a', '#8c215e'] },
-    { id: 'sunrise', label: 'Żółto-zielono-niebieski', stops: ['#f8ff70', '#3ad59f', '#0099ff'] },
-    { id: 'sunset', label: 'Różowo-pomarańczowy', stops: ['#ff5f6d', '#ffb56b', '#ffd47f'] },
-    { id: 'forest', label: 'Zielono-granatowy', stops: ['#1b5e20', '#0d3b66', '#1e88e5'] },
+    { id: 'default', label: '🟣 Fioletowy (domyślny)', stops: ['#0a0f1e', '#2a113a', '#8c215e'] },
+    { id: 'sunrise', label: '🌅 Żółto-zielono-niebieski', stops: ['#f8ff70', '#3ad59f', '#0099ff'] },
+    { id: 'sunset', label: '🌇 Różowo-pomarańczowy', stops: ['#ff5f6d', '#ffb56b', '#ffd47f'] },
+    { id: 'forest', label: '🌲 Zielono-granatowy', stops: ['#1b5e20', '#0d3b66', '#1e88e5'] },
 ];
 
 function App() {

@@ -2,17 +2,17 @@
   "difficulties": [
     {
       "id": "latwy",
-      "name": "Łatwy",
+      "name": "🟢 Łatwy",
       "desc": "Proste zagadki, szybkie „aha!”."
     },
     {
       "id": "sredni",
-      "name": "Średni",
+      "name": "🟡 Średni",
       "desc": "Wymaga kilku dobrych pytań i logicznego myślenia."
     },
     {
       "id": "trudny",
-      "name": "Trudny",
+      "name": "🔴 Trudny",
       "desc": "Mroczne i złożone — dla doświadczonych detektywów."
     }
   ],

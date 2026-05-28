@@ -2,32 +2,32 @@
   "categories": [
     {
       "id": "rozgrzewka",
-      "name": "Rozgrzewka",
+      "name": "🔥 Rozgrzewka",
       "desc": "Lekkie i zabawne pytania na start."
     },
     {
       "id": "szkola",
-      "name": "Szkolne czasy",
+      "name": "📚 Szkolne czasy",
       "desc": "Tylko dla odważnych uczniów."
     },
     {
       "id": "impreza",
-      "name": "Gruba impreza",
+      "name": "🍾 Gruba impreza",
       "desc": "Mocniejsze klimaty."
     },
     {
       "id": "technologia",
-      "name": "Cyfrowe grzechy",
+      "name": "📱 Cyfrowe grzechy",
       "desc": "Telefony, social media i internetowe wpadki."
     },
     {
       "id": "zyciowe",
-      "name": "Codzienne i życiowe",
+      "name": "🏠 Codzienne i życiowe",
       "desc": "Przypadkowe sytuacje, które przytrafiają się każdemu."
     },
     {
       "id": "zwiazki",
-      "name": "Związki i randki",
+      "name": "💕 Związki i randki",
       "desc": "Miłość, randki i imprezowe wpadki — 18+."
     }
   ],

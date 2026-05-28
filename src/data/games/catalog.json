@@ -1,102 +1,102 @@
 [
   {
     "id": "never-have-i-ever",
-    "name": "Nigdy w życiu",
+    "name": "🙅 Nigdy w życiu",
     "description": "Klasyczna gra w odkrywanie sekretów."
   },
   {
     "id": "truth-or-dare",
-    "name": "Prawda czy wyzwanie",
+    "name": "🎭 Prawda czy wyzwanie",
     "description": "Odpowiedz szczerze lub wykonaj zadanie."
   },
   {
     "id": "impostor",
-    "name": "Impostor",
+    "name": "🕵️ Impostor",
     "description": "Znajdź oszusta wśród graczy."
   },
   {
     "id": "mafia",
-    "name": "Mafia",
+    "name": "🌃 Mafia",
     "description": "Miasto zasypia, budzi się mafia. Gra z Mistrzem Gry."
   },
   {
     "id": "dark-stories",
-    "name": "Czarne historie",
+    "name": "🕯️ Czarne historie",
     "description": "Zagadki na Tak/Nie — narrator zna mroczne rozwiązanie."
   },
   {
     "id": "who-would-rather",
-    "name": "Co wolisz?",
+    "name": "🤔 Co wolisz?",
     "description": "Losowany gracz wybiera między dwoma opcjami A i B."
   },
   {
     "id": "kto-najpredzej",
-    "name": "Kto najprędzej?",
+    "name": "👆 Kto najprędzej?",
     "description": "Wskaż palcem, kto najbardziej pasuje do pytania."
   },
   {
     "id": "secret-hitler",
-    "name": "Secret Hitler",
+    "name": "🎩 Secret Hitler",
     "description": "Polityczna gra dedukcyjna — faszyści vs liberałowie.",
     "comingSoon": true
   },
   {
     "id": "one-night-werewolf",
-    "name": "One Night Werewolf",
+    "name": "🐺 One Night Werewolf",
     "description": "Jedna noc — wilkołaki, wieśniacy i role specjalne.",
     "comingSoon": true
   },
   {
     "id": "decrypto",
-    "name": "Decrypto",
+    "name": "🔐 Decrypto",
     "description": "Dwie drużyny — szyfrujecie hasła, przeciwnicy próbują je złamać.",
     "comingSoon": true
   },
   {
     "id": "fake-artist",
-    "name": "Fake Artist",
+    "name": "🎨 Fake Artist",
     "description": "Wszyscy rysują — jeden nie wie, co jest na karcie.",
     "comingSoon": true
   },
   {
     "id": "just-one",
-    "name": "Just One",
+    "name": "💡 Just One",
     "description": "Wspólne odgadywanie hasła — ale każde słowo może być tylko raz.",
     "comingSoon": true
   },
   {
     "id": "miners",
-    "name": "Miners",
+    "name": "⛏️ Miners",
     "description": "Kopcie złoto w kopalni — uważajcie na zawalenia i zdradę.",
     "comingSoon": true
   },
   {
     "id": "say-anything",
-    "name": "Say Anything",
+    "name": "💬 Say Anything",
     "description": "Pytanie na stole — obstawiacie, co odpowie wybrany gracz.",
     "comingSoon": true
   },
   {
     "id": "telepathy",
-    "name": "Telepathy",
+    "name": "🧠 Telepathy",
     "description": "Drużyny synchronizują wybory na siatce — bez zbędnych słów.",
     "comingSoon": true
   },
   {
     "id": "bleff",
-    "name": "Bleff",
+    "name": "🃏 Bleff",
     "description": "Blefujcie definicje — głosujcie, co brzmi najbardziej wiarygodnie.",
     "comingSoon": true
   },
   {
     "id": "dutch",
-    "name": "Dutch",
+    "name": "🎴 Dutch",
     "description": "Szybka gra karciana — pozbywajcie się kart w odpowiednim momencie.",
     "comingSoon": true
   },
   {
     "id": "jungle-speed",
-    "name": "Jungle Speed",
+    "name": "🌴 Jungle Speed",
     "description": "Refleks i symbole — rzućcie rękę na stos, gdy pasuje.",
     "comingSoon": true
   }

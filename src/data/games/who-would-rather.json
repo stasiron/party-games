@@ -2,17 +2,17 @@
   "categories": [
     {
       "id": "rozgrzewka",
-      "name": "Rozgrzewka",
+      "name": "🔥 Rozgrzewka",
       "desc": "Lekkie dylematy na rozruszanie ekipy."
     },
     {
       "id": "impreza",
-      "name": "Imprezowe",
+      "name": "🎉 Imprezowe",
       "desc": "Wybory z klubowego i nocnego życia."
     },
     {
       "id": "bez-hamulcow",
-      "name": "Bez hamulców",
+      "name": "🚀 Bez hamulców",
       "desc": "Trudniejsze wybory — 18+."
     }
   ],

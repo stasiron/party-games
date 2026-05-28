@@ -346,7 +346,7 @@ function Impostor({
         <div>
             {roomData.phase === 'lobby' ? (
                 <div>
-                    <GameRules title="Impostor">
+                    <GameRules title="🕵️ Impostor">
                         <ol className="game-rules__list">
                             <li>Host losuje słowo i Impostorów. Wszyscy podglądają swoją rolę na telefonie.</li>
                             <li>Gracze znają hasło — bez kategorii. Impostor widzi tylko kategorię, z której pochodzi słowo.</li>

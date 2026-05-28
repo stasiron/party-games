@@ -107,7 +107,7 @@ function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
         <div className="dark-stories">
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="Czarne historie">
+                    <GameRules title="🕯️ Czarne historie">
                         <ol className="game-rules__list">
                             <li>
                                 <strong>Host jest narratorem</strong> — zna pełne rozwiązanie każdej
