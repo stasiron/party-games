@@ -42,11 +42,12 @@ export function buildActiveRooms(rawRooms, gameById) {
     return list;
 }
 
-export function buildActiveRoomsFromPublic(rawRoomsPublic, gameById) {
+export function buildActiveRoomsFromPublic(rawRoomsPublic, gameById, existingRoomIds = null) {
     const list = [];
     const rooms = rawRoomsPublic || {};
     for (const [roomId, room] of Object.entries(rooms)) {
         if (!room?.gameId) continue;
+        if (existingRoomIds && !existingRoomIds.has(roomId)) continue;
         const game = gameById.get(room.gameId);
         if (!game) continue;
         list.push({

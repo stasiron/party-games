@@ -40,4 +40,7 @@ Rozwuj wersji:
 1.1.3 Optymalizacja Globalna Etap 1
 1.1.4 Optymalizacja Globalna Etap 2
 1.1.5 Optymalizacja Globalna Etap 3
+1.1.6 Hot fix - blad wejścia do pokoju
+1.1.7 Hot fix - blad wejścia do pokoju 2
+1.1.8 Hot fix - blad wyswietklania pokoi
 

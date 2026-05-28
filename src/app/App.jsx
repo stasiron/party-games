@@ -215,8 +215,23 @@ function App() {
         await update(ref(db), cleanupUpdates);
     }, []);
 
+    const cleanupOrphanRoomsPublic = useCallback(async (rawRoomsPublic, rawRooms) => {
+        const publicEntries = Object.entries(rawRoomsPublic || {});
+        if (publicEntries.length === 0) return;
+        const roomIds = new Set(Object.keys(rawRooms || {}));
+        const orphanUpdates = {};
+        for (const [roomId] of publicEntries) {
+            if (!roomIds.has(roomId)) {
+                orphanUpdates[`roomsPublic/${roomId}`] = null;
+            }
+        }
+        if (Object.keys(orphanUpdates).length === 0) return;
+        await update(ref(db), orphanUpdates);
+    }, []);
+
     const syncRoomPublicSummary = useCallback((roomId, gameId, playersMap, isLocked) => {
         if (!roomId || !gameId) return;
+        if (isLeavingVoluntarily.current) return;
         const now = Date.now();
         if (now - lastRoomPublicSyncAtRef.current < ROOMS_PUBLIC_SYNC_COOLDOWN_MS) return;
         lastRoomPublicSyncAtRef.current = now;
@@ -516,7 +531,7 @@ function App() {
                 /* join sound */
             }
 
-            if (isHostRef.current && selectedGameType) {
+            if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
                 syncRoomPublicSummary(selectedGame, selectedGameType, data, cachedRoomRef.current.isLocked);
             }
         };
@@ -623,7 +638,7 @@ function App() {
                 updatedAt: Date.now(),
             };
             setIsRoomLocked(locked);
-            if (isHostRef.current && selectedGameType) {
+            if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
                 syncRoomPublicSummary(selectedGame, selectedGameType, cachedRoomRef.current.players || {}, locked);
             }
         });
@@ -670,17 +685,30 @@ function App() {
         return () => window.clearInterval(intervalId);
     }, [isJoined, selectedGame, myPlayerId]);
 
-    // Menu główne gościa: lista aktywnych pokoi (lekka ścieżka roomsPublic)
+    // Menu główne gościa: roomsPublic + filtr po istniejących rooms (bez „duchów” po zamknięciu)
     useEffect(() => {
         if (selectedGame || entryRole !== 'guest') return;
-        const roomsRef = ref(db, 'roomsPublic');
-        const unsub = onValue(roomsRef, (snapshot) => {
-            const raw = snapshot.val() || {};
-            const list = buildActiveRoomsFromPublic(raw, gameById);
+        let publicRaw = {};
+        let existingRoomIds = new Set();
+
+        const recomputeGuestRooms = () => {
+            const list = buildActiveRoomsFromPublic(publicRaw, gameById, existingRoomIds);
             setActiveRooms(list);
+        };
+
+        const unsubPublic = onValue(ref(db, 'roomsPublic'), (snapshot) => {
+            publicRaw = snapshot.val() || {};
+            recomputeGuestRooms();
         });
+        const unsubRooms = onValue(ref(db, 'rooms'), (snapshot) => {
+            const raw = snapshot.val() || {};
+            existingRoomIds = new Set(Object.keys(raw));
+            recomputeGuestRooms();
+        });
+
         return () => {
-            unsub();
+            unsubPublic();
+            unsubRooms();
             setActiveRooms([]);
         };
     }, [selectedGame, entryRole, gameById]);
@@ -710,10 +738,15 @@ function App() {
             if (!leaseResult.committed || leaseResult.snapshot.val()?.owner !== leaseOwner) return;
             if (now - lastRoomsCleanupAtRef.current < ROOM_CLEANUP_COOLDOWN_MS) return;
             try {
-                const roomsSnap = await get(ref(db, 'rooms'));
+                const [roomsSnap, publicSnap] = await Promise.all([
+                    get(ref(db, 'rooms')),
+                    get(ref(db, 'roomsPublic')),
+                ]);
                 if (cancelled) return;
                 const raw = roomsSnap.val() || {};
+                const publicRaw = publicSnap.val() || {};
                 await runRoomsCleanup(raw, now);
+                await cleanupOrphanRoomsPublic(publicRaw, raw);
             } catch {
                 /* best effort background cleanup */
             }
@@ -728,7 +761,7 @@ function App() {
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [selectedGame, effectiveIsHost, isJoined, myPlayerId, runRoomsCleanup]);
+    }, [selectedGame, effectiveIsHost, isJoined, myPlayerId, runRoomsCleanup, cleanupOrphanRoomsPublic]);
 
     // 4. OBSŁUGA TAJNYCH KOMEND ADMINISTRATORA pod logo
     const handleAdminCommand = useCallback(async () => {
@@ -1422,28 +1455,23 @@ function App() {
             return;
         }
         isLeavingVoluntarily.current = true;
+        const closingRoomId = selectedGame;
         await runWithBusy(async () => {
             try {
-                const playersSnap = await get(ref(db, `rooms/${selectedGame}/players`));
+                const playersSnap = await get(ref(db, `rooms/${closingRoomId}/players`));
                 const playersData = playersSnap.val() || {};
-                const markKickedUpdates = {
-                    [`rooms/${selectedGame}/isLocked`]: false,
-                    [`rooms/${selectedGame}/gameState`]: null,
+                const closeUpdates = {
+                    [`rooms/${closingRoomId}`]: null,
+                    [`roomsPublic/${closingRoomId}`]: null,
                 };
                 Object.keys(playersData).forEach((playerId) => {
                     if (playerId === myPlayerId) return;
-                    markKickedUpdates[`rooms/${selectedGame}/players/${playerId}/isKicked`] = true;
-                    markKickedUpdates[`rooms/${selectedGame}/players/${playerId}/isOnline`] = false;
                     const authUid = playersData[playerId]?.authUid;
                     if (authUid) {
-                        markKickedUpdates[`${PRESENCE_INDEX_ROOT}/${authUid}`] = null;
+                        closeUpdates[`${PRESENCE_INDEX_ROOT}/${authUid}`] = null;
                     }
                 });
-                await update(ref(db), markKickedUpdates);
-                await update(ref(db), {
-                    [`rooms/${selectedGame}`]: null,
-                    [`roomsPublic/${selectedGame}`]: null,
-                });
+                await update(ref(db), closeUpdates);
             } catch (err) {
                 console.error(err);
             } finally {
