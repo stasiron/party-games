@@ -65,6 +65,7 @@
       }
     },
     "roomsPublic": {
+      ".read": true,
       "$roomId": {
         ".read": true,
         ".write": true,
