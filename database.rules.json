@@ -3,6 +3,7 @@
     ".read": false,
     ".write": false,
     "rooms": {
+      ".read": true,
       "$roomId": {
         ".read": true,
         ".write": true,

@@ -719,40 +719,37 @@ function App() {
         return () => window.clearInterval(intervalId);
     }, [isJoined, selectedGame, myPlayerId]);
 
-    // Menu główne gościa: roomsPublic + filtr po istniejących rooms (bez „duchów” po zamknięciu)
+    // Menu gościa: roomsPublic (lekko) + opcjonalny filtr po rooms (bez kasowania z bazy)
     useEffect(() => {
         if (selectedGame || entryRole !== 'guest') return;
         let publicRaw = {};
-        let existingRoomIds = new Set();
+        /** null = jeszcze nie wczytano rooms — pokazuj wpisy z roomsPublic */
+        let existingRoomIds = null;
 
         const recomputeGuestRooms = () => {
             const filteredPublic = {};
-            const orphanUpdates = {};
             for (const [roomId, room] of Object.entries(publicRaw)) {
-                if (!existingRoomIds.has(roomId)) {
-                    orphanUpdates[`roomsPublic/${roomId}`] = null;
-                    continue;
-                }
+                if (existingRoomIds !== null && !existingRoomIds.has(roomId)) continue;
                 filteredPublic[roomId] = room;
             }
-            if (Object.keys(orphanUpdates).length > 0) {
-                void update(ref(db), orphanUpdates).catch(() => {
-                    /* best effort orphan cleanup */
-                });
-            }
-            const list = buildActiveRoomsFromPublic(filteredPublic, gameById);
-            setActiveRooms(list);
+            setActiveRooms(buildActiveRoomsFromPublic(filteredPublic, gameById));
         };
 
         const unsubPublic = onValue(ref(db, 'roomsPublic'), (snapshot) => {
             publicRaw = snapshot.val() || {};
             recomputeGuestRooms();
         });
-        const unsubRooms = onValue(ref(db, 'rooms'), (snapshot) => {
-            const raw = snapshot.val() || {};
-            existingRoomIds = new Set(Object.keys(raw));
-            recomputeGuestRooms();
-        });
+        const unsubRooms = onValue(
+            ref(db, 'rooms'),
+            (snapshot) => {
+                existingRoomIds = new Set(Object.keys(snapshot.val() || {}));
+                recomputeGuestRooms();
+            },
+            () => {
+                existingRoomIds = null;
+                recomputeGuestRooms();
+            }
+        );
 
         return () => {
             unsubPublic();
