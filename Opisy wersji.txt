@@ -43,4 +43,5 @@ Rozwuj wersji:
 1.1.6 Hot fix - blad wejścia do pokoju
 1.1.7 Hot fix - blad wejścia do pokoju 2
 1.1.8 Hot fix - blad wyswietklania pokoi
+1.1.9 Hot fix - błąd rozgrywki ze strony goscia
 

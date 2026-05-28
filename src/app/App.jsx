@@ -384,14 +384,39 @@ function App() {
         [selectedGameType, gameById]
     );
 
-    const resetRoomSession = useCallback(() => {
+    const leaveToLobby = useCallback((options = {}) => {
+        const { message = '', keepEntryRole = true } = options;
+        isLeavingVoluntarily.current = true;
+        joinGraceUntilRef.current = 0;
+        missingPlayerSinceRef.current = 0;
+        isJoiningRef.current = false;
+        cachedRoomRef.current = { players: null, isLocked: false, updatedAt: 0 };
         setSelectedGame(null);
         setSelectedGameType(null);
         setIsJoined(false);
-        setPlayerName(accountNickname.trim());
         setIsHost(false);
         setMyPlayerId(null);
+        setPlayersList([]);
         setNameError('');
+        setJoinStatus('');
+        setLastJoinResult('');
+        setPlayerName(accountNickname.trim());
+        if (message) setLobbyMessage(message);
+        if (!keepEntryRole) setEntryRole(null);
+        if (typeof window !== 'undefined') {
+            try {
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('room')) {
+                    url.searchParams.delete('room');
+                    window.history.replaceState({}, '', url.toString());
+                }
+            } catch {
+                /* ignore URL cleanup */
+            }
+        }
+        window.setTimeout(() => {
+            isLeavingVoluntarily.current = false;
+        }, 600);
     }, [accountNickname]);
 
     const updatePresenceIndex = useCallback(async (uid, roomId, playerId) => {
@@ -544,11 +569,15 @@ function App() {
             if (myData?.isKicked) {
                 missingPlayerSinceRef.current = 0;
                 onDisconnect(ref(db, `rooms/${selectedGame}/players/${pid}`)).cancel();
-                remove(ref(db, `rooms/${selectedGame}/players/${pid}`));
-                if (!isLeavingVoluntarily.current) {
-                    setLobbyMessage('⚠️ Zostałeś wyrzucony z pokoju przez Hosta.');
+                const kickedRoomId = selectedGame;
+                const kickMessage = isLeavingVoluntarily.current
+                    ? ''
+                    : '⚠️ Zostałeś wyrzucony z pokoju przez Hosta.';
+                leaveToLobby({ message: kickMessage, keepEntryRole: true });
+                void remove(ref(db, `rooms/${kickedRoomId}/players/${pid}`));
+                if (authUser?.uid) {
+                    void clearPresenceIndex(authUser.uid);
                 }
-                resetRoomSession();
                 return;
             }
 
@@ -564,8 +593,10 @@ function App() {
                     pastMissingGrace &&
                     !isLeavingVoluntarily.current
                 ) {
-                    setLobbyMessage('⚠️ Utracono połączenie z pokojem. Dołącz ponownie.');
-                    resetRoomSession();
+                    leaveToLobby({
+                        message: '⚠️ Utracono połączenie z pokojem. Dołącz ponownie.',
+                        keepEntryRole: true,
+                    });
                 }
                 return;
             }
@@ -647,8 +678,11 @@ function App() {
         const unsubscribeRoomRoot = onValue(roomGameIdRef, (snapshot) => {
             if (snapshot.exists()) return;
             if (!isJoinedRef.current || isLeavingVoluntarily.current) return;
-            setLobbyMessage('⚠️ Host zamknął pokój. Wrócono do ekranu wyboru.');
-            resetRoomSession();
+            if (Date.now() < joinGraceUntilRef.current) return;
+            leaveToLobby({
+                message: '⚠️ Host zamknął pokój. Wrócono do ekranu wyboru.',
+                keepEntryRole: true,
+            });
         });
 
         return () => {
@@ -657,7 +691,7 @@ function App() {
             unsubscribeLocked();
             unsubscribeRoomRoot();
         };
-    }, [selectedGame, selectedGameType, playJoinSound, resetRoomSession, syncRoomPublicSummary]);
+    }, [selectedGame, selectedGameType, playJoinSound, leaveToLobby, syncRoomPublicSummary, authUser, clearPresenceIndex]);
 
     useEffect(() => {
         if (!isJoined || typeof document === 'undefined') return undefined;
@@ -692,7 +726,21 @@ function App() {
         let existingRoomIds = new Set();
 
         const recomputeGuestRooms = () => {
-            const list = buildActiveRoomsFromPublic(publicRaw, gameById, existingRoomIds);
+            const filteredPublic = {};
+            const orphanUpdates = {};
+            for (const [roomId, room] of Object.entries(publicRaw)) {
+                if (!existingRoomIds.has(roomId)) {
+                    orphanUpdates[`roomsPublic/${roomId}`] = null;
+                    continue;
+                }
+                filteredPublic[roomId] = room;
+            }
+            if (Object.keys(orphanUpdates).length > 0) {
+                void update(ref(db), orphanUpdates).catch(() => {
+                    /* best effort orphan cleanup */
+                });
+            }
+            const list = buildActiveRoomsFromPublic(filteredPublic, gameById);
             setActiveRooms(list);
         };
 
@@ -1179,12 +1227,14 @@ function App() {
             }
 
             targetPlayerRef = ref(db, `rooms/${selectedGame}/players/${existingPlayerKey}`);
+            myPlayerIdRef.current = existingPlayerKey;
             setMyPlayerId(existingPlayerKey);
             finalIsHost = !!existingPlayer.isHost;
             setIsHost(finalIsHost);
         } else {
             const newPlayerRef = push(playersRef);
             targetPlayerRef = newPlayerRef;
+            myPlayerIdRef.current = newPlayerRef.key;
             setMyPlayerId(newPlayerRef.key);
             if (isHost) {
                 await update(ref(db), {
@@ -1199,6 +1249,7 @@ function App() {
                     },
                     [`rooms/${selectedGame}/gameState`]: null,
                 }, { priority: true });
+                isJoinedRef.current = true;
                 setIsJoined(true);
                 if (typeof window !== 'undefined') {
                     window.localStorage.setItem(LAST_ROOM_KEY, selectedGame);
@@ -1256,6 +1307,7 @@ function App() {
                 await updatePresenceIndex(currentAuthUid, selectedGame, joinedPlayerId);
             }
 
+            isJoinedRef.current = true;
             setIsJoined(true);
             if (typeof window !== 'undefined') {
                 window.localStorage.setItem(LAST_ROOM_KEY, selectedGame);
@@ -1289,9 +1341,12 @@ function App() {
             setLobbyMessage('❌ Ten pokój nie istnieje lub został zamknięty.');
             return;
         }
+        setEntryRole('guest');
         setSelectedGame(normalizedRoomId);
         setSelectedGameType(roomData.gameId);
         setIsHost(false);
+        setIsJoined(false);
+        setMyPlayerId(null);
         setLobbyMessage('');
     }, []);
 
@@ -1439,15 +1494,17 @@ function App() {
     }, [runWithBusy]);
 
     const handleBackToMenu = useCallback(() => {
-        isLeavingVoluntarily.current = true; //
-        if (myPlayerId) {
-            remove(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
+        const roomId = selectedGame;
+        const playerId = myPlayerId;
+        isLeavingVoluntarily.current = true;
+        if (playerId && roomId) {
+            remove(ref(db, `rooms/${roomId}/players/${playerId}`));
         }
         if (authUser?.uid) {
             void clearPresenceIndex(authUser.uid);
         }
-        resetRoomSession();
-    }, [myPlayerId, selectedGame, authUser, clearPresenceIndex, resetRoomSession]);
+        leaveToLobby({ keepEntryRole: true });
+    }, [myPlayerId, selectedGame, authUser, clearPresenceIndex, leaveToLobby]);
 
     const handleCloseRoom = useCallback(async () => {
         if (!selectedGame || !myPlayerId) {
@@ -1474,11 +1531,15 @@ function App() {
                 await update(ref(db), closeUpdates);
             } catch (err) {
                 console.error(err);
+                setLobbyMessage('❌ Nie udało się zamknąć pokoju. Spróbuj ponownie.');
             } finally {
-                handleBackToMenu();
+                if (authUser?.uid) {
+                    void clearPresenceIndex(authUser.uid);
+                }
+                leaveToLobby({ keepEntryRole: true });
             }
         });
-    }, [selectedGame, myPlayerId, runWithBusy, handleBackToMenu]);
+    }, [selectedGame, myPlayerId, runWithBusy, authUser, clearPresenceIndex, leaveToLobby]);
 
     const handleLeaveRoom = useCallback(() => {
         if (effectiveIsHost) {
