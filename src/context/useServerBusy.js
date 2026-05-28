@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { ServerBusyContext } from './ServerBusyContext.jsx';
+import { ServerBusyContext } from './ServerBusyContext';
 
 export function useServerBusy() {
     const ctx = useContext(ServerBusyContext);

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+/* global process */
 import { WebSocketServer } from 'ws';
 
 const PORT = Number(process.env.PARTBOX_SYNC_PORT || 9000);

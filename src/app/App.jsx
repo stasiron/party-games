@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { ref, push, remove, onValue, onDisconnect } from 'firebase/database';
-import { set, get, update } from '../lib/rtdb';
+import { GoogleAuthProvider, linkWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { set, get, update, runTransaction } from '../lib/rtdb';
 import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
+import { auth as firebaseAuth, firestore } from '../lib/firebase/client';
 import gameData from '../data/gameContent.json';
 import GuestPlayersPanel from '../components/GuestPlayersPanel';
 import { isGuestPlayer } from '../lib/guestPlayers';
@@ -15,7 +18,7 @@ import {
     getPresenceMissingGraceMs,
     getPlayersDebounceMs,
 } from '../lib/lowPower';
-import { buildGameIndex, buildActiveRooms } from './utils/activeRooms';
+import { buildGameIndex, buildActiveRoomsFromPublic } from './utils/activeRooms';
 import '../styles/app.css';
 
 const NeverHaveIEver = lazy(() => import('../games/never-have-i-ever/NeverHaveIEver'));
@@ -29,6 +32,56 @@ const ROOM_CODE_LENGTH = 6;
 const ORPHAN_ROOM_TTL_MS = 10 * 60 * 1000;
 const EMPTY_ROOM_TTL_MS = 5 * 60 * 1000;
 const ROOM_CLEANUP_COOLDOWN_MS = 30 * 1000;
+const STALE_PRESENCE_MS = 3 * 60 * 1000;
+const BACKGROUND_CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
+const CLEANUP_LEASE_PATH = '_maintenance/roomsCleanupLease';
+const CLEANUP_LEASE_TTL_MS = 3 * 60 * 1000;
+const ROOMS_PUBLIC_SYNC_COOLDOWN_MS = 2000;
+const PRESENCE_INDEX_ROOT = 'playerPresenceByAuthUid';
+const RATE_LIMITS_MS = {
+    join: 1800,
+    createRoom: 1200,
+    kick: 1200,
+    adminDestructive: 3500,
+    adminMutation: 1200,
+};
+const UI_SETTINGS_KEY = 'partyGames.uiSettings.v1';
+const NICKNAME_KEY = 'partyGames.nickname.v1';
+const LAST_ROOM_KEY = 'partyGames.lastRoomId.v1';
+
+function loadUiSettings() {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = window.localStorage.getItem(UI_SETTINGS_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+}
+
+function loadLocalNickname() {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem(NICKNAME_KEY) || '';
+}
+
+function loadLastRoomId() {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem(LAST_ROOM_KEY) || '';
+}
+
+function isPlayerActive(player, now) {
+    if (!player || player.isKicked === true || player.isOnline === false) return false;
+    const lastSeenAt = Number(player.lastSeenAt || player.joinedAt || 0);
+    if (!lastSeenAt) return false;
+    return (now - lastSeenAt) <= STALE_PRESENCE_MS;
+}
+
+function countActivePlayers(playersMap, now = Date.now()) {
+    return Object.values(playersMap || {}).reduce((acc, player) => (
+        acc + (isPlayerActive(player, now) ? 1 : 0)
+    ), 0);
+}
 
 function generateRoomCode() {
     let code = '';
@@ -62,9 +115,7 @@ function App() {
 
     const [playersList, setPlayersList] = useState([]);
     const [myPlayerId, setMyPlayerId] = useState(null);
-    const [hostExists, setHostExists] = useState(false);
 
-    const [hostLost, setHostLost] = useState(false);
     const [isRoomLocked, setIsRoomLocked] = useState(false);
 
     const [lobbyMessage, setLobbyMessage] = useState(''); // Komunikat o wyrzuceniu widoczny w lobby
@@ -73,12 +124,33 @@ function App() {
     // STANY: Dla tajnego panelu administratora pod logo
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
-    const [themePreset, setThemePreset] = useState('default');
-    const [soundEnabled, setSoundEnabled] = useState(() => !isLowPowerDevice());
-    const [vibrationEnabled, setVibrationEnabled] = useState(() => !isLowPowerDevice());
-    const [showConnectionFooter, setShowConnectionFooter] = useState(true);
+    const [showAccountCenter, setShowAccountCenter] = useState(false);
+    const [accountEmail, setAccountEmail] = useState('');
+    const [accountNickname, setAccountNickname] = useState(() => loadLocalNickname());
+    const [lastKnownRoomId, setLastKnownRoomId] = useState(() => loadLastRoomId());
+    const [authUser, setAuthUser] = useState(null);
+    const [authBusy, setAuthBusy] = useState(false);
+    const [authStatus, setAuthStatus] = useState('');
+    const [nicknameSavedAt, setNicknameSavedAt] = useState(0);
+    const [themePreset, setThemePreset] = useState(() => loadUiSettings()?.themePreset || 'default');
+    const [soundEnabled, setSoundEnabled] = useState(() => {
+        const stored = loadUiSettings();
+        if (typeof stored?.soundEnabled === 'boolean') return stored.soundEnabled;
+        return !isLowPowerDevice();
+    });
+    const [vibrationEnabled, setVibrationEnabled] = useState(() => {
+        const stored = loadUiSettings();
+        if (typeof stored?.vibrationEnabled === 'boolean') return stored.vibrationEnabled;
+        return !isLowPowerDevice();
+    });
+    const [showConnectionFooter, setShowConnectionFooter] = useState(() => {
+        const stored = loadUiSettings();
+        if (typeof stored?.showConnectionFooter === 'boolean') return stored.showConnectionFooter;
+        return false;
+    });
     const [adminCommand, setAdminCommand] = useState('');
     const [isAdminMode, setIsAdminMode] = useState(false);
+    const [adminBypassEnabled, setAdminBypassEnabled] = useState(false);
     const toggleAdminPanel = useCallback(() => {
         setShowAdminPanel((prev) => !prev);
     }, []);
@@ -94,9 +166,136 @@ function App() {
     const isOnlineHealSentRef = useRef(false);
     const lastOnlineHealAtRef = useRef(0);
     const lastZombieCleanupAtRef = useRef(0);
-    const hostMigrationLockRef = useRef(false);
     const lastRoomsCleanupAtRef = useRef(0);
+    const lastRoomPublicSyncAtRef = useRef(0);
     const cachedRoomRef = useRef({ players: null, isLocked: false, updatedAt: 0 });
+    const lastSavedUiSettingsRef = useRef('');
+    const actionRateRef = useRef(new Map());
+
+    const runRoomsCleanup = useCallback(async (rawRooms, now = Date.now()) => {
+        const raw = rawRooms || {};
+        const cleanupUpdates = {};
+
+        Object.entries(raw).forEach(([roomId, room]) => {
+            if (!room?.gameId) return;
+            const playersEntries = Object.entries(room.players || {});
+            const activePlayers = [];
+
+            playersEntries.forEach(([playerId, player]) => {
+                if (!player || player.isKicked === true) return;
+                if (isPlayerActive(player, now)) {
+                    activePlayers.push(player);
+                    return;
+                }
+                // Usuń duchy online/offline, które nie odświeżały presence.
+                cleanupUpdates[`rooms/${roomId}/players/${playerId}`] = null;
+                if (player.authUid) {
+                    cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
+                }
+            });
+
+            const hasActiveHost = activePlayers.some((player) => player.isHost === true);
+            const ageMs = Math.max(0, now - Number(room.createdAt || 0));
+            const isEmptyTooLong = activePlayers.length === 0 && ageMs >= EMPTY_ROOM_TTL_MS;
+            const isOrphanTooLong = !hasActiveHost && ageMs >= ORPHAN_ROOM_TTL_MS;
+
+            if (isEmptyTooLong || isOrphanTooLong) {
+                cleanupUpdates[`rooms/${roomId}`] = null;
+                cleanupUpdates[`roomsPublic/${roomId}`] = null;
+                playersEntries.forEach(([, player]) => {
+                    if (player?.authUid) {
+                        cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
+                    }
+                });
+            }
+        });
+
+        if (Object.keys(cleanupUpdates).length === 0) return;
+        lastRoomsCleanupAtRef.current = now;
+        await update(ref(db), cleanupUpdates);
+    }, []);
+
+    const syncRoomPublicSummary = useCallback((roomId, gameId, playersMap, isLocked) => {
+        if (!roomId || !gameId) return;
+        const now = Date.now();
+        if (now - lastRoomPublicSyncAtRef.current < ROOMS_PUBLIC_SYNC_COOLDOWN_MS) return;
+        lastRoomPublicSyncAtRef.current = now;
+        const onlineCount = countActivePlayers(playersMap, now);
+        void update(ref(db), {
+            [`roomsPublic/${roomId}`]: {
+                gameId,
+                isLocked: isLocked === true,
+                onlineCount,
+                updatedAt: now,
+            },
+        }).catch(() => {
+            /* best effort room public sync */
+        });
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+            setAuthUser(user);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        if (!authUser?.uid) return;
+        let active = true;
+
+        const loadNickname = async () => {
+            try {
+                const snap = await getDoc(doc(firestore, 'users', authUser.uid));
+                if (!active || !snap.exists()) return;
+                const nick = String(snap.data()?.nickname || '').trim();
+                if (nick) {
+                    setAccountNickname(nick);
+                    window.localStorage.setItem(NICKNAME_KEY, nick);
+                }
+            } catch {
+                // Nickname loading is best-effort only.
+            }
+        };
+
+        void loadNickname();
+        return () => {
+            active = false;
+        };
+    }, [authUser]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const nextSettings = {
+            themePreset,
+            soundEnabled,
+            vibrationEnabled,
+            showConnectionFooter,
+        };
+        const serialized = JSON.stringify(nextSettings);
+        if (serialized === lastSavedUiSettingsRef.current) return;
+
+        const timeoutId = window.setTimeout(() => {
+            try {
+                window.localStorage.setItem(UI_SETTINGS_KEY, serialized);
+                lastSavedUiSettingsRef.current = serialized;
+            } catch {
+                // Ignore storage quota/private mode errors.
+            }
+        }, 350);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [themePreset, soundEnabled, vibrationEnabled, showConnectionFooter]);
+
+    useEffect(() => {
+        if (!accountNickname.trim()) return;
+        if (playerName.trim()) return;
+        const timeoutId = window.setTimeout(() => {
+            setPlayerName(accountNickname.trim());
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
+    }, [accountNickname, playerName]);
 
     useEffect(() => {
         isHostRef.current = isHost;
@@ -174,12 +373,32 @@ function App() {
         setSelectedGame(null);
         setSelectedGameType(null);
         setIsJoined(false);
-        setPlayerName('');
+        setPlayerName(accountNickname.trim());
         setIsHost(false);
         setMyPlayerId(null);
-        setHostExists(false);
-        setHostLost(false);
         setNameError('');
+    }, [accountNickname]);
+
+    const updatePresenceIndex = useCallback(async (uid, roomId, playerId) => {
+        if (!uid) return;
+        await set(ref(db, `${PRESENCE_INDEX_ROOT}/${uid}`), {
+            roomId: roomId || '',
+            playerId: playerId || '',
+            updatedAt: Date.now(),
+        });
+    }, []);
+
+    const clearPresenceIndex = useCallback(async (uid) => {
+        if (!uid) return;
+        await set(ref(db, `${PRESENCE_INDEX_ROOT}/${uid}`), null);
+    }, []);
+
+    const isRateLimited = useCallback((key, cooldownMs) => {
+        const now = Date.now();
+        const last = Number(actionRateRef.current.get(key) || 0);
+        if (now - last < cooldownMs) return true;
+        actionRateRef.current.set(key, now);
+        return false;
     }, []);
 
     /** Host z bazy (nie tylko przełącznik w lobby) — od tego zależy kick i zamykanie pokoju. */
@@ -297,18 +516,8 @@ function App() {
                 /* join sound */
             }
 
-            const activeHost = playersArray.find(
-                (player) => player.isHost === true && player.isOnline !== false
-            );
-            setHostExists(!!activeHost);
-
-            if (isJoinedRef.current && myPlayerIdRef.current) {
-                const myData = data[myPlayerIdRef.current];
-                if (myData && !myData.isKicked) {
-                    setHostLost(!activeHost);
-                }
-            } else {
-                setHostLost(false);
+            if (isHostRef.current && selectedGameType) {
+                syncRoomPublicSummary(selectedGame, selectedGameType, data, cachedRoomRef.current.isLocked);
             }
         };
 
@@ -414,6 +623,9 @@ function App() {
                 updatedAt: Date.now(),
             };
             setIsRoomLocked(locked);
+            if (isHostRef.current && selectedGameType) {
+                syncRoomPublicSummary(selectedGame, selectedGameType, cachedRoomRef.current.players || {}, locked);
+            }
         });
 
         const roomGameIdRef = ref(db, `rooms/${selectedGame}/gameId`);
@@ -430,7 +642,7 @@ function App() {
             unsubscribeLocked();
             unsubscribeRoomRoot();
         };
-    }, [selectedGame, playJoinSound, resetRoomSession]);
+    }, [selectedGame, selectedGameType, playJoinSound, resetRoomSession, syncRoomPublicSummary]);
 
     useEffect(() => {
         if (!isJoined || typeof document === 'undefined') return undefined;
@@ -443,72 +655,80 @@ function App() {
         return () => document.removeEventListener('visibilitychange', onVisibility);
     }, [isJoined]);
 
-    const triggerHostMigration = useCallback(async () => {
-        if (!selectedGame || !myPlayerId || hostMigrationLockRef.current) return;
-        hostMigrationLockRef.current = true;
-        try {
-            const snapshot = await get(ref(db, `rooms/${selectedGame}/players`));
-            const data = snapshot.val();
-            if (!data) return;
+    useEffect(() => {
+        if (!isJoined || !selectedGame || !myPlayerId) return undefined;
+        const playerRef = ref(db, `rooms/${selectedGame}/players/${myPlayerId}`);
 
-            const hasActiveHostNow = Object.values(data).some((p) => p.isHost && p.isOnline !== false);
-            if (hasActiveHostNow) return;
+        const touchPresence = () => {
+            update(playerRef, { isOnline: true, lastSeenAt: Date.now() }).catch(() => {
+                /* best effort heartbeat */
+            });
+        };
 
-            const onlinePlayerKeys = Object.keys(data)
-                .filter((k) => data[k].isOnline !== false)
-                .sort();
+        touchPresence();
+        const intervalId = window.setInterval(touchPresence, 90 * 1000);
+        return () => window.clearInterval(intervalId);
+    }, [isJoined, selectedGame, myPlayerId]);
 
-            if (onlinePlayerKeys[0] === myPlayerId) {
-                const updates = {};
-                Object.keys(data).forEach((k) => {
-                    updates[`rooms/${selectedGame}/players/${k}/isHost`] = (k === myPlayerId);
-                });
-                await update(ref(db), updates);
-            }
-        } finally {
-            hostMigrationLockRef.current = false;
-        }
-    }, [selectedGame, myPlayerId]);
-
-    // Menu główne gościa: lista aktywnych pokoi
+    // Menu główne gościa: lista aktywnych pokoi (lekka ścieżka roomsPublic)
     useEffect(() => {
         if (selectedGame || entryRole !== 'guest') return;
-        const roomsRef = ref(db, 'rooms');
+        const roomsRef = ref(db, 'roomsPublic');
         const unsub = onValue(roomsRef, (snapshot) => {
             const raw = snapshot.val() || {};
-            const list = buildActiveRooms(raw, gameById);
+            const list = buildActiveRoomsFromPublic(raw, gameById);
             setActiveRooms(list);
-
-            const now = Date.now();
-            if (now - lastRoomsCleanupAtRef.current < ROOM_CLEANUP_COOLDOWN_MS) return;
-
-            const staleUpdates = {};
-            Object.entries(raw).forEach(([roomId, room]) => {
-                if (!room?.gameId) return;
-                const players = Object.values(room.players || {}).filter((p) => p && p.isKicked !== true);
-                const onlinePlayers = players.filter((p) => p.isOnline !== false);
-                const hasActiveHost = onlinePlayers.some((p) => p.isHost === true);
-                const ageMs = Math.max(0, now - Number(room.createdAt || 0));
-
-                const isEmptyTooLong = onlinePlayers.length === 0 && ageMs >= EMPTY_ROOM_TTL_MS;
-                const isOrphanTooLong = !hasActiveHost && ageMs >= ORPHAN_ROOM_TTL_MS;
-                if (isEmptyTooLong || isOrphanTooLong) {
-                    staleUpdates[`rooms/${roomId}`] = null;
-                }
-            });
-
-            if (Object.keys(staleUpdates).length > 0) {
-                lastRoomsCleanupAtRef.current = now;
-                update(ref(db), staleUpdates).catch(() => {
-                    /* best effort cleanup */
-                });
-            }
         });
         return () => {
             unsub();
             setActiveRooms([]);
         };
     }, [selectedGame, entryRole, gameById]);
+
+    useEffect(() => {
+        if (!selectedGame || !effectiveIsHost || !isJoined) return undefined;
+        let cancelled = false;
+        const leaseOwner = `${selectedGame}:${myPlayerId || 'host'}`;
+
+        const tryCleanupNow = async () => {
+            const leaseRef = ref(db, CLEANUP_LEASE_PATH);
+            const now = Date.now();
+            const leaseResult = await runTransaction(leaseRef, (current) => {
+                const currentOwner = String(current?.owner || '');
+                const expiresAt = Number(current?.expiresAt || 0);
+                const leaseExpired = expiresAt <= now;
+                const sameOwner = currentOwner === leaseOwner;
+                if (!current || leaseExpired || sameOwner) {
+                    return {
+                        owner: leaseOwner,
+                        expiresAt: now + CLEANUP_LEASE_TTL_MS,
+                        updatedAt: now,
+                    };
+                }
+                return undefined;
+            }, { applyLocally: false });
+            if (!leaseResult.committed || leaseResult.snapshot.val()?.owner !== leaseOwner) return;
+            if (now - lastRoomsCleanupAtRef.current < ROOM_CLEANUP_COOLDOWN_MS) return;
+            try {
+                const roomsSnap = await get(ref(db, 'rooms'));
+                if (cancelled) return;
+                const raw = roomsSnap.val() || {};
+                await runRoomsCleanup(raw, now);
+            } catch {
+                /* best effort background cleanup */
+            }
+        };
+
+        void tryCleanupNow();
+        const intervalId = window.setInterval(() => {
+            void tryCleanupNow();
+        }, BACKGROUND_CLEANUP_INTERVAL_MS);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [selectedGame, effectiveIsHost, isJoined, myPlayerId, runRoomsCleanup]);
 
     // 4. OBSŁUGA TAJNYCH KOMEND ADMINISTRATORA pod logo
     const handleAdminCommand = useCallback(async () => {
@@ -519,6 +739,24 @@ function App() {
 
         await runWithBusy(async () => {
         try {
+            if (['RESET', 'PURGE', 'PURGE PLAYERS', 'PURGE ROOMS', 'CLEAR'].includes(cleanedCmd)) {
+                if (isRateLimited('admin:destructive', RATE_LIMITS_MS.adminDestructive)) {
+                    setLobbyMessage('⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą destrukcyjną.');
+                    return;
+                }
+            }
+            if (
+                cleanedCmd === 'REVEAL' ||
+                cleanedCmd === 'HOST' ||
+                cleanedCmd.startsWith('HOST ') ||
+                cleanedCmd.startsWith('ADMIN ')
+            ) {
+                if (isRateLimited('admin:mutation', RATE_LIMITS_MS.adminMutation)) {
+                    setLobbyMessage('⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą admina.');
+                    return;
+                }
+            }
+
             if (cleanedCmd === 'CLEAR') {
                 if (!selectedGame) {
                     alert('❌ CLEAR działa wewnątrz pokoju.');
@@ -530,14 +768,23 @@ function App() {
                     alert('❌ Nie znaleziono pokoju do czyszczenia.');
                     return;
                 }
-                await set(ref(db, `rooms/${selectedGame}`), {
-                    gameId: roomData.gameId,
-                    isLocked: false,
-                    createdAt: roomData.createdAt || Date.now(),
-                    gameState: null,
-                    settings: null,
-                    roleHistory: null,
-                    players: null,
+                const now = Date.now();
+                await update(ref(db), {
+                    [`rooms/${selectedGame}`]: {
+                        gameId: roomData.gameId,
+                        isLocked: false,
+                        createdAt: roomData.createdAt || now,
+                        gameState: null,
+                        settings: null,
+                        roleHistory: null,
+                        players: null,
+                    },
+                    [`roomsPublic/${selectedGame}`]: {
+                        gameId: roomData.gameId,
+                        isLocked: false,
+                        onlineCount: 0,
+                        updatedAt: now,
+                    },
                 });
                 setLobbyMessage(`🧹 Konsola: Wyczyszczono pokój ${selectedGame} (bez usuwania).`);
                 setAdminCommand('');
@@ -547,7 +794,10 @@ function App() {
 
             if (cleanedCmd === 'RESET') {
                 if (window.confirm('⚠️ RESET usunie wszystkie pokoje i graczy. Kontynuować?')) {
-                    await set(ref(db, 'rooms'), null);
+                    await update(ref(db), {
+                        rooms: null,
+                        roomsPublic: null,
+                    });
                     setSelectedGame(null);
                     setSelectedGameType(null);
                     setEntryRole(null);
@@ -557,12 +807,88 @@ function App() {
                     setIsJoined(false);
                     setIsHost(false);
                     setMyPlayerId(null);
-                    setHostExists(false);
-                    setHostLost(false);
                     setNameError('');
                     setJoinStatus('');
                     setLastJoinResult('');
                     setLobbyMessage('🧹 Konsola: RESET zakończony. Wszystko wyczyszczone.');
+                    setAdminCommand('');
+                    setShowAdminPanel(false);
+                }
+                return;
+            }
+
+            if (cleanedCmd === 'PURGE') {
+                if (window.confirm('⚠️ PURGE rozłączy wszystkich graczy i usunie wszystkie pokoje. Kontynuować?')) {
+                    await update(ref(db), {
+                        rooms: null,
+                        roomsPublic: null,
+                    });
+                    setSelectedGame(null);
+                    setSelectedGameType(null);
+                    setEntryRole(null);
+                    setManualRoomCode('');
+                    setActiveRooms([]);
+                    setPlayersList([]);
+                    setIsJoined(false);
+                    setIsHost(false);
+                    setMyPlayerId(null);
+                    setNameError('');
+                    setJoinStatus('');
+                    setLastJoinResult('');
+                    setLobbyMessage('🧹 Konsola: PURGE zakończony. Wszystkie pokoje usunięte, gracze rozłączeni.');
+                    setAdminCommand('');
+                    setShowAdminPanel(false);
+                }
+                return;
+            }
+
+            if (cleanedCmd === 'PURGE PLAYERS') {
+                if (window.confirm('⚠️ PURGE PLAYERS rozłączy wszystkich graczy, ale zostawi pokoje. Kontynuować?')) {
+                    const roomsSnap = await get(ref(db, 'rooms'));
+                    const roomsData = roomsSnap.val() || {};
+                    const purgePlayersUpdates = {};
+
+                    Object.keys(roomsData).forEach((roomId) => {
+                        purgePlayersUpdates[`rooms/${roomId}/players`] = null;
+                    });
+
+                    if (Object.keys(purgePlayersUpdates).length > 0) {
+                        await update(ref(db), purgePlayersUpdates);
+                    }
+
+                    setPlayersList([]);
+                    setIsJoined(false);
+                    setIsHost(false);
+                    setMyPlayerId(null);
+                    setNameError('');
+                    setJoinStatus('');
+                    setLastJoinResult('');
+                    setLobbyMessage('🧹 Konsola: PURGE PLAYERS zakończony. Wszyscy gracze rozłączeni, pokoje zostawione.');
+                    setAdminCommand('');
+                    setShowAdminPanel(false);
+                }
+                return;
+            }
+
+            if (cleanedCmd === 'PURGE ROOMS') {
+                if (window.confirm('⚠️ PURGE ROOMS usunie wszystkie pokoje. Kontynuować?')) {
+                    await update(ref(db), {
+                        rooms: null,
+                        roomsPublic: null,
+                    });
+                    setSelectedGame(null);
+                    setSelectedGameType(null);
+                    setEntryRole(null);
+                    setManualRoomCode('');
+                    setActiveRooms([]);
+                    setPlayersList([]);
+                    setIsJoined(false);
+                    setIsHost(false);
+                    setMyPlayerId(null);
+                    setNameError('');
+                    setJoinStatus('');
+                    setLastJoinResult('');
+                    setLobbyMessage('🧹 Konsola: PURGE ROOMS zakończony. Wszystkie pokoje usunięte.');
                     setAdminCommand('');
                     setShowAdminPanel(false);
                 }
@@ -574,6 +900,16 @@ function App() {
                 const newState = !isAdminMode;
                 setIsAdminMode(newState);
                 setLobbyMessage(`🔧 Konsola: Tryb ADMIN ${newState ? 'włączony' : 'wyłączony'}.`);
+                setAdminCommand('');
+                setShowAdminPanel(false);
+                return;
+            }
+
+            if (cleanedCmd === 'BYPASS') {
+                const next = !adminBypassEnabled;
+                setAdminBypassEnabled(next);
+                if (next) setIsAdminMode(true);
+                setLobbyMessage(`🛡️ Konsola: BYPASS ${next ? 'włączony' : 'wyłączony'}.`);
                 setAdminCommand('');
                 setShowAdminPanel(false);
                 return;
@@ -601,7 +937,7 @@ function App() {
 
             if (cleanedCmd === 'HELP') {
                 setLobbyMessage(
-                    'Komendy: RESET (czyści wszystko), CLEAR (czyści bieżący pokój), ADMIN (tryb admin), REVEAL (ujawnia role w Impostor/Mafia), ADMIN KICK <name>, HOST / HOST ME / HOST <name>.'
+                    'Komendy: RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, ADMIN, BYPASS, REVEAL, ADMIN KICK <name>, HOST / HOST ME / HOST <name>.'
                 );
                 setAdminCommand('');
                 setShowAdminPanel(false);
@@ -714,14 +1050,19 @@ function App() {
             alert('❌ Błąd podczas wykonywania komendy. Sprawdź konsolę.');
         }
         });
-    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, runWithBusy]);
+    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, runWithBusy, isRateLimited]);
 
     // 5. DOŁĄCZANIE DO POKOJU (NADPISYWANIE DUCHÓW / ZABEZPIECZENIEM PRZED BLOKADĄ)
     const handleJoin = async () => {
+        if (isRateLimited('join', RATE_LIMITS_MS.join)) {
+            setNameError('⏱️ Za szybkie ponowne dołączenie. Odczekaj chwilę.');
+            return;
+        }
         const joinStartedAt = performance.now();
         isLeavingVoluntarily.current = false; //
         setLobbyMessage('');
         setJoinStatus('');
+        const currentAuthUid = authUser?.uid || null;
         const cleanedName = playerName.trim();
         if (cleanedName === '') {
             setNameError('Podaj imię, aby wejść do pokoju.');
@@ -733,6 +1074,19 @@ function App() {
         const playersRef = ref(db, `rooms/${selectedGame}/players`);
         let data = cachedRoomRef.current.players;
         let isLocked = cachedRoomRef.current.isLocked;
+
+        if (currentAuthUid) {
+            const previousPresenceSnap = await get(ref(db, `${PRESENCE_INDEX_ROOT}/${currentAuthUid}`));
+            const previousPresence = previousPresenceSnap.val();
+            const previousRoomId = String(previousPresence?.roomId || '');
+            const previousPlayerId = String(previousPresence?.playerId || '');
+            if (previousRoomId && previousPlayerId) {
+                await set(ref(db, `rooms/${previousRoomId}/players/${previousPlayerId}`), null);
+                data = null;
+                cachedRoomRef.current = { players: null, isLocked: false, updatedAt: 0 };
+            }
+        }
+
         if (!data || Date.now() - cachedRoomRef.current.updatedAt > 1500) {
             setJoinStatus('Pobieranie stanu pokoju...');
             const [playersSnap, lockedSnap] = await Promise.all([
@@ -748,9 +1102,17 @@ function App() {
             };
         }
 
-        const existingPlayerKey = Object.keys(data).find(
-            key => data[key].name?.toLowerCase() === cleanedName.toLowerCase()
-        );
+        let existingPlayerKey = null;
+        if (currentAuthUid) {
+            existingPlayerKey = Object.keys(data).find(
+                (key) => data[key]?.authUid === currentAuthUid
+            );
+        }
+        if (!existingPlayerKey) {
+            existingPlayerKey = Object.keys(data).find(
+                (key) => data[key].name?.toLowerCase() === cleanedName.toLowerCase()
+            );
+        }
 
         if (isLocked && !existingPlayerKey) {
             setNameError('🔒 Ten pokój został zablokowany przez Hosta. Rozgrywka już trwa!');
@@ -762,6 +1124,7 @@ function App() {
 
         if (existingPlayerKey) {
             const existingPlayer = data[existingPlayerKey];
+            const isSameAccount = currentAuthUid && existingPlayer.authUid === currentAuthUid;
 
             if (existingPlayer.isKicked) {
                 setNameError('Ta nazwa należy do wyrzuconego gracza. Wybierz inną.');
@@ -775,7 +1138,7 @@ function App() {
                 return;
             }
 
-            if (existingPlayer.isOnline !== false) {
+            if (existingPlayer.isOnline !== false && !isSameAccount) {
                 setNameError(
                     'Ta nazwa jest już zajęta przez aktywnego gracza. Wybierz inną lub poczekaj, aż gracz się rozłączy (💤).'
                 );
@@ -794,14 +1157,20 @@ function App() {
                 await update(ref(db), {
                     [`rooms/${selectedGame}/players/${newPlayerRef.key}`]: {
                         name: cleanedName,
+                        authUid: currentAuthUid,
                         isHost: true,
                         isOnline: true,
                         isKicked: false,
                         joinedAt: Date.now(),
+                        lastSeenAt: Date.now(),
                     },
                     [`rooms/${selectedGame}/gameState`]: null,
                 }, { priority: true });
                 setIsJoined(true);
+                if (typeof window !== 'undefined') {
+                    window.localStorage.setItem(LAST_ROOM_KEY, selectedGame);
+                    setLastKnownRoomId(selectedGame);
+                }
                 setNameError('');
                 joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
                 const elapsed = Math.round(performance.now() - joinStartedAt);
@@ -811,6 +1180,9 @@ function App() {
                     onDisconnect(targetPlayerRef).update({ isOnline: false });
                 } catch (discErr) {
                     console.warn('[join] onDisconnect:', discErr);
+                }
+                if (currentAuthUid) {
+                    await updatePresenceIndex(currentAuthUid, selectedGame, newPlayerRef.key);
                 }
                 isJoiningRef.current = false;
                 return;
@@ -825,10 +1197,12 @@ function App() {
             setJoinStatus('Zapisywanie gracza...');
             await set(targetPlayerRef, {
                 name: cleanedName,
+                authUid: currentAuthUid,
                 isHost: finalIsHost,
                 isOnline: true,
                 isKicked: false,
                 joinedAt: Date.now(),
+                lastSeenAt: Date.now(),
             }, { priority: true });
 
             setJoinStatus('Weryfikacja wejścia...');
@@ -844,8 +1218,16 @@ function App() {
             } catch (discErr) {
                 console.warn('[join] onDisconnect:', discErr);
             }
+            if (currentAuthUid) {
+                const joinedPlayerId = targetPlayerRef.key || existingPlayerKey;
+                await updatePresenceIndex(currentAuthUid, selectedGame, joinedPlayerId);
+            }
 
             setIsJoined(true);
+            if (typeof window !== 'undefined') {
+                window.localStorage.setItem(LAST_ROOM_KEY, selectedGame);
+                setLastKnownRoomId(selectedGame);
+            }
             setNameError('');
             joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
             const elapsed = Math.round(performance.now() - joinStartedAt);
@@ -880,7 +1262,26 @@ function App() {
         setLobbyMessage('');
     }, []);
 
+    const handleJoinLastKnownGame = useCallback(async () => {
+        const roomId = lastKnownRoomId.trim();
+        if (!roomId) {
+            setAuthStatus('Brak zapisanej gry do wznowienia.');
+            return;
+        }
+        try {
+            await openRoomAsGuest(roomId);
+            setShowAccountCenter(false);
+            setAuthStatus('');
+        } catch {
+            setAuthStatus('Nie udało się dołączyć do ostatniej gry.');
+        }
+    }, [lastKnownRoomId, openRoomAsGuest]);
+
     const createHostRoom = useCallback(async (gameId) => {
+        if (isRateLimited('create-room', RATE_LIMITS_MS.createRoom)) {
+            setLobbyMessage('⏱️ Tworzysz pokoje zbyt szybko. Odczekaj chwilę.');
+            return;
+        }
         await runWithBusy(async () => {
             let roomCode = generateRoomCode();
             for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -893,12 +1294,21 @@ function App() {
                 setLobbyMessage('❌ Nie udało się utworzyć kodu pokoju. Spróbuj ponownie.');
                 return;
             }
-            await set(ref(db, `rooms/${roomCode}`), {
-                gameId,
-                isLocked: false,
-                createdAt: Date.now(),
-                gameState: null,
-                settings: null,
+            const now = Date.now();
+            await update(ref(db), {
+                [`rooms/${roomCode}`]: {
+                    gameId,
+                    isLocked: false,
+                    createdAt: now,
+                    gameState: null,
+                    settings: null,
+                },
+                [`roomsPublic/${roomCode}`]: {
+                    gameId,
+                    isLocked: false,
+                    onlineCount: 0,
+                    updatedAt: now,
+                },
             });
             setEntryRole('host');
             setSelectedGame(roomCode);
@@ -906,10 +1316,14 @@ function App() {
             setIsHost(true);
             setLobbyMessage('');
         });
-    }, [runWithBusy]);
+    }, [runWithBusy, isRateLimited]);
 
     const kickPlayer = useCallback(async (playerId) => {
         if (!selectedGame || !myPlayerId) return;
+        if (isRateLimited(`kick:${selectedGame}`, RATE_LIMITS_MS.kick)) {
+            setLobbyMessage('⏱️ Za szybkie kolejne wyrzucenie gracza.');
+            return;
+        }
         await runWithBusy(async () => {
             try {
                 const meSnap = await get(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
@@ -940,6 +1354,9 @@ function App() {
                         }
                     }, 3000);
                 }
+                if (target.authUid) {
+                    await clearPresenceIndex(target.authUid);
+                }
 
                 setLobbyMessage(`🧹 Host: Wyrzucono ${target.name || 'gracza'} z pokoju.`);
             } catch (err) {
@@ -947,9 +1364,13 @@ function App() {
                 alert('❌ Błąd przy wyrzucaniu gracza. Sprawdź połączenie z bazą (na dole ekranu).');
             }
         });
-    }, [selectedGame, myPlayerId, runWithBusy]);
+    }, [selectedGame, myPlayerId, runWithBusy, clearPresenceIndex, isRateLimited]);
 
     const adminKick = useCallback(async (gameId, playerKey) => {
+        if (isRateLimited(`admin-kick:${gameId}`, RATE_LIMITS_MS.adminMutation)) {
+            setLobbyMessage('⏱️ Za szybkie kolejne wyrzucenie przez admina.');
+            return;
+        }
         try {
             const snap = await get(ref(db, `rooms/${gameId}/players/${playerKey}`));
             const p = snap.val();
@@ -959,17 +1380,23 @@ function App() {
             }
             // Admin powinien móc usunąć dowolnego gracza natychmiast
             await remove(ref(db, `rooms/${gameId}/players/${playerKey}`));
+            if (p.authUid) {
+                await clearPresenceIndex(p.authUid);
+            }
             setLobbyMessage(`🧹 Konsola: Admin wyrzucił ${p.name || playerKey} z pokoju ${gameId}.`);
         } catch (e) {
             console.error(e);
             alert('❌ Błąd przy wyrzucaniu gracza.');
         }
-    }, []);
+    }, [clearPresenceIndex, isRateLimited]);
 
     const adminDeleteRoom = useCallback(async (roomId) => {
         await runWithBusy(async () => {
             try {
-                await set(ref(db, `rooms/${roomId}`), null);
+                await update(ref(db), {
+                    [`rooms/${roomId}`]: null,
+                    [`roomsPublic/${roomId}`]: null,
+                });
                 setLobbyMessage(`🧹 Konsola: Usunięto pokój ${roomId}.`);
             } catch (e) {
                 console.error(e);
@@ -983,8 +1410,11 @@ function App() {
         if (myPlayerId) {
             remove(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
         }
+        if (authUser?.uid) {
+            void clearPresenceIndex(authUser.uid);
+        }
         resetRoomSession();
-    }, [myPlayerId, selectedGame, resetRoomSession]);
+    }, [myPlayerId, selectedGame, authUser, clearPresenceIndex, resetRoomSession]);
 
     const handleCloseRoom = useCallback(async () => {
         if (!selectedGame || !myPlayerId) {
@@ -1004,9 +1434,16 @@ function App() {
                     if (playerId === myPlayerId) return;
                     markKickedUpdates[`rooms/${selectedGame}/players/${playerId}/isKicked`] = true;
                     markKickedUpdates[`rooms/${selectedGame}/players/${playerId}/isOnline`] = false;
+                    const authUid = playersData[playerId]?.authUid;
+                    if (authUid) {
+                        markKickedUpdates[`${PRESENCE_INDEX_ROOT}/${authUid}`] = null;
+                    }
                 });
                 await update(ref(db), markKickedUpdates);
-                await set(ref(db, `rooms/${selectedGame}`), null);
+                await update(ref(db), {
+                    [`rooms/${selectedGame}`]: null,
+                    [`roomsPublic/${selectedGame}`]: null,
+                });
             } catch (err) {
                 console.error(err);
             } finally {
@@ -1022,6 +1459,132 @@ function App() {
         }
         handleBackToMenu();
     }, [effectiveIsHost, handleCloseRoom, handleBackToMenu]);
+
+    const hasGoogleProvider = !!authUser?.providerData?.some((provider) => provider.providerId === 'google.com');
+    const hasEmailProvider = !!authUser?.providerData?.some((provider) => provider.providerId === 'password');
+
+    const handleGoogleAuth = useCallback(async () => {
+        setAuthBusy(true);
+        setAuthStatus('');
+        try {
+            const authModule = await import('../services/auth/firebaseAuth');
+            await authModule.signInWithGoogle();
+            setAuthStatus('Zalogowano przez Google.');
+        } catch (error) {
+            setAuthStatus(error instanceof Error ? error.message : 'Logowanie Google nie powiodło się.');
+        } finally {
+            setAuthBusy(false);
+        }
+    }, []);
+
+    const handleSendMagicLink = useCallback(async () => {
+        const email = accountEmail.trim();
+        if (!email) {
+            setAuthStatus('Podaj email do linku logowania.');
+            return;
+        }
+        setAuthBusy(true);
+        setAuthStatus('');
+        try {
+            const authModule = await import('../services/auth/firebaseAuth');
+            await authModule.sendPasswordlessSignInLink(email);
+            setAuthStatus('Wysłano link logowania na email.');
+        } catch (error) {
+            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się wysłać linku.');
+        } finally {
+            setAuthBusy(false);
+        }
+    }, [accountEmail]);
+
+    const handleCompleteMagicLink = useCallback(async () => {
+        setAuthBusy(true);
+        setAuthStatus('');
+        try {
+            const authModule = await import('../services/auth/firebaseAuth');
+            await authModule.completePasswordlessSignIn(accountEmail);
+            setAuthStatus('Konto połączone przez email link.');
+        } catch (error) {
+            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się dokończyć logowania.');
+        } finally {
+            setAuthBusy(false);
+        }
+    }, [accountEmail]);
+
+    const handleConnectGoogle = useCallback(async () => {
+        if (!firebaseAuth.currentUser) {
+            setAuthStatus('Najpierw zaloguj się lub utwórz konto.');
+            return;
+        }
+        setAuthBusy(true);
+        setAuthStatus('');
+        try {
+            await linkWithPopup(firebaseAuth.currentUser, new GoogleAuthProvider());
+            setAuthStatus('Połączono konto z Google.');
+        } catch (error) {
+            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się połączyć konta.');
+        } finally {
+            setAuthBusy(false);
+        }
+    }, []);
+
+    const handleSignOut = useCallback(async () => {
+        setAuthBusy(true);
+        setAuthStatus('');
+        try {
+            await signOut(firebaseAuth);
+            setAuthStatus('Wylogowano.');
+        } catch (error) {
+            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się wylogować.');
+        } finally {
+            setAuthBusy(false);
+        }
+    }, []);
+
+    const handleSaveNickname = useCallback(async () => {
+        const nickname = accountNickname.trim().slice(0, 24);
+        if (!nickname) {
+            setAuthStatus('Nick nie może być pusty.');
+            return;
+        }
+
+        try {
+            if (typeof window !== 'undefined') {
+                window.localStorage.setItem(NICKNAME_KEY, nickname);
+            }
+            setNicknameSavedAt(Date.now());
+        } catch {
+            // Ignore local storage failures.
+        }
+
+        setAuthBusy(true);
+        setAuthStatus('');
+        try {
+            if (firebaseAuth.currentUser?.uid) {
+                await setDoc(
+                    doc(firestore, 'users', firebaseAuth.currentUser.uid),
+                    { nickname },
+                    { merge: true }
+                );
+                setAuthStatus('Zapisano stały nick.');
+            } else {
+                setAuthStatus('Nick zapisany lokalnie (zaloguj się, aby zsynchronizować).');
+            }
+            setPlayerName((prev) => (prev.trim() ? prev : nickname));
+        } catch (error) {
+            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się zapisać nicku.');
+        } finally {
+            setAuthBusy(false);
+        }
+    }, [accountNickname]);
+
+    useEffect(() => {
+        if (!nicknameSavedAt) return undefined;
+        const timer = window.setTimeout(() => {
+            setNicknameSavedAt(0);
+        }, 2500);
+        return () => window.clearTimeout(timer);
+    }, [nicknameSavedAt]);
+
 
     return (
         <div className="app-container">
@@ -1056,12 +1619,143 @@ function App() {
 
             <button
                 type="button"
+                className="account-trigger"
+                onClick={() => {
+                    setShowAccountCenter((prev) => !prev);
+                    setShowSettings(false);
+                }}
+                aria-label="Otwórz centrum konta"
+            >
+                👤
+            </button>
+
+            <button
+                type="button"
                 className="settings-trigger"
-                onClick={() => setShowSettings((prev) => !prev)}
+                onClick={() => {
+                    setShowSettings((prev) => !prev);
+                    setShowAccountCenter(false);
+                }}
                 aria-label="Otwórz ustawienia"
             >
                 ⚙
             </button>
+
+            {showAccountCenter && (
+                <div className="account-panel" role="dialog" aria-label="Centrum konta">
+                    <div className="settings-panel__header">
+                        <h2>Centrum konta</h2>
+                        <button
+                            type="button"
+                            className="settings-close"
+                            onClick={() => setShowAccountCenter(false)}
+                            aria-label="Zamknij centrum konta"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <p className="account-status-line">
+                        {authUser?.email ? `Zalogowany: ${authUser.email}` : 'Brak aktywnego konta'}
+                    </p>
+
+                    {!hasEmailProvider && (
+                        <button
+                            type="button"
+                            className="settings-toggle"
+                            onClick={handleGoogleAuth}
+                            disabled={authBusy}
+                        >
+                            <span>Utwórz / Zaloguj przez Google</span>
+                            <span className="settings-toggle__icon on">G</span>
+                        </button>
+                    )}
+
+                    <div className="settings-panel__group">
+                        <label className="settings-panel__label" htmlFor="account-nickname-input">
+                            Stały nick
+                        </label>
+                        <input
+                            id="account-nickname-input"
+                            type="text"
+                            value={accountNickname}
+                            onChange={(event) => setAccountNickname(event.target.value)}
+                            maxLength={24}
+                            placeholder="Twój stały nick"
+                            className="account-input"
+                        />
+                        <button
+                            type="button"
+                            className="btn-link"
+                            onClick={handleSaveNickname}
+                            disabled={authBusy}
+                        >
+                            Zapisz nick
+                        </button>
+                        {nicknameSavedAt > 0 && <p className="account-success">Nick zapisany.</p>}
+                    </div>
+
+                    {!hasGoogleProvider && (
+                        <div className="settings-panel__group">
+                            <label className="settings-panel__label" htmlFor="account-email-input">
+                                Email (link logowania)
+                            </label>
+                            <input
+                                id="account-email-input"
+                                type="email"
+                                value={accountEmail}
+                                onChange={(event) => setAccountEmail(event.target.value)}
+                                placeholder="twoj@email.com"
+                                className="account-input"
+                            />
+                            <div className="account-actions-row">
+                                <button type="button" className="btn-link" onClick={handleSendMagicLink} disabled={authBusy}>
+                                    Wyślij link
+                                </button>
+                                <button type="button" className="btn-link" onClick={handleCompleteMagicLink} disabled={authBusy}>
+                                    Dokończ link
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {!!lastKnownRoomId && !isJoined && (
+                        <button
+                            type="button"
+                            className="settings-toggle"
+                            onClick={handleJoinLastKnownGame}
+                            disabled={authBusy}
+                        >
+                            <span>Dołącz do gry ({lastKnownRoomId})</span>
+                            <span className="settings-toggle__icon on">▶</span>
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        className="settings-toggle"
+                        onClick={handleConnectGoogle}
+                        disabled={authBusy}
+                    >
+                        <span>Połącz konto z Google</span>
+                        <span className="settings-toggle__icon on">+</span>
+                    </button>
+
+                    {authUser && (
+                        <button
+                            type="button"
+                            className="settings-toggle"
+                            onClick={handleSignOut}
+                            disabled={authBusy}
+                        >
+                            <span>Wyloguj</span>
+                            <span className="settings-toggle__icon off">↩</span>
+                        </button>
+                    )}
+
+                    {authStatus && <p className="settings-hint settings-hint--tight">{authStatus}</p>}
+                </div>
+            )}
 
             {showSettings && (
                 <div className="settings-panel" role="dialog" aria-label="Ustawienia aplikacji">
@@ -1156,7 +1850,7 @@ function App() {
                             </span>
                         </button>
                         <p className="settings-hint settings-hint--tight">
-                            Komendy: HELP, RESET, CLEAR, ADMIN, REVEAL… Albo przytrzymaj logo „Party Games” ~0,6 s.
+                            Komendy: HELP, RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, ADMIN, BYPASS, REVEAL… Albo przytrzymaj logo „Party Games” ~0,6 s.
                         </p>
                     </div>
 

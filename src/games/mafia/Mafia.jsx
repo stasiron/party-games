@@ -115,23 +115,8 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, 
 
 
 
-    useEffect(() => {
-
-        setShowRole(false);
-
-    }, [roleRevealEpoch]);
-
-
-
-    useEffect(() => {
-
-        if (roomData.phase !== 'playing') {
-
-            setHostRevealActive(false);
-
-        }
-
-    }, [roomData.phase]);
+    const effectiveShowRole = showRole && roomData.phase === 'playing';
+    const effectiveHostRevealActive = hostRevealActive && roomData.phase === 'playing';
 
 
 
@@ -295,7 +280,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, 
 
             <div className="mafia-host-reveal-zone">
 
-                {!hostRevealActive ? (
+                {!effectiveHostRevealActive ? (
 
                     <button
 
@@ -559,7 +544,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, 
 
 
 
-                            {!hostRevealActive && (
+                            {!effectiveHostRevealActive && (
 
                                 <>
 
@@ -717,11 +702,11 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, 
 
                                             onTouchEnd={() => setShowRole(false)}
 
-                                            className={`peek-panel mafia-peeking-box ${showRole ? 'active' : 'hidden'}`}
+                                            className={`peek-panel mafia-peeking-box ${effectiveShowRole ? 'active' : 'hidden'}`}
 
                                         >
 
-                                            {!showRole ? (
+                                            {!effectiveShowRole ? (
 
                                                 <h3 className="peek-hidden-text">
 

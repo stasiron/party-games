@@ -52,16 +52,10 @@ function Impostor({
         return () => clearTimeout(t);
     }, [impostorCount, maxImpostors]);
 
-    useEffect(() => {
+    const effectiveRandomImpostorMaxCount = useMemo(() => {
         const hardMax = Math.max(1, lobbyPlayerCount);
-        const defaultMax = Math.max(1, lobbyPlayerCount - 1);
-        setRandomImpostorMaxCount((prev) => {
-            if (prev > hardMax || prev < 1) {
-                return Math.min(hardMax, Math.max(1, defaultMax));
-            }
-            return prev;
-        });
-    }, [lobbyPlayerCount]);
+        return Math.min(hardMax, Math.max(1, randomImpostorMaxCount));
+    }, [lobbyPlayerCount, randomImpostorMaxCount]);
 
     const roomSettings = useRoomSettings(roomId, DEFAULT_SETTINGS);
 
@@ -149,7 +143,7 @@ function Impostor({
             roleHistory,
             fairnessEnabled: roomSettings.fairnessEnabled,
             randomImpostorCount,
-            randomImpostorMaxCount,
+            randomImpostorMaxCount: effectiveRandomImpostorMaxCount,
             selectedImpostorCount: impostorCount,
         });
         if (!nextRound) return;
@@ -176,7 +170,7 @@ function Impostor({
         playableCategories,
         impostorCount,
         randomImpostorCount,
-        randomImpostorMaxCount,
+        effectiveRandomImpostorMaxCount,
         roomSettings.fairnessEnabled,
         roomId
     ]);
@@ -345,7 +339,7 @@ function Impostor({
         lobbyPlayerCount >= 2 &&
         (!randomImpostorCount
             ? impostorCount <= maxImpostors
-            : randomImpostorMaxCount >= 1 && randomImpostorMaxCount <= lobbyPlayerCount);
+            : effectiveRandomImpostorMaxCount >= 1 && effectiveRandomImpostorMaxCount <= lobbyPlayerCount);
     const revealAllRoles = roomData.revealAllRoles === true && roomData.phase !== 'lobby';
 
     return (
@@ -417,14 +411,14 @@ function Impostor({
                                         className="btn-impostor-counter"
                                         disabled={
                                             randomImpostorCount
-                                                ? randomImpostorMaxCount <= 1
+                                                ? effectiveRandomImpostorMaxCount <= 1
                                                 : impostorCount <= 1
                                         }
                                     >
                                         −
                                     </button>
                                     <span className="impostor-impostor-count-value">
-                                        {randomImpostorCount ? randomImpostorMaxCount : impostorCount}
+                                        {randomImpostorCount ? effectiveRandomImpostorMaxCount : impostorCount}
                                     </span>
                                     <button
                                         type="button"
@@ -432,7 +426,7 @@ function Impostor({
                                         className="btn-impostor-counter"
                                         disabled={
                                             randomImpostorCount
-                                                ? randomImpostorMaxCount >= Math.max(1, lobbyPlayerCount)
+                                                ? effectiveRandomImpostorMaxCount >= Math.max(1, lobbyPlayerCount)
                                                 : impostorCount >= maxImpostors
                                         }
                                     >
@@ -441,7 +435,7 @@ function Impostor({
                                 </div>
                                 <p className="impostor-impostor-count-hint">
                                     {randomImpostorCount
-                                        ? `Graczy przy stole: ${lobbyPlayerCount} (losowanie 1-${randomImpostorMaxCount} Impostorów, max ${Math.max(1, lobbyPlayerCount)})`
+                                        ? `Graczy przy stole: ${lobbyPlayerCount} (losowanie 1-${effectiveRandomImpostorMaxCount} Impostorów, max ${Math.max(1, lobbyPlayerCount)})`
                                         : `Graczy przy stole: ${lobbyPlayerCount} (max ${maxImpostors} Impostorów)`}
                                 </p>
                             </div>

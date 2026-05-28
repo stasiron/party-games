@@ -36,21 +36,11 @@ function SharedPhoneRoleReveal({
     }, [skipOwnerStep]);
 
     useEffect(() => {
-        resetFlow();
+        const timeoutId = window.setTimeout(() => {
+            resetFlow();
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
     }, [resetEpoch, resetFlow]);
-
-    useEffect(() => {
-        if (showRole) setOwnerUnlocked(true);
-    }, [showRole]);
-
-    useEffect(() => {
-        if (showGuestRole) setGuestUnlocked(true);
-    }, [showGuestRole]);
-
-    useEffect(() => {
-        setGuestUnlocked(false);
-        setShowGuestRole(false);
-    }, [guestIndex]);
 
     const currentGuest = guests[guestIndex] ?? null;
     const hasMoreGuests = guestIndex < guests.length - 1;
@@ -69,6 +59,7 @@ function SharedPhoneRoleReveal({
 
     const confirmGuest = useCallback(() => {
         setShowGuestRole(false);
+        setGuestUnlocked(false);
         if (hasMoreGuests) {
             setGuestIndex((i) => i + 1);
         } else {
@@ -91,10 +82,16 @@ function SharedPhoneRoleReveal({
             <div className="shared-phone-reveal">
                 <p className="shared-phone-reveal__step">Krok 1 — Twoja rola (właściciel telefonu)</p>
                 <div
-                    onMouseDown={() => setShowRole(true)}
+                    onMouseDown={() => {
+                        setShowRole(true);
+                        setOwnerUnlocked(true);
+                    }}
                     onMouseUp={() => setShowRole(false)}
                     onMouseLeave={() => setShowRole(false)}
-                    onTouchStart={() => setShowRole(true)}
+                    onTouchStart={() => {
+                        setShowRole(true);
+                        setOwnerUnlocked(true);
+                    }}
                     onTouchEnd={() => setShowRole(false)}
                     className={`peek-panel ${peekPanelExtraClass} ${showRole ? ownerPeekClassName : peekHiddenClassName}`}
                 >
@@ -138,10 +135,16 @@ function SharedPhoneRoleReveal({
                 {guests.length > 1 && ` (${guestIndex + 1}/${guests.length})`}
             </p>
             <div
-                onMouseDown={() => setShowGuestRole(true)}
+                onMouseDown={() => {
+                    setShowGuestRole(true);
+                    setGuestUnlocked(true);
+                }}
                 onMouseUp={() => setShowGuestRole(false)}
                 onMouseLeave={() => setShowGuestRole(false)}
-                onTouchStart={() => setShowGuestRole(true)}
+                onTouchStart={() => {
+                    setShowGuestRole(true);
+                    setGuestUnlocked(true);
+                }}
                 onTouchEnd={() => setShowGuestRole(false)}
                 className={`peek-panel ${peekPanelExtraClass} ${showGuestRole ? ownerPeekClassName : peekHiddenClassName}`}
             >

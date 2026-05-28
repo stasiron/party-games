@@ -1,6 +1,7 @@
 # Raspberry Pi — Party Games (offline / PartBox)
 
 Raspberry Pi działa jako serwer imprezowy offline: hotspot Wi-Fi + serwowanie aplikacji + lokalna synchronizacja RTDB.
+Auth/Firestore odpowiada tylko za konto i reconnect poza krytycznym flow rozgrywki realtime.
 
 Powiązane:
 - główny opis projektu: [`../../README.md`](../../README.md)
@@ -21,6 +22,7 @@ Powiązane:
 - `party-web` (PM2): statyczna aplikacja `dist/` na porcie `80`
 - lokalny sync RTDB na porcie `9000`
 - hotspot `PartBox-Gry` jako podstawowy punkt dostępu
+- opcjonalnie Firebase Auth/Firestore (konto/reconnect) przy dostępie do internetu
 
 Kluczowa zasada: na jednej imprezie wszyscy gracze muszą używać tego samego hosta (`10.42.0.1`).
 
@@ -86,4 +88,7 @@ Najczęstsze źródło problemów:
 - Ograniczaj liczbę równoczesnych ciężkich akcji (szczególnie w dużych pokojach).
 - Priorytet na Pi: stabilność synchronizacji i Wi-Fi, nie „efekty wizualne”.
 - Aplikacja ma tryb low-power i ogranicza obciążenie RTDB w trybie emulatora.
+- Lista pokoi dla gościa używa `roomsPublic`, więc odczyty są lżejsze niż pełne skany `rooms`.
+- Cleanup starych pokoi działa przez pojedynczy lease executor (`/_maintenance/roomsCleanupLease`), co ogranicza równoległe skany.
 - Po refaktorze więcej logiki rund i losowań działa lokalnie po stronie klienta (`games/*/engine.js`), a RTDB dostaje głównie wynikowe update'y stanu.
+- Funkcje konta (Google/email-link, nick, historia sesji) powinny degradować się łagodnie: brak internetu nie może blokować grania lokalnego.
