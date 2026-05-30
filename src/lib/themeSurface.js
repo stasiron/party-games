@@ -311,6 +311,19 @@ function applyCyberTheme(root, stops) {
         truth: palette.truth,
         dare: palette.dare,
     });
+
+    const accent = palette.accent;
+    root.style.setProperty('--category-selected-bg', accentAlpha(accent, 0.26));
+    root.style.setProperty('--category-selected-ring', '#5ce1ff');
+    root.style.setProperty('--category-unselected-bg', 'rgba(0, 0, 0, 0.97)');
+    root.style.setProperty('--category-unselected-border', accentAlpha(accent, 0.22));
+    root.style.setProperty('--category-unselected-text', 'rgba(180, 205, 235, 0.55)');
+    root.style.setProperty('--category-btn-text', '#f0f8ff');
+    root.style.setProperty('--category-btn-desc', 'rgba(210, 230, 255, 0.88)');
+    root.style.setProperty('--accent-muted-bg', accentAlpha(accent, 0.2));
+    root.style.setProperty('--accent-hover-bg', accentAlpha(accent, 0.32));
+    root.style.setProperty('--guest-chip-active-bg', accentAlpha(accent, 0.32));
+    root.style.setProperty('--glass-border', accentAlpha(accent, 0.35));
 }
 
 function applyDefaultTheme(root, stops) {

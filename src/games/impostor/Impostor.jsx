@@ -8,8 +8,8 @@ import { useRoomGameState } from '../../lib/useRoomGameState';
 import { useRoomSettings } from '../../lib/useRoomSettings';
 import { buildRoundState } from './engine';
 import ConfirmButton from '../../components/ConfirmButton';
-import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { HostShareOptions } from '../../components/RoomInviteQR';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { getTablePlayers, getGuestsForOwner } from '../../lib/guestPlayers';
 import SharedPhoneRoleReveal from '../../components/SharedPhoneRoleReveal';
@@ -24,9 +24,9 @@ function Impostor({
     onCloseRoom,
     myPlayerId,
     tablePlayers = [],
-    roomInviteUrl,
     isRoomLocked = false,
     roomId,
+    shareOptions,
 }) {
     const playableCategories = useMemo(
         () => getImpostorCategories(gameData.impostor),
@@ -492,7 +492,7 @@ function Impostor({
                                     </p>
                                 )}
                             </div>
-                            <RoomInviteQR inviteUrl={roomInviteUrl} />
+                            <HostShareOptions shareOptions={shareOptions} />
                         </>
                     ) : (
                         <p>Czekamy aż Host wybierze kategorie i wylosuje role...</p>
@@ -674,6 +674,7 @@ function Impostor({
                                     Oznaczaj wyrzuconych Impostorów po głosowaniu (łączna liczba jest ukryta).
                                 </p>
                             </div>
+                            <HostShareOptions shareOptions={shareOptions} />
                             <ConfirmButton onClick={forceResetTable} text="Zakończ rundę i wybierz nową" />
                         </div>
                     )}

@@ -17,8 +17,8 @@ import {
     buildUpdatedPlayerStats,
 } from './engine';
 import ConfirmButton from '../../components/ConfirmButton';
-import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { HostShareOptions } from '../../components/RoomInviteQR';
 import { isTurnForPhoneOwner, isCurrentPlayerGuest } from '../../lib/guestPlayers';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 
@@ -28,9 +28,9 @@ function TruthOrDare({
     playerName,
     myPlayerId,
     tablePlayers = [],
-    roomInviteUrl,
     vibrationEnabled,
     roomId,
+    shareOptions,
 }) {
     const playableCategories = useMemo(
         () => getTruthOrDareCategories(gameData.truthOrDare),
@@ -275,7 +275,7 @@ function TruthOrDare({
                                     Rozpocznij grę ({selectedCategories.length})
                                 </button>
                             </div>
-                            <RoomInviteQR inviteUrl={roomInviteUrl} />
+                            <HostShareOptions shareOptions={shareOptions} />
                         </>
                     ) : (
                         <p>Czekamy aż Host wybierze talię i wystartuje stół...</p>
@@ -365,6 +365,7 @@ function TruthOrDare({
                                     Zakończ kolejkę i losuj gracza
                                 </button>
                             )}
+                            <HostShareOptions shareOptions={shareOptions} />
                             <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
                         </div>
                     )}

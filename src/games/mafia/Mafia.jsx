@@ -14,9 +14,9 @@ import { usePiGameSession } from '../../lib/usePiGameSession';
 
 import ConfirmButton from '../../components/ConfirmButton';
 
-import RoomInviteQR from '../../components/RoomInviteQR';
-
 import GameRules from '../../components/GameRules';
+
+import { HostShareOptions } from '../../components/RoomInviteQR';
 
 import { getTablePlayers, getGuestsForOwner } from '../../lib/guestPlayers';
 
@@ -25,7 +25,7 @@ import { buildRolesPool, assignRolesToPlayers, sumAssignedRoles } from './engine
 
 
 
-function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, isRoomLocked = false, roomId }) {
+function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = false, roomId, shareOptions }) {
 
     const defaultRoomState = useMemo(
 
@@ -493,7 +493,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, 
 
                             </div>
 
-                            <RoomInviteQR inviteUrl={roomInviteUrl} />
+                            <HostShareOptions shareOptions={shareOptions} />
 
                         </div>
 
@@ -619,6 +619,8 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], roomInviteUrl, 
                                     </div>
 
 
+
+                                    <HostShareOptions shareOptions={shareOptions} />
 
                                     <div className="bottom-controls">
 

@@ -8,11 +8,11 @@ import { useRoomGameState } from '../../lib/useRoomGameState';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { shuffleArray } from '../../lib/shuffle';
 import ConfirmButton from '../../components/ConfirmButton';
-import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { HostShareOptions } from '../../components/RoomInviteQR';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 
-function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
+function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
     const playableDifficulties = useMemo(
         () => getDarkStoriesDifficulties(gameData.darkStories),
         []
@@ -165,7 +165,7 @@ function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
                                     Rozpocznij grę ({selectedDifficulties.length})
                                 </button>
                             </div>
-                            <RoomInviteQR inviteUrl={roomInviteUrl} />
+                            <HostShareOptions shareOptions={shareOptions} />
                         </>
                     ) : (
                         <p>
@@ -238,6 +238,7 @@ function DarkStories({ isHost, onLeave, roomInviteUrl, roomId }) {
                                     {isLastStory ? 'Koniec historii' : 'Następna historia'}
                                 </button>
                             </div>
+                            <HostShareOptions shareOptions={shareOptions} />
                             <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
                         </div>
                     )}

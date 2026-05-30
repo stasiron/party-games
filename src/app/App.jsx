@@ -20,6 +20,41 @@ import {
     getPresenceMissingGraceMs,
     getPlayersDebounceMs,
 } from '../lib/lowPower';
+import {
+    isPlayerActive,
+    shouldRemoveInactivePlayer,
+    countActivePlayers,
+    findRoomHostName,
+} from '../lib/playerPresence';
+import {
+    hashRoomPassword,
+    verifyRoomPassword,
+    isValidRoomPassword,
+    MIN_ROOM_PASSWORD_LENGTH,
+    MAX_ROOM_PASSWORD_LENGTH,
+} from '../lib/roomPassword';
+import {
+    buildRoomPublicEntry,
+    roomDeleteUpdates,
+    roomPublicPath,
+    roomsPurgeAllUpdates,
+    ROOMS_PUBLIC_ROOT,
+} from '../lib/roomIndex';
+import JoinRequestPanel from '../components/JoinRequestPanel';
+import RoomInviteQR from '../components/RoomInviteQR';
+import {
+    JOIN_MODE_OPTIONS,
+    normalizeJoinMode,
+    normalizeAdmission,
+    cycleAdmission,
+    getAdmissionOption,
+    needsPasswordFromList,
+    needsApprovalToJoin,
+    isRoomClosedForNewPlayers,
+    canJoinFromList,
+    defaultShowCodeInList,
+    showRoomCodeInList,
+} from '../lib/roomAccess';
 import { buildGameIndex, buildActiveRoomsFromPublic } from './utils/activeRooms';
 import { applyThemeSurface } from '../lib/themeSurface';
 import { themePresets, findThemePreset } from '../lib/themePresets';
@@ -37,11 +72,12 @@ const ComingSoonGame = lazy(() => import('../components/ComingSoonGame'));
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 6;
-const ORPHAN_ROOM_TTL_MS = 10 * 60 * 1000;
-const EMPTY_ROOM_TTL_MS = 5 * 60 * 1000;
+const PAGE_TITLE = 'Party Games';
+const ORPHAN_ROOM_TTL_MS = 5 * 60 * 1000;
+const EMPTY_ROOM_TTL_MS = 3 * 60 * 1000;
+const ABANDONED_ROOM_TTL_MS = 90 * 1000;
 const ROOM_CLEANUP_COOLDOWN_MS = 30 * 1000;
-const STALE_PRESENCE_MS = 3 * 60 * 1000;
-const BACKGROUND_CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
+const BACKGROUND_CLEANUP_INTERVAL_MS = 60 * 1000;
 const CLEANUP_LEASE_PATH = '_maintenance/roomsCleanupLease';
 const CLEANUP_LEASE_TTL_MS = 3 * 60 * 1000;
 const ROOMS_PUBLIC_SYNC_COOLDOWN_MS = 2000;
@@ -78,19 +114,6 @@ function loadLastRoomId() {
     return window.localStorage.getItem(LAST_ROOM_KEY) || '';
 }
 
-function isPlayerActive(player, now) {
-    if (!player || player.isKicked === true || player.isOnline === false) return false;
-    const lastSeenAt = Number(player.lastSeenAt || player.joinedAt || 0);
-    if (!lastSeenAt) return false;
-    return (now - lastSeenAt) <= STALE_PRESENCE_MS;
-}
-
-function countActivePlayers(playersMap, now = Date.now()) {
-    return Object.values(playersMap || {}).reduce((acc, player) => (
-        acc + (isPlayerActive(player, now) ? 1 : 0)
-    ), 0);
-}
-
 function generateRoomCode() {
     let code = '';
     for (let i = 0; i < ROOM_CODE_LENGTH; i += 1) {
@@ -106,6 +129,18 @@ function App() {
     const [selectedGameType, setSelectedGameType] = useState(null);
     const [entryRole, setEntryRole] = useState(null);
     const [manualRoomCode, setManualRoomCode] = useState('');
+    const [hostJoinMode, setHostJoinMode] = useState('public');
+    const [hostRoomPassword, setHostRoomPassword] = useState('');
+    const [guestRoomPassword, setGuestRoomPassword] = useState('');
+    const [guestPasswordError, setGuestPasswordError] = useState('');
+    const [guestPasswordGranted, setGuestPasswordGranted] = useState(false);
+    const [guestJoinViaInvite, setGuestJoinViaInvite] = useState(false);
+    const [currentRoomJoinMode, setCurrentRoomJoinMode] = useState('public');
+    const [roomAdmission, setRoomAdmission] = useState('open');
+    const [roomShowCodeInList, setRoomShowCodeInList] = useState(true);
+    const [joinRequestList, setJoinRequestList] = useState([]);
+    const [waitingForApproval, setWaitingForApproval] = useState(false);
+    const [myJoinRequestId, setMyJoinRequestId] = useState(null);
     const [activeRooms, setActiveRooms] = useState([]);
     const [playerName, setPlayerName] = useState('');
     const [isJoined, setIsJoined] = useState(false);
@@ -117,7 +152,7 @@ function App() {
     const [playersList, setPlayersList] = useState([]);
     const [myPlayerId, setMyPlayerId] = useState(null);
 
-    const [isRoomLocked, setIsRoomLocked] = useState(false);
+    const [isRoomLocked, setIsRoomLocked] = useState(false); // admission === 'closed'
 
     const [lobbyMessage, setLobbyMessage] = useState(''); // Komunikat o wyrzuceniu widoczny w lobby
     const isLeavingVoluntarily = useRef(false);           // Odróżnia wyjście gracza od wyrzucenia przez Hosta
@@ -162,6 +197,7 @@ function App() {
     const prevPlayersCountRef = useRef(0);
     const isHostRef = useRef(isHost);
     const soundEnabledRef = useRef(soundEnabled);
+    const vibrationEnabledRef = useRef(vibrationEnabled);
     const isJoinedRef = useRef(isJoined);
     const myPlayerIdRef = useRef(myPlayerId);
     const joinGraceUntilRef = useRef(0);
@@ -172,12 +208,22 @@ function App() {
     const lastZombieCleanupAtRef = useRef(0);
     const lastRoomsCleanupAtRef = useRef(0);
     const lastRoomPublicSyncAtRef = useRef(0);
-    const cachedRoomRef = useRef({ players: null, isLocked: false, updatedAt: 0 });
+    const cachedRoomRef = useRef({
+        players: null,
+        joinMode: 'public',
+        admission: 'open',
+        updatedAt: 0,
+    });
+    const pendingJoinCountRef = useRef(0);
+    const showCodeInListRef = useRef(true);
+    const prevJoinRequestCountRef = useRef(0);
     const lastSavedUiSettingsRef = useRef('');
     const actionRateRef = useRef(new Map());
+    const openRoomAsGuestRef = useRef(null);
 
-    const runRoomsCleanup = useCallback(async (rawRooms, now = Date.now()) => {
+    const runRoomsCleanup = useCallback(async (rawRooms, rawRoomsPublic, now = Date.now()) => {
         const raw = rawRooms || {};
+        const publicRaw = rawRoomsPublic || {};
         const cleanupUpdates = {};
 
         Object.entries(raw).forEach(([roomId, room]) => {
@@ -186,31 +232,56 @@ function App() {
             const activePlayers = [];
 
             playersEntries.forEach(([playerId, player]) => {
-                if (!player || player.isKicked === true) return;
-                if (isPlayerActive(player, now)) {
-                    activePlayers.push(player);
+                if (!player || player.isKicked === true) {
+                    cleanupUpdates[`rooms/${roomId}/players/${playerId}`] = null;
+                    if (player?.authUid) {
+                        cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
+                    }
                     return;
                 }
-                // Usuń duchy online/offline, które nie odświeżały presence.
-                cleanupUpdates[`rooms/${roomId}/players/${playerId}`] = null;
-                if (player.authUid) {
-                    cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
+                if (shouldRemoveInactivePlayer(player, now)) {
+                    cleanupUpdates[`rooms/${roomId}/players/${playerId}`] = null;
+                    if (player.authUid) {
+                        cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
+                    }
+                    return;
+                }
+                if (isPlayerActive(player, now)) {
+                    activePlayers.push(player);
                 }
             });
 
             const hasActiveHost = activePlayers.some((player) => player.isHost === true);
             const ageMs = Math.max(0, now - Number(room.createdAt || 0));
-            const isEmptyTooLong = activePlayers.length === 0 && ageMs >= EMPTY_ROOM_TTL_MS;
+            const publicEntry = publicRaw[roomId];
+            const publicAgeMs = publicEntry
+                ? Math.max(0, now - Number(publicEntry.updatedAt || room.createdAt || 0))
+                : ageMs;
+            const neverHadPlayers = playersEntries.length === 0;
+            const emptyRoomTtl = neverHadPlayers ? ABANDONED_ROOM_TTL_MS : EMPTY_ROOM_TTL_MS;
+            const isEmptyTooLong = activePlayers.length === 0 && (
+                ageMs >= emptyRoomTtl || publicAgeMs >= emptyRoomTtl
+            );
             const isOrphanTooLong = !hasActiveHost && ageMs >= ORPHAN_ROOM_TTL_MS;
 
             if (isEmptyTooLong || isOrphanTooLong) {
                 cleanupUpdates[`rooms/${roomId}`] = null;
-                cleanupUpdates[`roomsPublic/${roomId}`] = null;
+                cleanupUpdates[roomPublicPath(roomId)] = null;
                 playersEntries.forEach(([, player]) => {
                     if (player?.authUid) {
                         cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
                     }
                 });
+            }
+        });
+
+        Object.entries(publicRaw).forEach(([roomId, publicEntry]) => {
+            if (!publicEntry?.gameId) return;
+            if (raw[roomId]) return;
+            const publicAgeMs = Math.max(0, now - Number(publicEntry.updatedAt || 0));
+            const onlineCount = Math.max(0, Number(publicEntry.onlineCount || 0));
+            if (onlineCount <= 0 && publicAgeMs >= ABANDONED_ROOM_TTL_MS) {
+                cleanupUpdates[roomPublicPath(roomId)] = null;
             }
         });
 
@@ -226,27 +297,39 @@ function App() {
         const orphanUpdates = {};
         for (const [roomId] of publicEntries) {
             if (!roomIds.has(roomId)) {
-                orphanUpdates[`roomsPublic/${roomId}`] = null;
+                orphanUpdates[roomPublicPath(roomId)] = null;
             }
         }
         if (Object.keys(orphanUpdates).length === 0) return;
         await update(ref(db), orphanUpdates);
     }, []);
 
-    const syncRoomPublicSummary = useCallback((roomId, gameId, playersMap, isLocked) => {
+    const syncRoomPublicSummary = useCallback((
+        roomId,
+        gameId,
+        playersMap,
+        joinMode,
+        admission,
+        pendingCount = pendingJoinCountRef.current
+    ) => {
         if (!roomId || !gameId) return;
         if (isLeavingVoluntarily.current) return;
         const now = Date.now();
         if (now - lastRoomPublicSyncAtRef.current < ROOMS_PUBLIC_SYNC_COOLDOWN_MS) return;
         lastRoomPublicSyncAtRef.current = now;
         const onlineCount = countActivePlayers(playersMap, now);
+        const hostName = findRoomHostName({ players: playersMap });
         void update(ref(db), {
-            [`roomsPublic/${roomId}`]: {
+            [roomPublicPath(roomId)]: buildRoomPublicEntry({
                 gameId,
-                isLocked: isLocked === true,
+                joinMode,
+                admission,
                 onlineCount,
+                hostName,
+                pendingCount,
+                showCodeInList: showCodeInListRef.current,
                 updatedAt: now,
-            },
+            }),
         }).catch(() => {
             /* best effort room public sync */
         });
@@ -319,9 +402,10 @@ function App() {
     useEffect(() => {
         isHostRef.current = isHost;
         soundEnabledRef.current = soundEnabled;
+        vibrationEnabledRef.current = vibrationEnabled;
         isJoinedRef.current = isJoined;
         myPlayerIdRef.current = myPlayerId;
-    }, [isHost, soundEnabled, isJoined, myPlayerId]);
+    }, [isHost, soundEnabled, vibrationEnabled, isJoined, myPlayerId]);
 
     const playJoinSound = useCallback(() => {
         if (!soundEnabled || typeof window === 'undefined') return;
@@ -382,6 +466,17 @@ function App() {
         }
     }, [soundEnabled]);
 
+    const alertHostJoinRequest = useCallback(() => {
+        playJoinSound();
+        if (
+            vibrationEnabledRef.current
+            && typeof navigator !== 'undefined'
+            && typeof navigator.vibrate === 'function'
+        ) {
+            navigator.vibrate([120, 60, 120]);
+        }
+    }, [playJoinSound]);
+
     const gameById = useMemo(() => buildGameIndex(gameData.games), []);
     const createHostRoomRef = useRef(null);
     const currentGameMeta = useMemo(
@@ -395,7 +490,9 @@ function App() {
         joinGraceUntilRef.current = 0;
         missingPlayerSinceRef.current = 0;
         isJoiningRef.current = false;
-        cachedRoomRef.current = { players: null, isLocked: false, updatedAt: 0 };
+        cachedRoomRef.current = { players: null, joinMode: 'public', admission: 'open', updatedAt: 0 };
+        pendingJoinCountRef.current = 0;
+        showCodeInListRef.current = true;
         setSelectedGame(null);
         setSelectedGameType(null);
         setIsJoined(false);
@@ -405,6 +502,17 @@ function App() {
         setNameError('');
         setJoinStatus('');
         setLastJoinResult('');
+        setGuestRoomPassword('');
+        setGuestPasswordError('');
+        setGuestPasswordGranted(false);
+        setGuestJoinViaInvite(false);
+        setCurrentRoomJoinMode('public');
+        setRoomAdmission('open');
+        setRoomShowCodeInList(true);
+        setJoinRequestList([]);
+        setWaitingForApproval(false);
+        setMyJoinRequestId(null);
+        setIsRoomLocked(false);
         setPlayerName(accountNickname.trim());
         if (message) setLobbyMessage(message);
         if (!keepEntryRole) setEntryRole(null);
@@ -476,9 +584,22 @@ function App() {
         return me.isHost === true && me.isOnline !== false;
     }, [isJoined, myPlayerId, playersList, isHost]);
 
+    useEffect(() => {
+        if (typeof document === 'undefined') return undefined;
+        const pending = joinRequestList.length;
+        if (effectiveIsHost && selectedGame && pending > 0) {
+            document.title = `(${pending}) Prośby o wejście — ${PAGE_TITLE}`;
+        } else {
+            document.title = PAGE_TITLE;
+        }
+        return () => {
+            document.title = PAGE_TITLE;
+        };
+    }, [joinRequestList.length, effectiveIsHost, selectedGame]);
+
     /** Pełny adres z parametrem `room` — QR i kopiowanie (kanoniczny origin na Malinie). */
     const roomInviteUrl = useMemo(() => {
-        if (!selectedGame || !isJoined || !effectiveIsHost || typeof window === 'undefined') return '';
+        if (!selectedGame || !isHost || typeof window === 'undefined') return '';
         try {
             const base = getPartyOrigin() || window.location.origin;
             const u = new URL(base);
@@ -488,27 +609,17 @@ function App() {
         } catch {
             return '';
         }
-    }, [selectedGame, isJoined, effectiveIsHost]);
+    }, [selectedGame, isHost]);
 
-    // Wejście z linku / QR: ?room=<roomId>
+    // Wejście z linku / QR: ?room=<roomId> (pomija hasło prywatnego pokoju)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const roomFromUrl = (params.get('room') || '')
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, '');
         if (!roomFromUrl) return;
-        const t = setTimeout(async () => {
-            const roomSnap = await get(ref(db, `rooms/${roomFromUrl}`));
-            const roomData = roomSnap.val();
-            if (!roomData?.gameId) {
-                setLobbyMessage('❌ Ten pokój nie istnieje lub został zamknięty.');
-                return;
-            }
-            setEntryRole('guest');
-            setSelectedGame(roomFromUrl);
-            setSelectedGameType(roomData.gameId);
-            setLobbyMessage('');
-            setShowAdminPanel(false);
+        const t = setTimeout(() => {
+            void openRoomAsGuestRef.current?.(roomFromUrl, { joinViaInvite: true });
         }, 0);
         return () => clearTimeout(t);
     }, []);
@@ -574,6 +685,20 @@ function App() {
                     return;
                 }
                 setSelectedGameType(roomData.gameId);
+                const joinMode = normalizeJoinMode(roomData);
+                const admission = normalizeAdmission(roomData);
+                const showCode = showRoomCodeInList(roomData);
+                setCurrentRoomJoinMode(joinMode);
+                setRoomAdmission(admission);
+                setRoomShowCodeInList(showCode);
+                showCodeInListRef.current = showCode;
+                setIsRoomLocked(admission === 'closed');
+                cachedRoomRef.current = {
+                    ...cachedRoomRef.current,
+                    joinMode,
+                    admission,
+                    updatedAt: Date.now(),
+                };
             } catch {
                 if (!active) return;
                 setLobbyMessage('❌ Nie udało się wczytać pokoju. Spróbuj ponownie.');
@@ -622,7 +747,14 @@ function App() {
             }
 
             if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
-                syncRoomPublicSummary(selectedGame, selectedGameType, data, cachedRoomRef.current.isLocked);
+                syncRoomPublicSummary(
+                    selectedGame,
+                    selectedGameType,
+                    data,
+                    cachedRoomRef.current.joinMode,
+                    cachedRoomRef.current.admission,
+                    pendingJoinCountRef.current
+                );
             }
         };
 
@@ -725,17 +857,75 @@ function App() {
             }, playersDebounceMs);
         });
 
-        const lockedRef = ref(db, `rooms/${selectedGame}/isLocked`);
-        const unsubscribeLocked = onValue(lockedRef, (snapshot) => {
-            const locked = snapshot.val() || false;
+        const admissionRef = ref(db, `rooms/${selectedGame}/admission`);
+        const unsubscribeAdmission = onValue(admissionRef, (snapshot) => {
+            if (!snapshot.exists()) return;
+            const admission = normalizeAdmission({ admission: snapshot.val() });
+            const locked = admission === 'closed';
             cachedRoomRef.current = {
                 ...cachedRoomRef.current,
-                isLocked: locked,
+                admission,
                 updatedAt: Date.now(),
             };
+            setRoomAdmission(admission);
             setIsRoomLocked(locked);
             if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
-                syncRoomPublicSummary(selectedGame, selectedGameType, cachedRoomRef.current.players || {}, locked);
+                syncRoomPublicSummary(
+                    selectedGame,
+                    selectedGameType,
+                    cachedRoomRef.current.players || {},
+                    cachedRoomRef.current.joinMode,
+                    admission,
+                    pendingJoinCountRef.current
+                );
+            }
+        });
+
+        const joinModeRef = ref(db, `rooms/${selectedGame}/joinMode`);
+        const unsubscribeJoinMode = onValue(joinModeRef, (snapshot) => {
+            const joinMode = normalizeJoinMode({ joinMode: snapshot.val() });
+            cachedRoomRef.current = {
+                ...cachedRoomRef.current,
+                joinMode,
+                updatedAt: Date.now(),
+            };
+            setCurrentRoomJoinMode(joinMode);
+        });
+
+        const showCodeRef = ref(db, `rooms/${selectedGame}/showCodeInList`);
+        const unsubscribeShowCode = onValue(showCodeRef, (snapshot) => {
+            const joinMode = cachedRoomRef.current.joinMode || 'public';
+            const showCode = snapshot.exists()
+                ? snapshot.val() === true
+                : defaultShowCodeInList(joinMode);
+            showCodeInListRef.current = showCode;
+            setRoomShowCodeInList(showCode);
+        });
+
+        const joinRequestsRef = ref(db, `rooms/${selectedGame}/joinRequests`);
+        const unsubscribeJoinRequests = onValue(joinRequestsRef, (snapshot) => {
+            const raw = snapshot.val() || {};
+            const pending = Object.entries(raw)
+                .map(([id, req]) => ({ id, ...req }))
+                .filter((req) => req?.status === 'pending' || !req?.status)
+                .sort((a, b) => Number(a.requestedAt || 0) - Number(b.requestedAt || 0));
+            pendingJoinCountRef.current = pending.length;
+            setJoinRequestList(pending);
+            if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
+                const newCount = pending.length;
+                const prevCount = prevJoinRequestCountRef.current;
+                if (newCount > prevCount) {
+                    alertHostJoinRequest();
+                }
+                prevJoinRequestCountRef.current = newCount;
+                syncRoomPublicSummary(
+                    selectedGame,
+                    selectedGameType,
+                    cachedRoomRef.current.players || {},
+                    cachedRoomRef.current.joinMode,
+                    cachedRoomRef.current.admission,
+                    newCount
+                );
             }
         });
 
@@ -753,10 +943,13 @@ function App() {
         return () => {
             clearTimeout(playersTimeoutId);
             unsubscribe();
-            unsubscribeLocked();
+            unsubscribeAdmission();
+            unsubscribeJoinMode();
+            unsubscribeShowCode();
+            unsubscribeJoinRequests();
             unsubscribeRoomRoot();
         };
-    }, [selectedGame, selectedGameType, playJoinSound, leaveToLobby, syncRoomPublicSummary, authUser, clearPresenceIndex]);
+    }, [selectedGame, selectedGameType, alertHostJoinRequest, leaveToLobby, syncRoomPublicSummary, authUser, clearPresenceIndex]);
 
     useEffect(() => {
         if (!isJoined || typeof document === 'undefined') return undefined;
@@ -784,49 +977,23 @@ function App() {
         return () => window.clearInterval(intervalId);
     }, [isJoined, selectedGame, myPlayerId]);
 
-    // Menu gościa: roomsPublic (lekko) + opcjonalny filtr po rooms (bez kasowania z bazy)
+    // Menu gościa: tylko lekki indeks roomsPublic (bez gameState i graczy).
     useEffect(() => {
         if (selectedGame || entryRole !== 'guest') return;
-        let publicRaw = {};
-        /** null = jeszcze nie wczytano rooms — pokazuj wpisy z roomsPublic */
-        let existingRoomIds = null;
-
-        const recomputeGuestRooms = () => {
-            const filteredPublic = {};
-            for (const [roomId, room] of Object.entries(publicRaw)) {
-                if (existingRoomIds !== null && !existingRoomIds.has(roomId)) continue;
-                filteredPublic[roomId] = room;
-            }
-            setActiveRooms(buildActiveRoomsFromPublic(filteredPublic, gameById));
-        };
-
-        const unsubPublic = onValue(ref(db, 'roomsPublic'), (snapshot) => {
-            publicRaw = snapshot.val() || {};
-            recomputeGuestRooms();
+        const unsubPublic = onValue(ref(db, ROOMS_PUBLIC_ROOT), (snapshot) => {
+            setActiveRooms(buildActiveRoomsFromPublic(snapshot.val() || {}, gameById));
         });
-        const unsubRooms = onValue(
-            ref(db, 'rooms'),
-            (snapshot) => {
-                existingRoomIds = new Set(Object.keys(snapshot.val() || {}));
-                recomputeGuestRooms();
-            },
-            () => {
-                existingRoomIds = null;
-                recomputeGuestRooms();
-            }
-        );
 
         return () => {
             unsubPublic();
-            unsubRooms();
             setActiveRooms([]);
         };
     }, [selectedGame, entryRole, gameById]);
 
     useEffect(() => {
-        if (!selectedGame || !effectiveIsHost || !isJoined) return undefined;
         let cancelled = false;
-        const leaseOwner = `${selectedGame}:${myPlayerId || 'host'}`;
+        const tabId = `${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        const leaseOwner = `tab:${tabId}`;
 
         const tryCleanupNow = async () => {
             const leaseRef = ref(db, CLEANUP_LEASE_PATH);
@@ -850,12 +1017,12 @@ function App() {
             try {
                 const [roomsSnap, publicSnap] = await Promise.all([
                     get(ref(db, 'rooms')),
-                    get(ref(db, 'roomsPublic')),
+                    get(ref(db, ROOMS_PUBLIC_ROOT)),
                 ]);
                 if (cancelled) return;
                 const raw = roomsSnap.val() || {};
                 const publicRaw = publicSnap.val() || {};
-                await runRoomsCleanup(raw, now);
+                await runRoomsCleanup(raw, publicRaw, now);
                 await cleanupOrphanRoomsPublic(publicRaw, raw);
             } catch {
                 /* best effort background cleanup */
@@ -871,7 +1038,7 @@ function App() {
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [selectedGame, effectiveIsHost, isJoined, myPlayerId, runRoomsCleanup, cleanupOrphanRoomsPublic]);
+    }, [runRoomsCleanup, cleanupOrphanRoomsPublic]);
 
     // 4. OBSŁUGA TAJNYCH KOMEND ADMINISTRATORA pod logo
     const handleAdminCommand = useCallback(async () => {
@@ -919,22 +1086,32 @@ function App() {
                     return;
                 }
                 const now = Date.now();
+                const joinMode = normalizeJoinMode(roomData);
+                const admission = normalizeAdmission(roomData);
+                const showCodeInList = showRoomCodeInList(roomData);
                 await update(ref(db), {
                     [`rooms/${selectedGame}`]: {
                         gameId: roomData.gameId,
-                        isLocked: false,
+                        joinMode,
+                        admission,
+                        showCodeInList,
+                        ...(roomData.passwordHash ? { passwordHash: roomData.passwordHash } : {}),
                         createdAt: roomData.createdAt || now,
                         gameState: null,
                         settings: null,
                         roleHistory: null,
                         players: null,
+                        joinRequests: null,
                     },
-                    [`roomsPublic/${selectedGame}`]: {
+                    [roomPublicPath(selectedGame)]: buildRoomPublicEntry({
                         gameId: roomData.gameId,
-                        isLocked: false,
+                        joinMode,
+                        admission,
                         onlineCount: 0,
+                        pendingCount: 0,
+                        showCodeInList,
                         updatedAt: now,
-                    },
+                    }),
                 });
                 setLobbyMessage(`🧹 Konsola: Wyczyszczono pokój ${selectedGame} (bez usuwania).`);
                 finishAdminCommand();
@@ -943,10 +1120,7 @@ function App() {
 
             if (cleanedCmd === 'RESET') {
                 if (window.confirm('⚠️ RESET usunie wszystkie pokoje i graczy. Kontynuować?')) {
-                    await update(ref(db), {
-                        rooms: null,
-                        roomsPublic: null,
-                    });
+                    await update(ref(db), roomsPurgeAllUpdates());
                     setSelectedGame(null);
                     setSelectedGameType(null);
                     setEntryRole(null);
@@ -967,10 +1141,7 @@ function App() {
 
             if (cleanedCmd === 'PURGE') {
                 if (window.confirm('⚠️ PURGE rozłączy wszystkich graczy i usunie wszystkie pokoje. Kontynuować?')) {
-                    await update(ref(db), {
-                        rooms: null,
-                        roomsPublic: null,
-                    });
+                    await update(ref(db), roomsPurgeAllUpdates());
                     setSelectedGame(null);
                     setSelectedGameType(null);
                     setEntryRole(null);
@@ -1018,10 +1189,7 @@ function App() {
 
             if (cleanedCmd === 'PURGE ROOMS') {
                 if (window.confirm('⚠️ PURGE ROOMS usunie wszystkie pokoje. Kontynuować?')) {
-                    await update(ref(db), {
-                        rooms: null,
-                        roomsPublic: null,
-                    });
+                    await update(ref(db), roomsPurgeAllUpdates());
                     setSelectedGame(null);
                     setSelectedGameType(null);
                     setEntryRole(null);
@@ -1194,6 +1362,143 @@ function App() {
         });
     }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, runWithBusy, isAdminRateLimited, finishAdminCommand]);
 
+    const completeGuestJoin = useCallback(async (playerId, targetPlayerRef, currentAuthUid, joinStartedAt) => {
+        try {
+            onDisconnect(targetPlayerRef).update({
+                isOnline: false,
+                leaveReason: 'disconnect',
+                leftAt: { '.sv': 'timestamp' },
+            });
+        } catch (discErr) {
+            console.warn('[join] onDisconnect:', discErr);
+        }
+        if (currentAuthUid) {
+            await updatePresenceIndex(currentAuthUid, selectedGame, playerId);
+        }
+        isJoinedRef.current = true;
+        setIsJoined(true);
+        setWaitingForApproval(false);
+        setMyJoinRequestId(null);
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(LAST_ROOM_KEY, selectedGame);
+            setLastKnownRoomId(selectedGame);
+        }
+        setNameError('');
+        joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
+        const elapsed = Math.round(performance.now() - joinStartedAt);
+        setLastJoinResult(`Ostatnie wejście: ${elapsed} ms`);
+        setJoinStatus('');
+    }, [selectedGame, updatePresenceIndex]);
+
+    const approveJoinRequest = useCallback(async (requestId) => {
+        if (!selectedGame || !myPlayerId) return;
+        await runWithBusy(async () => {
+            const reqSnap = await get(ref(db, `rooms/${selectedGame}/joinRequests/${requestId}`));
+            const req = reqSnap.val();
+            if (!req || (req.status && req.status !== 'pending')) return;
+
+            const playersRef = ref(db, `rooms/${selectedGame}/players`);
+            const playerRef = push(playersRef);
+            await update(ref(db), {
+                [`rooms/${selectedGame}/players/${playerRef.key}`]: {
+                    name: req.name,
+                    authUid: req.authUid || null,
+                    isHost: false,
+                    isOnline: true,
+                    isKicked: false,
+                    joinedAt: Date.now(),
+                    lastSeenAt: Date.now(),
+                },
+                [`rooms/${selectedGame}/joinRequests/${requestId}`]: {
+                    ...req,
+                    status: 'approved',
+                    playerId: playerRef.key,
+                },
+            });
+            setLobbyMessage(`✅ Wpuszczono ${req.name || 'gracza'} do pokoju.`);
+        });
+    }, [selectedGame, myPlayerId, runWithBusy]);
+
+    const rejectJoinRequest = useCallback(async (requestId) => {
+        if (!selectedGame) return;
+        await remove(ref(db, `rooms/${selectedGame}/joinRequests/${requestId}`));
+    }, [selectedGame]);
+
+    const approveAllJoinRequests = useCallback(async () => {
+        for (const req of joinRequestList) {
+            await approveJoinRequest(req.id);
+        }
+    }, [joinRequestList, approveJoinRequest]);
+
+    const cycleRoomAdmission = useCallback(async () => {
+        if (!selectedGame || !effectiveIsHost) return;
+        const next = cycleAdmission(roomAdmission);
+        await set(ref(db, `rooms/${selectedGame}/admission`), next);
+        setRoomAdmission(next);
+        setIsRoomLocked(next === 'closed');
+    }, [selectedGame, effectiveIsHost, roomAdmission]);
+
+    const toggleShowCodeInList = useCallback(async () => {
+        if (!selectedGame || !(effectiveIsHost || isHost)) return;
+        const next = !roomShowCodeInList;
+        showCodeInListRef.current = next;
+        setRoomShowCodeInList(next);
+        await update(ref(db), {
+            [`rooms/${selectedGame}/showCodeInList`]: next,
+            [`${roomPublicPath(selectedGame)}/showCodeInList`]: next,
+        });
+    }, [selectedGame, effectiveIsHost, isHost, roomShowCodeInList]);
+
+    const hostShareOptions = useMemo(() => {
+        if (!selectedGame || (!isHost && !effectiveIsHost)) return null;
+        return {
+            inviteUrl: roomInviteUrl,
+            roomId: selectedGame,
+            showCodeInList: roomShowCodeInList,
+            onToggleShowCodeInList: toggleShowCodeInList,
+        };
+    }, [
+        selectedGame,
+        isHost,
+        effectiveIsHost,
+        roomInviteUrl,
+        roomShowCodeInList,
+        toggleShowCodeInList,
+    ]);
+
+    useEffect(() => {
+        if (!waitingForApproval || !myJoinRequestId || !selectedGame) return undefined;
+        const reqRef = ref(db, `rooms/${selectedGame}/joinRequests/${myJoinRequestId}`);
+        const unsubscribe = onValue(reqRef, async (snapshot) => {
+            if (!snapshot.exists()) {
+                setWaitingForApproval(false);
+                setMyJoinRequestId(null);
+                setNameError('Host odrzucił prośbę o dołączenie.');
+                setJoinStatus('');
+                return;
+            }
+            const reqData = snapshot.val();
+            if (reqData?.status !== 'approved' || !reqData?.playerId) return;
+
+            const playerId = reqData.playerId;
+            const playerRef = ref(db, `rooms/${selectedGame}/players/${playerId}`);
+            myPlayerIdRef.current = playerId;
+            setMyPlayerId(playerId);
+            setIsHost(false);
+            joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
+            missingPlayerSinceRef.current = 0;
+            await remove(reqRef);
+            await completeGuestJoin(playerId, playerRef, authUser?.uid || null, performance.now());
+        });
+        return () => unsubscribe();
+    }, [
+        waitingForApproval,
+        myJoinRequestId,
+        selectedGame,
+        authUser,
+        completeGuestJoin,
+    ]);
+
     // 5. DOŁĄCZANIE DO POKOJU (NADPISYWANIE DUCHÓW / ZABEZPIECZENIEM PRZED BLOKADĄ)
     const handleJoin = async () => {
         if (isRateLimited('join', RATE_LIMITS_MS.join)) {
@@ -1201,7 +1506,7 @@ function App() {
             return;
         }
         const joinStartedAt = performance.now();
-        isLeavingVoluntarily.current = false; //
+        isLeavingVoluntarily.current = false;
         setLobbyMessage('');
         setJoinStatus('');
         const currentAuthUid = authUser?.uid || null;
@@ -1210,12 +1515,15 @@ function App() {
             setNameError('Podaj imię, aby wejść do pokoju.');
             return;
         }
+        if (!isHost && needsPasswordFromList(currentRoomJoinMode, guestJoinViaInvite) && !guestPasswordGranted) {
+            setNameError('Wpisz poprawne hasło pokoju.');
+            return;
+        }
 
         await runWithBusy(async () => {
         setJoinStatus('Łączenie z pokojem...');
         const playersRef = ref(db, `rooms/${selectedGame}/players`);
         let data = cachedRoomRef.current.players;
-        let isLocked = cachedRoomRef.current.isLocked;
 
         if (currentAuthUid) {
             const previousPresenceSnap = await get(ref(db, `${PRESENCE_INDEX_ROOT}/${currentAuthUid}`));
@@ -1225,23 +1533,33 @@ function App() {
             if (previousRoomId && previousPlayerId) {
                 await set(ref(db, `rooms/${previousRoomId}/players/${previousPlayerId}`), null);
                 data = null;
-                cachedRoomRef.current = { players: null, isLocked: false, updatedAt: 0 };
+                cachedRoomRef.current = { players: null, joinMode: 'public', admission: 'open', updatedAt: 0 };
             }
         }
 
+        let roomMeta = {
+            joinMode: cachedRoomRef.current.joinMode,
+            admission: cachedRoomRef.current.admission,
+        };
         if (!data || Date.now() - cachedRoomRef.current.updatedAt > 1500) {
             setJoinStatus('Pobieranie stanu pokoju...');
-            const [playersSnap, lockedSnap] = await Promise.all([
+            const [playersSnap, roomSnap] = await Promise.all([
                 get(ref(db, `rooms/${selectedGame}/players`)),
-                get(ref(db, `rooms/${selectedGame}/isLocked`)),
+                get(ref(db, `rooms/${selectedGame}`)),
             ]);
             data = playersSnap.val() || {};
-            isLocked = lockedSnap.val() || false;
+            roomMeta = roomSnap.val() || {};
+            const joinMode = normalizeJoinMode(roomMeta);
+            const admission = normalizeAdmission(roomMeta);
             cachedRoomRef.current = {
                 players: data,
-                isLocked,
+                joinMode,
+                admission,
                 updatedAt: Date.now(),
             };
+            setCurrentRoomJoinMode(joinMode);
+            setRoomAdmission(admission);
+            setIsRoomLocked(admission === 'closed');
         }
 
         let existingPlayerKey = null;
@@ -1256,8 +1574,17 @@ function App() {
             );
         }
 
-        if (isLocked && !existingPlayerKey) {
-            setNameError('🔒 Ten pokój został zablokowany przez Hosta. Rozgrywka już trwa!');
+        const isReconnect = !!existingPlayerKey;
+        const roomForAccess = {
+            joinMode: cachedRoomRef.current.joinMode,
+            admission: cachedRoomRef.current.admission,
+            isLocked: cachedRoomRef.current.admission === 'closed',
+            isPrivate: cachedRoomRef.current.joinMode !== 'public',
+            passwordHash: roomMeta.passwordHash,
+        };
+
+        if (isRoomClosedForNewPlayers(roomForAccess, guestJoinViaInvite, isReconnect)) {
+            setNameError('🔒 Pokój jest zamknięty — Host nie wpuszcza nowych graczy.');
             return;
         }
 
@@ -1292,6 +1619,23 @@ function App() {
             setMyPlayerId(existingPlayerKey);
             finalIsHost = !!existingPlayer.isHost;
             setIsHost(finalIsHost);
+        } else if (
+            !isHost &&
+            needsApprovalToJoin(roomForAccess, guestJoinViaInvite, false)
+        ) {
+            const requestRef = push(ref(db, `rooms/${selectedGame}/joinRequests`));
+            await set(requestRef, {
+                name: cleanedName,
+                authUid: currentAuthUid,
+                requestedAt: Date.now(),
+                status: 'pending',
+            });
+            setMyJoinRequestId(requestRef.key);
+            setWaitingForApproval(true);
+            setJoinStatus('');
+            setNameError('');
+            setLastJoinResult('Wysłano prośbę do hosta. Czekaj na akceptację.');
+            return;
         } else {
             const newPlayerRef = push(playersRef);
             targetPlayerRef = newPlayerRef;
@@ -1322,7 +1666,11 @@ function App() {
                 setLastJoinResult(`Ostatnie wejście: ${elapsed} ms`);
                 setJoinStatus('');
                 try {
-                    onDisconnect(targetPlayerRef).update({ isOnline: false });
+                    onDisconnect(targetPlayerRef).update({
+                        isOnline: false,
+                        leaveReason: 'disconnect',
+                        leftAt: { '.sv': 'timestamp' },
+                    });
                 } catch (discErr) {
                     console.warn('[join] onDisconnect:', discErr);
                 }
@@ -1359,26 +1707,21 @@ function App() {
             }
 
             try {
-                onDisconnect(targetPlayerRef).update({ isOnline: false });
+                onDisconnect(targetPlayerRef).update({
+                    isOnline: false,
+                    leaveReason: 'disconnect',
+                    leftAt: { '.sv': 'timestamp' },
+                });
             } catch (discErr) {
                 console.warn('[join] onDisconnect:', discErr);
             }
-            if (currentAuthUid) {
-                const joinedPlayerId = targetPlayerRef.key || existingPlayerKey;
-                await updatePresenceIndex(currentAuthUid, selectedGame, joinedPlayerId);
-            }
 
-            isJoinedRef.current = true;
-            setIsJoined(true);
-            if (typeof window !== 'undefined') {
-                window.localStorage.setItem(LAST_ROOM_KEY, selectedGame);
-                setLastKnownRoomId(selectedGame);
-            }
-            setNameError('');
-            joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
-            const elapsed = Math.round(performance.now() - joinStartedAt);
-            setLastJoinResult(`Ostatnie wejście: ${elapsed} ms`);
-            setJoinStatus('');
+            await completeGuestJoin(
+                targetPlayerRef.key || existingPlayerKey,
+                targetPlayerRef,
+                currentAuthUid,
+                joinStartedAt
+            );
         } catch (err) {
             console.error(err);
             joinGraceUntilRef.current = 0;
@@ -1391,7 +1734,8 @@ function App() {
         });
     };
 
-    const openRoomAsGuest = useCallback(async (roomId) => {
+    const openRoomAsGuest = useCallback(async (roomId, options = {}) => {
+        const { joinViaInvite = false, fromList = false } = options;
         const normalizedRoomId = String(roomId || '')
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, '');
@@ -1402,6 +1746,11 @@ function App() {
             setLobbyMessage('❌ Ten pokój nie istnieje lub został zamknięty.');
             return;
         }
+        const joinMode = normalizeJoinMode(roomData);
+        if (fromList && !canJoinFromList(joinMode)) {
+            setLobbyMessage('🔗 Ten pokój wymaga linku, kodu QR lub kodu pokoju od hosta.');
+            return;
+        }
         setEntryRole('guest');
         setSelectedGame(normalizedRoomId);
         setSelectedGameType(roomData.gameId);
@@ -1409,7 +1758,57 @@ function App() {
         setIsJoined(false);
         setMyPlayerId(null);
         setLobbyMessage('');
+        setShowAdminPanel(false);
+        setCurrentRoomJoinMode(joinMode);
+        setRoomAdmission(normalizeAdmission(roomData));
+        setRoomShowCodeInList(showRoomCodeInList(roomData));
+        showCodeInListRef.current = showRoomCodeInList(roomData);
+        setGuestRoomPassword('');
+        setGuestPasswordError('');
+        setGuestJoinViaInvite(joinViaInvite);
+        setGuestPasswordGranted(
+            joinViaInvite || joinMode !== 'password'
+        );
+        setWaitingForApproval(false);
+        setMyJoinRequestId(null);
+        cachedRoomRef.current = {
+            ...cachedRoomRef.current,
+            joinMode,
+            admission: normalizeAdmission(roomData),
+        };
     }, []);
+
+    const handleGuestRoomPassword = useCallback(async () => {
+        if (!selectedGame) return;
+        setGuestPasswordError('');
+        const password = guestRoomPassword.trim();
+        if (!isValidRoomPassword(password)) {
+            setGuestPasswordError(
+                `Hasło musi mieć ${MIN_ROOM_PASSWORD_LENGTH}–${MAX_ROOM_PASSWORD_LENGTH} znaków.`
+            );
+            return;
+        }
+        try {
+            const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
+            const roomData = roomSnap.val();
+            if (normalizeJoinMode(roomData) !== 'password') {
+                setGuestPasswordGranted(true);
+                return;
+            }
+            const ok = await verifyRoomPassword(selectedGame, password, roomData.passwordHash);
+            if (!ok) {
+                setGuestPasswordError('Nieprawidłowe hasło. Spróbuj ponownie.');
+                return;
+            }
+            setGuestPasswordGranted(true);
+        } catch {
+            setGuestPasswordError('Nie udało się sprawdzić hasła. Spróbuj ponownie.');
+        }
+    }, [selectedGame, guestRoomPassword]);
+
+    useEffect(() => {
+        openRoomAsGuestRef.current = openRoomAsGuest;
+    }, [openRoomAsGuest]);
 
     const handleJoinLastKnownGame = useCallback(async () => {
         const roomId = lastKnownRoomId.trim();
@@ -1426,7 +1825,8 @@ function App() {
         }
     }, [lastKnownRoomId, openRoomAsGuest]);
 
-    const createHostRoom = useCallback(async (rawGameId) => {
+    const createHostRoom = useCallback(async (rawGameId, options = {}) => {
+        const { joinMode = 'public', password = '' } = options;
         const gameId = resolveGameId(rawGameId);
         if (!gameId) {
             setLobbyMessage(`❌ Nieznana gra: ${rawGameId}`);
@@ -1434,6 +1834,12 @@ function App() {
         }
         if (!isPlayableGameId(gameId)) {
             setLobbyMessage(getComingSoonMessage(gameId));
+            return;
+        }
+        if (joinMode === 'password' && !isValidRoomPassword(password)) {
+            setLobbyMessage(
+                `❌ Hasło musi mieć ${MIN_ROOM_PASSWORD_LENGTH}–${MAX_ROOM_PASSWORD_LENGTH} znaków.`
+            );
             return;
         }
         if (isRateLimited('create-room', RATE_LIMITS_MS.createRoom)) {
@@ -1444,7 +1850,7 @@ function App() {
             try {
                 let roomCode = generateRoomCode();
                 for (let attempt = 0; attempt < 8; attempt += 1) {
-                    const existsSnap = await get(ref(db, `rooms/${roomCode}`));
+                    const existsSnap = await get(ref(db, `rooms/${roomCode}`)); 
                     if (!existsSnap.exists()) break;
                     roomCode = generateRoomCode();
                 }
@@ -1454,21 +1860,44 @@ function App() {
                     return;
                 }
                 const now = Date.now();
+                const passwordHash = joinMode === 'password'
+                    ? await hashRoomPassword(roomCode, password)
+                    : null;
+                const showCodeInList = defaultShowCodeInList(joinMode);
                 await update(ref(db), {
                     [`rooms/${roomCode}`]: {
                         gameId,
-                        isLocked: false,
+                        joinMode,
+                        admission: 'open',
+                        showCodeInList,
+                        ...(passwordHash ? { passwordHash } : {}),
                         createdAt: now,
                         gameState: null,
                         settings: null,
                     },
-                    [`roomsPublic/${roomCode}`]: {
+                    [roomPublicPath(roomCode)]: buildRoomPublicEntry({
                         gameId,
-                        isLocked: false,
+                        joinMode,
+                        admission: 'open',
                         onlineCount: 0,
+                        pendingCount: 0,
+                        showCodeInList,
                         updatedAt: now,
-                    },
+                    }),
                 });
+                cachedRoomRef.current = {
+                    players: null,
+                    joinMode,
+                    admission: 'open',
+                    updatedAt: now,
+                };
+                showCodeInListRef.current = showCodeInList;
+                setCurrentRoomJoinMode(joinMode);
+                setRoomAdmission('open');
+                setRoomShowCodeInList(showCodeInList);
+                setGuestPasswordGranted(true);
+                setGuestJoinViaInvite(false);
+                setHostRoomPassword('');
                 setEntryRole('host');
                 setSelectedGame(roomCode);
                 setSelectedGameType(gameId);
@@ -1567,10 +1996,7 @@ function App() {
     const adminDeleteRoom = useCallback(async (roomId) => {
         await runWithBusy(async () => {
             try {
-                await update(ref(db), {
-                    [`rooms/${roomId}`]: null,
-                    [`roomsPublic/${roomId}`]: null,
-                });
+                await update(ref(db), roomDeleteUpdates(roomId));
                 setLobbyMessage(`🧹 Konsola: Usunięto pokój ${roomId}.`);
             } catch (e) {
                 console.error(e);
@@ -1582,15 +2008,21 @@ function App() {
     const handleBackToMenu = useCallback(() => {
         const roomId = selectedGame;
         const playerId = myPlayerId;
+        const wasHostBeforeJoin = isHost && !isJoined && roomId;
         isLeavingVoluntarily.current = true;
         if (playerId && roomId) {
+            onDisconnect(ref(db, `rooms/${roomId}/players/${playerId}`)).cancel();
             remove(ref(db, `rooms/${roomId}/players/${playerId}`));
+        } else if (myJoinRequestId && roomId) {
+            remove(ref(db, `rooms/${roomId}/joinRequests/${myJoinRequestId}`));
+        } else if (wasHostBeforeJoin) {
+            void update(ref(db), roomDeleteUpdates(roomId));
         }
         if (authUser?.uid) {
             void clearPresenceIndex(authUser.uid);
         }
         leaveToLobby({ keepEntryRole: true });
-    }, [myPlayerId, selectedGame, authUser, clearPresenceIndex, leaveToLobby]);
+    }, [myPlayerId, myJoinRequestId, selectedGame, isHost, isJoined, authUser, clearPresenceIndex, leaveToLobby]);
 
     const handleCloseRoom = useCallback(async () => {
         if (!selectedGame || !myPlayerId) {
@@ -1604,8 +2036,7 @@ function App() {
                 const playersSnap = await get(ref(db, `rooms/${closingRoomId}/players`));
                 const playersData = playersSnap.val() || {};
                 const closeUpdates = {
-                    [`rooms/${closingRoomId}`]: null,
-                    [`roomsPublic/${closingRoomId}`]: null,
+                    ...roomDeleteUpdates(closingRoomId),
                 };
                 Object.keys(playersData).forEach((playerId) => {
                     if (playerId === myPlayerId) return;
@@ -2073,6 +2504,45 @@ function App() {
                     {entryRole === 'host' && (
                         <>
                             <p>Wybierz tryb gry. Utworzymy nowy pokój.</p>
+                            <div className="host-room-options">
+                                <p className="host-room-options__label">Tryb dostępu do pokoju</p>
+                                <div className="host-join-mode-grid">
+                                    {JOIN_MODE_OPTIONS.map((opt) => (
+                                        <button
+                                            key={opt.id}
+                                            type="button"
+                                            className={`host-join-mode-option ${hostJoinMode === opt.id ? 'active' : ''}`}
+                                            onClick={() => {
+                                                setHostJoinMode(opt.id);
+                                                if (opt.id !== 'password') setHostRoomPassword('');
+                                            }}
+                                            aria-pressed={hostJoinMode === opt.id}
+                                        >
+                                            <span className="host-join-mode-option__title">
+                                                {opt.icon} {opt.label}
+                                            </span>
+                                            <span className="host-join-mode-option__desc">{opt.desc}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {hostJoinMode === 'password' && (
+                                    <div className="host-room-private-fields">
+                                        <label className="host-room-private-fields__label" htmlFor="host-room-password">
+                                            Hasło pokoju
+                                        </label>
+                                        <input
+                                            id="host-room-password"
+                                            type="password"
+                                            value={hostRoomPassword}
+                                            onChange={(e) => setHostRoomPassword(e.target.value)}
+                                            placeholder={`${MIN_ROOM_PASSWORD_LENGTH}–${MAX_ROOM_PASSWORD_LENGTH} znaków`}
+                                            maxLength={MAX_ROOM_PASSWORD_LENGTH}
+                                            autoComplete="new-password"
+                                            className="host-room-private-fields__input"
+                                        />
+                                    </div>
+                                )}
+                            </div>
                             <div className="games-grid">
                                 {gameData.games.map((game) => {
                                     const soon = game.comingSoon === true;
@@ -2088,7 +2558,10 @@ function App() {
                                                     setLobbyMessage(getComingSoonMessage(game));
                                                     return;
                                                 }
-                                                createHostRoom(game.id);
+                                                createHostRoom(game.id, {
+                                                    joinMode: hostJoinMode,
+                                                    password: hostRoomPassword,
+                                                });
                                             }}
                                         >
                                             <span className="game-title">
@@ -2124,21 +2597,40 @@ function App() {
                             />
                             <div className="actions-stack join-code-actions">
                                 <button
-                                    onClick={() => openRoomAsGuest(manualRoomCode.trim())}
+                                    onClick={() => openRoomAsGuest(manualRoomCode.trim(), { joinViaInvite: true })}
                                     disabled={manualRoomCode.trim() === ''}
                                 >
                                     Dołącz po kodzie
                                 </button>
                             </div>
-                            <div className="games-grid">
+                            <div className="games-grid guest-rooms-grid">
                                 {activeRooms.map((room) => (
-                                    <div key={room.roomId}>
-                                        <button onClick={() => openRoomAsGuest(room.roomId)}>
-                                            <span className="game-title">{room.gameName}</span>
-                                            <span className="game-desc">
-                                                Pokój: {room.roomId} · Gracze online: {room.onlineCount}
-                                                {room.isLocked ? ' · 🔒' : ''}
+                                    <div key={room.roomId} className="guest-room-card">
+                                        <button
+                                            type="button"
+                                            className="guest-room-btn"
+                                            onClick={() => openRoomAsGuest(room.roomId, { fromList: true })}
+                                        >
+                                            <span className="game-title">
+                                                {room.gameName}
+                                                {room.joinModeBadge}{room.admissionBadge}
+                                                {room.pendingCount > 0 ? ` · ${room.pendingCount} czeka` : ''}
                                             </span>
+                                            <span className="guest-room-host">
+                                                {room.hostName
+                                                    ? `Pokój gracza „${room.hostName}"`
+                                                    : 'Pokój bez hosta'}
+                                            </span>
+                                            <span className="guest-room-meta">
+                                                Gracze online: {room.onlineCount}
+                                            </span>
+                                            {room.showCode ? (
+                                                <span className="guest-room-code">{room.roomId}</span>
+                                            ) : (
+                                                <span className="guest-room-invite-hint">
+                                                    Wejście tylko przez link lub kod od hosta
+                                                </span>
+                                            )}
                                         </button>
                                         {hasAdminPowers && (
                                             <button
@@ -2171,9 +2663,86 @@ function App() {
                         </div>
                     ) : (
                         <>
+                    {effectiveIsHost && (
+                        <>
+                            <JoinRequestPanel
+                                requests={joinRequestList}
+                                onApprove={approveJoinRequest}
+                                onReject={rejectJoinRequest}
+                                onApproveAll={approveAllJoinRequests}
+                            />
+                            <div className="room-lock-container">
+                                <button
+                                    type="button"
+                                    onClick={cycleRoomAdmission}
+                                    className={`btn-lock-toggle ${getAdmissionOption(roomAdmission).buttonClass}`}
+                                >
+                                    {getAdmissionOption(roomAdmission).icon}{' '}
+                                    {getAdmissionOption(roomAdmission).label}
+                                    {joinRequestList.length > 0
+                                        ? ` (${joinRequestList.length} czeka)`
+                                        : ''}
+                                    {' '}(kliknij, aby zmienić)
+                                </button>
+                                <p className="room-admission-hint">
+                                    {getAdmissionOption(roomAdmission).desc}
+                                </p>
+                            </div>
+                        </>
+                    )}
                     {!isJoined ? (
+                        waitingForApproval ? (
+                            <div>
+                                <h2>Pokój: {currentGameMeta?.name}</h2>
+                                <p className="join-progress join-waiting-host">
+                                    ⏳ Czekasz na akceptację hosta…
+                                </p>
+                                <p>Nie zamykaj tej strony. Gdy host Cię wpuści, gra wczyta się automatycznie.</p>
+                                <div className="actions-stack">
+                                    <button onClick={handleBackToMenu} className="btn-link">Anuluj prośbę</button>
+                                </div>
+                            </div>
+                        ) : !isHost && currentRoomJoinMode === 'password' && !guestPasswordGranted ? (
+                            <div>
+                                <h2>Pokój: {currentGameMeta?.name}</h2>
+                                <p>Ten pokój wymaga hasła (wejście z listy):</p>
+                                <input
+                                    type="password"
+                                    value={guestRoomPassword}
+                                    onChange={(e) => {
+                                        setGuestRoomPassword(e.target.value);
+                                        setGuestPasswordError('');
+                                    }}
+                                    placeholder={`Hasło (${MIN_ROOM_PASSWORD_LENGTH}–${MAX_ROOM_PASSWORD_LENGTH} znaków)`}
+                                    maxLength={MAX_ROOM_PASSWORD_LENGTH}
+                                    autoComplete="current-password"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleGuestRoomPassword()}
+                                    className={guestPasswordError ? 'input-error' : ''}
+                                />
+                                {guestPasswordError && <p className="error-message">{guestPasswordError}</p>}
+                                <div className="actions-stack">
+                                    <button
+                                        onClick={handleGuestRoomPassword}
+                                        disabled={guestRoomPassword.trim().length < MIN_ROOM_PASSWORD_LENGTH}
+                                    >
+                                        Dalej
+                                    </button>
+                                    <button onClick={handleBackToMenu} className="btn-link">Wróć</button>
+                                </div>
+                            </div>
+                        ) : (
                         <div>
                             <h2>Pokój: {currentGameMeta?.name}</h2>
+                            {isHost && (
+                                <p className="join-progress">
+                                    Tryb: {JOIN_MODE_OPTIONS.find((o) => o.id === currentRoomJoinMode)?.label || '—'}
+                                    {' · '}
+                                    Brama: {getAdmissionOption(roomAdmission).label}
+                                </p>
+                            )}
+                            {!isHost && guestJoinViaInvite && (
+                                <p className="join-progress">Wejście przez link lub kod — hasło i kolejka pominięte.</p>
+                            )}
                             <p>Wpisz swoje imię, aby wejść:</p>
                             <input
                                 type="text"
@@ -2193,31 +2762,29 @@ function App() {
                             {joinStatus && <p className="join-progress">{joinStatus}</p>}
                             {lastJoinResult && !nameError && <p className="join-progress">{lastJoinResult}</p>}
 
+                            {isHost && (
+                                <RoomInviteQR
+                                    inviteUrl={roomInviteUrl}
+                                    roomId={selectedGame}
+                                    showCodeInList={roomShowCodeInList}
+                                    onToggleShowCodeInList={toggleShowCodeInList}
+                                    className="room-invite--slot"
+                                />
+                            )}
+
                             <div className="actions-stack">
                                 <button onClick={handleJoin} disabled={playerName.trim() === ''}>Wejdź do pokoju</button>
                                 <button onClick={handleBackToMenu} className="btn-link">Wróć</button>
                             </div>
-
-                            
                         </div>
+                        )
                     ) : (
                         <div>
                             <h2>Grasz w: {currentGameMeta?.name}</h2>
 
-                            {effectiveIsHost && (
-                                <div className="room-lock-container">
-                                    <button
-                                        onClick={() => set(ref(db, `rooms/${selectedGame}/isLocked`), !isRoomLocked)}
-                                        className={`btn-lock-toggle ${isRoomLocked ? 'locked' : 'unlocked'}`}
-                                    >
-                                        {isRoomLocked ? '🔒 Pokój zablokowany (Kliknij by zmienić)' : '🔓 Pokój odblokowany (Kliknij by zmienić)'}
-                                    </button>
-                                </div>
-                            )}
-
                             <Suspense fallback={<p className="game-loading">Ładowanie gry…</p>}>
                                 {selectedGameType === 'never-have-i-ever' && (
-                                    <NeverHaveIEver isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomInviteUrl={roomInviteUrl} roomId={selectedGame} />
+                                    <NeverHaveIEver isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomId={selectedGame} shareOptions={hostShareOptions} />
                                 )}
 
                                 {selectedGameType === 'truth-or-dare' && (
@@ -2227,9 +2794,9 @@ function App() {
                                         playerName={playerName}
                                         myPlayerId={myPlayerId}
                                         tablePlayers={playersList}
-                                        roomInviteUrl={roomInviteUrl}
                                         vibrationEnabled={vibrationEnabled}
                                         roomId={selectedGame}
+                                        shareOptions={hostShareOptions}
                                     />
                                 )}
 
@@ -2240,9 +2807,9 @@ function App() {
                                         onCloseRoom={handleCloseRoom}
                                         myPlayerId={myPlayerId}
                                         tablePlayers={playersList}
-                                        roomInviteUrl={roomInviteUrl}
                                         isRoomLocked={isRoomLocked}
                                         roomId={selectedGame}
+                                        shareOptions={hostShareOptions}
                                     />
                                 )}
 
@@ -2252,14 +2819,14 @@ function App() {
                                         onLeave={handleLeaveRoom}
                                         myPlayerId={myPlayerId}
                                         tablePlayers={playersList}
-                                        roomInviteUrl={roomInviteUrl}
                                         isRoomLocked={isRoomLocked}
                                         roomId={selectedGame}
+                                        shareOptions={hostShareOptions}
                                     />
                                 )}
 
                                 {selectedGameType === 'dark-stories' && (
-                                    <DarkStories isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomInviteUrl={roomInviteUrl} roomId={selectedGame} />
+                                    <DarkStories isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomId={selectedGame} shareOptions={hostShareOptions} />
                                 )}
 
                                 {selectedGameType === 'who-would-rather' && (
@@ -2269,9 +2836,9 @@ function App() {
                                         playerName={playerName}
                                         myPlayerId={myPlayerId}
                                         tablePlayers={playersList}
-                                        roomInviteUrl={roomInviteUrl}
                                         vibrationEnabled={vibrationEnabled}
                                         roomId={selectedGame}
+                                        shareOptions={hostShareOptions}
                                     />
                                 )}
 
@@ -2279,8 +2846,8 @@ function App() {
                                     <KtoNajpredzej
                                         isHost={effectiveIsHost}
                                         onLeave={handleLeaveRoom}
-                                        roomInviteUrl={roomInviteUrl}
                                         roomId={selectedGame}
+                                        shareOptions={hostShareOptions}
                                     />
                                 )}
 

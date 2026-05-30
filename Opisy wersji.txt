@@ -53,3 +53,6 @@ Rozwuj wersji:
 1.3.3 Emocji update
 1.3.4 Content Update
 1.3.5 Visual Update
+1.4.0 New room Locking system and updated celanign method
+1.4.1 BugFix of new implememnted Room Locks
+1.4.2 Visual Fix of dark-blue style

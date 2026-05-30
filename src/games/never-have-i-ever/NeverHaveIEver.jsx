@@ -8,11 +8,11 @@ import { useRoomGameState } from '../../lib/useRoomGameState';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { shuffleArray } from '../../lib/shuffle';
 import ConfirmButton from '../../components/ConfirmButton';
-import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { HostShareOptions } from '../../components/RoomInviteQR';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 
-function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
+function NeverHaveIEver({ isHost, onLeave, roomId, shareOptions }) {
     const playableCategories = useMemo(
         () => getNeverHaveIEverCategories(gameData.neverHaveIEver),
         []
@@ -112,7 +112,7 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
                                     Rozpocznij grę ({selectedCategories.length})
                                 </button>
                             </div>
-                            <RoomInviteQR inviteUrl={roomInviteUrl} />
+                            <HostShareOptions shareOptions={shareOptions} />
                         </>
                     ) : (
                         <p>Czekamy aż Host wybierze kategorie i wystartuje grę...</p>
@@ -148,6 +148,7 @@ function NeverHaveIEver({ isHost, onLeave, roomInviteUrl, roomId }) {
                                     {(roomData.shuffledQuestions && roomData.currentQuestionIndex === roomData.shuffledQuestions.length - 1) ? 'Koniec pytań' : 'Następne'}
                                 </button>
                             </div>
+                            <HostShareOptions shareOptions={shareOptions} />
                             <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
                         </div>
                     )}

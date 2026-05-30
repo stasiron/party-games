@@ -8,11 +8,11 @@ import { useRoomGameState } from '../../lib/useRoomGameState';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { shuffleArray } from '../../lib/shuffle';
 import ConfirmButton from '../../components/ConfirmButton';
-import RoomInviteQR from '../../components/RoomInviteQR';
 import GameRules from '../../components/GameRules';
+import { HostShareOptions } from '../../components/RoomInviteQR';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 
-function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
+function KtoNajpredzej({ isHost, onLeave, roomId, shareOptions }) {
     const playableCategories = useMemo(
         () => getKtoNajpredzejCategories(gameData.ktoNajpredzej),
         []
@@ -109,7 +109,7 @@ function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
                                     Rozpocznij grę ({selectedCategories.length})
                                 </button>
                             </div>
-                            <RoomInviteQR inviteUrl={roomInviteUrl} />
+                            <HostShareOptions shareOptions={shareOptions} />
                         </>
                     ) : (
                         <p>Czekamy aż Host wybierze kategorie i wystartuje grę...</p>
@@ -156,6 +156,7 @@ function KtoNajpredzej({ isHost, onLeave, roomInviteUrl, roomId }) {
                                         : 'Następne'}
                                 </button>
                             </div>
+                            <HostShareOptions shareOptions={shareOptions} />
                             <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
                         </div>
                     )}
