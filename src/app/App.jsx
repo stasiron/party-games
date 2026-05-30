@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { ref, push, remove, onValue, onDisconnect } from 'firebase/database';
 import { GoogleAuthProvider, linkWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -58,6 +58,7 @@ import {
 import { buildGameIndex, buildActiveRoomsFromPublic } from './utils/activeRooms';
 import { applyThemeSurface } from '../lib/themeSurface';
 import { themePresets, findThemePreset } from '../lib/themePresets';
+import { buildBugReportContext, prefetchReporterIpHash } from '../lib/bugReport';
 import versionData from '../../version.json';
 import '../styles/app.css';
 
@@ -69,6 +70,7 @@ const DarkStories = lazy(() => import('../games/dark-stories/DarkStories'));
 const WhoWouldRather = lazy(() => import('../games/who-would-rather/WhoWouldRather'));
 const KtoNajpredzej = lazy(() => import('../games/kto-najpredzej/KtoNajpredzej'));
 const ComingSoonGame = lazy(() => import('../components/ComingSoonGame'));
+const BugReportPanel = lazy(() => import('../components/BugReportPanel'));
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 6;
@@ -160,6 +162,7 @@ function App() {
     // STANY: Dla tajnego panelu administratora pod logo
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [showBugReport, setShowBugReport] = useState(false);
     const [showAccountCenter, setShowAccountCenter] = useState(false);
     const [accountEmail, setAccountEmail] = useState('');
     const [accountNickname, setAccountNickname] = useState(() => loadLocalNickname());
@@ -483,6 +486,11 @@ function App() {
         () => (selectedGameType ? gameById.get(selectedGameType) || null : null),
         [selectedGameType, gameById]
     );
+    const closeBugReport = useCallback(() => setShowBugReport(false), []);
+
+    useEffect(() => {
+        if (showBugReport) prefetchReporterIpHash();
+    }, [showBugReport]);
 
     const leaveToLobby = useCallback((options = {}) => {
         const { message = '', keepEntryRole = true } = options;
@@ -583,6 +591,74 @@ function App() {
         if (!me) return isHost;
         return me.isHost === true && me.isOnline !== false;
     }, [isJoined, myPlayerId, playersList, isHost]);
+
+    const bugReportPlayerStats = useMemo(() => {
+        const now = Date.now();
+        let active = 0;
+        let online = 0;
+        for (const player of playersList) {
+            if (isPlayerActive(player, now)) active += 1;
+            if (player?.isKicked !== true && player?.isOnline !== false) online += 1;
+        }
+        return {
+            active,
+            online,
+            total: playersList.length,
+            pendingJoin: joinRequestList.length,
+        };
+    }, [playersList, joinRequestList.length]);
+
+    const guestPasswordPending = Boolean(
+        selectedGame &&
+            !isJoined &&
+            !isHost &&
+            currentRoomJoinMode === 'password' &&
+            !guestPasswordGranted
+    );
+
+    const bugReportContext = useMemo(
+        () =>
+            buildBugReportContext({
+                version: versionData.version,
+                roomId: selectedGame,
+                gameId: selectedGameType,
+                gameName: currentGameMeta?.name || null,
+                themePreset,
+                authEmail: authUser?.email || null,
+                connectionMode: firebaseConnection.mode,
+                entryRole,
+                isJoined,
+                isHost,
+                effectiveIsHost,
+                waitingForApproval,
+                guestPasswordPending,
+                currentRoomJoinMode,
+                roomAdmission,
+                playerName,
+                accountNickname,
+                myPlayerId,
+                playerStats: bugReportPlayerStats,
+            }),
+        [
+            selectedGame,
+            selectedGameType,
+            currentGameMeta?.name,
+            themePreset,
+            authUser?.email,
+            entryRole,
+            isJoined,
+            isHost,
+            effectiveIsHost,
+            waitingForApproval,
+            guestPasswordPending,
+            currentRoomJoinMode,
+            roomAdmission,
+            playerName,
+            accountNickname,
+            myPlayerId,
+            bugReportPlayerStats,
+        ]
+    );
 
     useEffect(() => {
         if (typeof document === 'undefined') return undefined;
@@ -2191,9 +2267,64 @@ function App() {
         return () => window.clearTimeout(timer);
     }, [nicknameSavedAt]);
 
+    const overlayOpen = showAccountCenter
+        ? 'account'
+        : showSettings
+          ? 'settings'
+          : showBugReport
+            ? 'bug-report'
+            : null;
+
+    const appContainerRef = useRef(null);
+
+    useLayoutEffect(() => {
+        const root = appContainerRef.current;
+        if (!root) return undefined;
+
+        if (!overlayOpen) {
+            root.style.removeProperty('--overlay-stack-1');
+            root.style.removeProperty('--overlay-stack-2');
+            return undefined;
+        }
+
+        const panelSelector =
+            overlayOpen === 'account'
+                ? '.account-panel'
+                : overlayOpen === 'settings'
+                  ? '.settings-panel:not(.bug-report-panel)'
+                  : '.bug-report-panel';
+
+        const updateStack = () => {
+            const panel = root.querySelector(panelSelector);
+            if (!panel) return;
+            const stack1 = panel.getBoundingClientRect().bottom + 10;
+            root.style.setProperty('--overlay-stack-1', `${stack1}px`);
+            root.style.setProperty('--overlay-stack-2', `${stack1 + 56}px`);
+        };
+
+        updateStack();
+
+        const panel = root.querySelector(panelSelector);
+        if (!panel) return undefined;
+
+        const ro = new ResizeObserver(updateStack);
+        ro.observe(panel);
+        window.addEventListener('resize', updateStack);
+
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', updateStack);
+            root.style.removeProperty('--overlay-stack-1');
+            root.style.removeProperty('--overlay-stack-2');
+        };
+    }, [overlayOpen]);
 
     return (
-        <div className="app-container">
+        <div
+            ref={appContainerRef}
+            className="app-container"
+            data-overlay-open={overlayOpen ?? undefined}
+        >
             {/* Logo z obsługą double click (Easter egg panelu admina) */}
             <h1
                 onDoubleClick={toggleAdminPanel}
@@ -2232,8 +2363,11 @@ function App() {
                 onClick={() => {
                     setShowAccountCenter((prev) => !prev);
                     setShowSettings(false);
+                    setShowBugReport(false);
                 }}
                 aria-label="Otwórz centrum konta"
+                aria-hidden={showAccountCenter || undefined}
+                tabIndex={showAccountCenter ? -1 : undefined}
             >
                 👤
             </button>
@@ -2244,11 +2378,35 @@ function App() {
                 onClick={() => {
                     setShowSettings((prev) => !prev);
                     setShowAccountCenter(false);
+                    setShowBugReport(false);
                 }}
                 aria-label="Otwórz ustawienia"
+                aria-hidden={showSettings || undefined}
+                tabIndex={showSettings ? -1 : undefined}
             >
                 ⚙
             </button>
+
+            <button
+                type="button"
+                className="bug-report-trigger"
+                onClick={() => {
+                    setShowBugReport((prev) => !prev);
+                    setShowSettings(false);
+                    setShowAccountCenter(false);
+                }}
+                aria-label="Zgłoś błąd"
+                aria-hidden={showBugReport || undefined}
+                tabIndex={showBugReport ? -1 : undefined}
+            >
+                🐛
+            </button>
+
+            {showBugReport && (
+                <Suspense fallback={null}>
+                    <BugReportPanel context={bugReportContext} onClose={closeBugReport} />
+                </Suspense>
+            )}
 
             {showAccountCenter && (
                 <div className="account-panel" role="dialog" aria-label="Centrum konta">
@@ -2392,7 +2550,7 @@ function App() {
                                     aria-label={preset.label}
                                     aria-pressed={themePreset === preset.id}
                                     style={{
-                                        backgroundImage: `linear-gradient(135deg, ${preset.stops[0]} 0%, ${preset.stops[1]} 50%, ${preset.stops[2]} 100%)`
+                                        background: `linear-gradient(135deg, ${preset.stops[0]} 0%, ${preset.stops[1]} 50%, ${preset.stops[2]} 100%)`
                                     }}
                                 >
                                     <span className="sr-only">{preset.label}</span>

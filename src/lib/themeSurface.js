@@ -181,20 +181,20 @@ const CYBER = {
     success: '#00b4ff',
     successBright: '#5ce1ff',
     surface: {
-        glassBg: 'rgba(0, 0, 0, 0.92)',
-        glassBorder: '#00b4ff',
-        panelDark: 'rgba(0, 0, 0, 0.95)',
-        textPrimary: '#e8f4ff',
-        textOnGlass: '#e8f4ff',
-        btnGlassHover: 'rgba(0, 180, 255, 0.18)',
+        glassBg: 'rgba(0, 0, 0, 0.82)',
+        glassBorder: 'rgba(255, 255, 255, 0.28)',
+        panelDark: 'rgba(0, 0, 0, 0.92)',
+        textPrimary: '#f0f8ff',
+        textOnGlass: '#ffffff',
+        btnGlassHover: 'rgba(36, 36, 36, 0.96)',
         overlayPanelBg: 'rgba(0, 0, 0, 0.94)',
-        overlayPanelText: '#e8f4ff',
-        overlayPanelBorder: '#00b4ff',
-        overlayToggleBg: 'rgba(0, 0, 0, 0.98)',
-        overlayToggleBorder: '#00b4ff',
-        overlayToggleText: '#e8f4ff',
-        overlayHintText: 'rgba(200, 220, 255, 0.78)',
-        overlayInputBg: 'rgba(0, 0, 0, 0.98)',
+        overlayPanelText: '#f0f8ff',
+        overlayPanelBorder: 'rgba(255, 255, 255, 0.24)',
+        overlayToggleBg: 'rgba(0, 0, 0, 0.9)',
+        overlayToggleBorder: 'rgba(255, 255, 255, 0.28)',
+        overlayToggleText: '#ffffff',
+        overlayHintText: 'rgba(220, 230, 240, 0.88)',
+        overlayInputBg: 'rgba(0, 0, 0, 0.9)',
     },
 };
 
@@ -205,6 +205,58 @@ function setSemanticColors(root, colors) {
     root.style.setProperty('--color-danger', colors.danger);
     root.style.setProperty('--color-success', colors.success);
     root.style.setProperty('--color-success-bright', colors.successBright);
+}
+
+function setBugOptionTokens(root, accent, { light = false, hardBorders = false, surface = null } = {}) {
+    if (hardBorders && surface) {
+        root.style.setProperty('--bug-panel-bg', surface.overlayPanelBg);
+        root.style.setProperty('--bug-panel-border', surface.overlayPanelBorder);
+        root.style.setProperty('--bug-option-bg', surface.overlayToggleBg);
+        root.style.setProperty('--bug-option-border', surface.overlayToggleBorder);
+        root.style.setProperty('--bug-option-text', surface.overlayToggleText);
+        root.style.setProperty('--bug-option-hover-bg', 'rgba(36, 36, 36, 0.96)');
+        root.style.setProperty('--bug-option-hover-border', accentAlpha(accent, 0.45));
+        root.style.setProperty('--bug-option-active-bg', accentAlpha(accent, 0.2));
+        root.style.setProperty('--bug-option-active-border', accentAlpha('#00d4ff', 0.78));
+        root.style.setProperty('--bug-option-active-ring', accentAlpha(accent, 0.38));
+        root.style.setProperty('--bug-option-check-bg', accentAlpha(accent, 0.24));
+        return;
+    }
+
+    if (hardBorders) {
+        return;
+    }
+
+    const panelBg = surface?.overlayPanelBg;
+    const panelBorder = surface?.overlayPanelBorder;
+    const toggleBg = surface?.overlayToggleBg;
+    const toggleBorder = surface?.overlayToggleBorder;
+    const toggleText = surface?.overlayToggleText;
+
+    if (panelBg) {
+        root.style.setProperty('--bug-panel-bg', panelBg);
+        root.style.setProperty('--bug-panel-border', panelBorder);
+    }
+    if (toggleBg) {
+        root.style.setProperty('--bug-option-bg', toggleBg);
+        root.style.setProperty('--bug-option-border', toggleBorder);
+        root.style.setProperty('--bug-option-text', toggleText);
+        root.style.setProperty('--bug-option-hover-bg', accentAlpha(accent, light ? 0.28 : 0.26));
+        root.style.setProperty('--bug-option-hover-border', toggleBorder);
+        root.style.setProperty('--bug-option-active-bg', accentAlpha(accent, light ? 0.38 : 0.42));
+        root.style.setProperty('--bug-option-active-border', accent);
+        root.style.setProperty('--bug-option-active-ring', accentAlpha(accent, light ? 0.72 : 0.68));
+        root.style.setProperty('--bug-option-check-bg', accentAlpha(accent, light ? 0.32 : 0.28));
+        return;
+    }
+
+    root.style.setProperty('--bug-option-bg', light ? 'rgba(255, 255, 255, 0.62)' : accentAlpha(accent, 0.16));
+    root.style.setProperty('--bug-option-border', light ? accentAlpha(accent, 0.55) : accentAlpha(accent, 0.58));
+    root.style.setProperty('--bug-option-text', light ? '#1a1a2e' : '#ffffff');
+    root.style.setProperty('--bug-option-hover-bg', accentAlpha(accent, light ? 0.28 : 0.26));
+    root.style.setProperty('--bug-option-active-bg', accentAlpha(accent, light ? 0.38 : 0.42));
+    root.style.setProperty('--bug-option-active-border', accent);
+    root.style.setProperty('--bug-option-active-ring', accentAlpha(accent, light ? 0.72 : 0.68));
 }
 
 function setSurfaceTokens(root, surface, accent, stops, options = {}) {
@@ -245,6 +297,8 @@ function setSurfaceTokens(root, surface, accent, stops, options = {}) {
         hardBorders ? surface.overlayPanelBg : `linear-gradient(135deg, ${accentAlpha(accent, 0.72)}, ${accentAlpha(accent, 0.12)})`
     );
     root.style.setProperty('--guest-chip-active-bg', accentAlpha(accent, hardBorders ? 0.35 : light ? 0.55 : 0.45));
+
+    setBugOptionTokens(root, accent, { light, hardBorders, surface });
 
     const useFixedCards = hardBorders || fixedSemanticColors;
     root.style.setProperty('--tod-truth-border', useFixedCards ? truth : borderColorForCard(truth, stops, light));
@@ -313,17 +367,24 @@ function applyCyberTheme(root, stops) {
     });
 
     const accent = palette.accent;
-    root.style.setProperty('--category-selected-bg', accentAlpha(accent, 0.26));
-    root.style.setProperty('--category-selected-ring', '#5ce1ff');
-    root.style.setProperty('--category-unselected-bg', 'rgba(0, 0, 0, 0.97)');
-    root.style.setProperty('--category-unselected-border', accentAlpha(accent, 0.22));
-    root.style.setProperty('--category-unselected-text', 'rgba(180, 205, 235, 0.55)');
-    root.style.setProperty('--category-btn-text', '#f0f8ff');
-    root.style.setProperty('--category-btn-desc', 'rgba(210, 230, 255, 0.88)');
-    root.style.setProperty('--accent-muted-bg', accentAlpha(accent, 0.2));
-    root.style.setProperty('--accent-hover-bg', accentAlpha(accent, 0.32));
-    root.style.setProperty('--guest-chip-active-bg', accentAlpha(accent, 0.32));
-    root.style.setProperty('--glass-border', accentAlpha(accent, 0.35));
+    root.style.setProperty('--cyber-ui-bg', 'rgba(0, 0, 0, 0.9)');
+    root.style.setProperty('--cyber-ui-bg-hover', 'rgba(36, 36, 36, 0.96)');
+    root.style.setProperty('--cyber-ui-border', 'rgba(255, 255, 255, 0.28)');
+    root.style.setProperty('--cyber-ui-selected-bg', accentAlpha(accent, 0.22));
+    root.style.setProperty('--cyber-ui-selected-border', accentAlpha('#00d4ff', 0.78));
+    root.style.setProperty('--cyber-ui-selected-ring', accentAlpha(accent, 0.42));
+    root.style.setProperty('--category-selected-bg', accentAlpha(accent, 0.22));
+    root.style.setProperty('--category-selected-ring', accentAlpha('#00d4ff', 0.65));
+    root.style.setProperty('--category-unselected-bg', 'var(--cyber-ui-bg)');
+    root.style.setProperty('--category-unselected-border', 'var(--cyber-ui-border)');
+    root.style.setProperty('--category-unselected-text', '#ffffff');
+    root.style.setProperty('--category-btn-text', '#ffffff');
+    root.style.setProperty('--category-btn-desc', 'rgba(235, 240, 245, 0.92)');
+    root.style.setProperty('--accent-muted-bg', 'rgba(36, 36, 36, 0.96)');
+    root.style.setProperty('--accent-hover-bg', accentAlpha(accent, 0.16));
+    root.style.setProperty('--guest-chip-active-bg', accentAlpha(accent, 0.22));
+    root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.28)');
+    setBugOptionTokens(root, accent, { hardBorders: true, surface: palette.surface });
 }
 
 function applyDefaultTheme(root, stops) {

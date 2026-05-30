@@ -160,6 +160,26 @@
         }
       }
     },
+    "bugReportLeases": {
+      "$ipHash": {
+        ".read": false,
+        ".write": "!data.exists() || data.child('expiresAt').val() < now",
+        ".validate": "$ipHash.matches(/^[a-f0-9]{64}$/) && newData.hasChildren(['expiresAt', 'updatedAt']) && newData.child('expiresAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() <= now + 5000 && newData.child('expiresAt').val() === newData.child('updatedAt').val() + 300000",
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "bugReports": {
+      "$reportId": {
+        ".read": false,
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['category', 'createdAt', 'panel', 'ipHash']) && newData.child('category').isString() && newData.child('category').val().matches(/^(styling|ui-buttons|game-logic|missing-feature|connection|other)$/) && newData.child('createdAt').isNumber() && newData.child('panel').isString() && newData.child('panel').val().length > 0 && newData.child('panel').val().length <= 160 && newData.child('ipHash').isString() && newData.child('ipHash').val().matches(/^[a-f0-9]{64}$/) && (!newData.hasChild('ipSource') || (newData.child('ipSource').isString() && newData.child('ipSource').val().matches(/^(public-ip|device-fallback|cache)$/))) && (!newData.hasChild('message') || (newData.child('message').isString() && newData.child('message').val().length > 0 && newData.child('message').val().length <= 2000)) && (!newData.hasChild('screen') || (newData.child('screen').isString() && newData.child('screen').val().length <= 32)) && (!newData.hasChild('gameName') || newData.child('gameName').val() === null || (newData.child('gameName').isString() && newData.child('gameName').val().length <= 64)) && (!newData.hasChild('role') || (newData.child('role').isString() && newData.child('role').val().matches(/^(host|guest|none)$/))) && (!newData.hasChild('inGame') || newData.child('inGame').isBoolean()) && (!newData.hasChild('playerCount') || (newData.child('playerCount').isNumber() && newData.child('playerCount').val() >= 0 && newData.child('playerCount').val() <= 64)) && (!newData.hasChild('playersTotal') || (newData.child('playersTotal').isNumber() && newData.child('playersTotal').val() >= 0 && newData.child('playersTotal').val() <= 64)) && (!newData.hasChild('playersOnline') || (newData.child('playersOnline').isNumber() && newData.child('playersOnline').val() >= 0 && newData.child('playersOnline').val() <= 64)) && (!newData.hasChild('pendingJoin') || (newData.child('pendingJoin').isNumber() && newData.child('pendingJoin').val() >= 0 && newData.child('pendingJoin').val() <= 64)) && (!newData.hasChild('joinMode') || newData.child('joinMode').val() === null || (newData.child('joinMode').isString() && newData.child('joinMode').val().matches(/^(public|password|invite)$/))) && (!newData.hasChild('admission') || newData.child('admission').val() === null || (newData.child('admission').isString() && newData.child('admission').val().matches(/^(open|closed|approval)$/))) && (!newData.hasChild('nick') || newData.child('nick').val() === null || (newData.child('nick').isString() && newData.child('nick').val().length <= 24)) && (!newData.hasChild('playerId') || newData.child('playerId').val() === null || (newData.child('playerId').isString() && newData.child('playerId').val().length <= 64)) && (!newData.hasChild('lowPower') || newData.child('lowPower').isBoolean()) && (!newData.hasChild('v') || (newData.child('v').isString() && newData.child('v').val().length <= 32)) && (!newData.hasChild('roomId') || newData.child('roomId').val() === null || (newData.child('roomId').isString() && newData.child('roomId').val().length <= 16)) && (!newData.hasChild('gameId') || newData.child('gameId').val() === null || (newData.child('gameId').isString() && newData.child('gameId').val().length <= 64)) && (!newData.hasChild('theme') || newData.child('theme').val() === null || (newData.child('theme').isString() && newData.child('theme').val().length <= 32)) && (!newData.hasChild('email') || newData.child('email').val() === null || (newData.child('email').isString() && newData.child('email').val().length <= 128)) && (!newData.hasChild('conn') || newData.child('conn').val() === null || (newData.child('conn').isString() && newData.child('conn').val().length <= 16)) && (!newData.hasChild('path') || newData.child('path').val() === null || (newData.child('path').isString() && newData.child('path').val().length <= 256)) && (!newData.hasChild('ua') || newData.child('ua').val() === null || (newData.child('ua').isString() && newData.child('ua').val().length <= 256))",
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "_maintenance": {
       "roomsCleanupLease": {
         ".read": false,

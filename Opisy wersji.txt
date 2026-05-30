@@ -56,3 +56,5 @@ Rozwuj wersji:
 1.4.0 New room Locking system and updated celanign method
 1.4.1 BugFix of new implememnted Room Locks
 1.4.2 Visual Fix of dark-blue style
+1.4.3 Cyber Visual Reskin
+1.5.0 Bug report feature
