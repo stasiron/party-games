@@ -3104,7 +3104,7 @@ html.low-power .server-busy__orb {
 
 [data-theme-kind="cyber"] button:hover:not(:disabled):not(.btn-accent):not(.category-btn-selected):not(.host-join-mode-option.active):not(.account-trigger):not(.settings-trigger):not(.bug-report-trigger):not(.settings-preset) {
     background: var(--cyber-ui-bg-hover, rgba(36, 36, 36, 0.96)) !important;
-    border-color: rgba(92, 225, 255, 0.42) !important;
+    border-color: rgba(92, 225, 255, 0.72) !important;
 }
 
 [data-theme-kind="cyber"] .account-trigger,
@@ -3147,7 +3147,7 @@ html.low-power .server-busy__orb {
 [data-theme-kind="cyber"] .settings-trigger:hover,
 [data-theme-kind="cyber"] .bug-report-trigger:hover {
     background: var(--cyber-ui-bg-hover, rgba(36, 36, 36, 0.96)) !important;
-    border-color: rgba(92, 225, 255, 0.42) !important;
+    border-color: rgba(92, 225, 255, 0.72) !important;
 }
 
 [data-theme-kind="cyber"] .collapsible-section__body,
@@ -3167,7 +3167,7 @@ html.low-power .server-busy__orb {
 [data-theme-kind="cyber"] .mafia-role-config-box {
     border-width: 2px;
     border-style: solid;
-    border-color: rgba(255, 255, 255, 0.24);
+    border-color: var(--cyber-ui-border, rgba(92, 225, 255, 0.58));
     background: var(--cyber-ui-bg, rgba(0, 0, 0, 0.9));
 }
 
@@ -3177,7 +3177,7 @@ html.low-power .server-busy__orb {
 }
 
 [data-theme-kind="cyber"] .category-btn-unselected {
-    border-color: var(--cyber-ui-border, rgba(255, 255, 255, 0.28)) !important;
+    border-color: var(--cyber-ui-border, rgba(92, 225, 255, 0.58)) !important;
     background-color: var(--cyber-ui-bg, rgba(0, 0, 0, 0.9)) !important;
     color: #ffffff !important;
     box-shadow: none !important;
@@ -3185,7 +3185,7 @@ html.low-power .server-busy__orb {
 
 [data-theme-kind="cyber"] .category-btn-unselected:hover {
     background-color: var(--cyber-ui-bg-hover, rgba(36, 36, 36, 0.96)) !important;
-    border-color: rgba(92, 225, 255, 0.42) !important;
+    border-color: rgba(92, 225, 255, 0.72) !important;
 }
 
 [data-theme-kind="cyber"] .category-btn-unselected .game-desc {
@@ -3203,7 +3203,7 @@ html.low-power .server-busy__orb {
 }
 
 [data-theme-kind="cyber"] .host-join-mode-option {
-    border-color: var(--cyber-ui-border, rgba(255, 255, 255, 0.28)) !important;
+    border-color: var(--cyber-ui-border, rgba(92, 225, 255, 0.58)) !important;
     background: var(--cyber-ui-bg, rgba(0, 0, 0, 0.9)) !important;
     color: #ffffff !important;
     box-shadow: none !important;
@@ -3211,7 +3211,7 @@ html.low-power .server-busy__orb {
 
 [data-theme-kind="cyber"] .host-join-mode-option:hover {
     background: var(--cyber-ui-bg-hover, rgba(36, 36, 36, 0.96)) !important;
-    border-color: rgba(92, 225, 255, 0.42) !important;
+    border-color: rgba(92, 225, 255, 0.72) !important;
 }
 
 [data-theme-kind="cyber"] .host-join-mode-option.active {
@@ -3247,7 +3247,7 @@ html.low-power .server-busy__orb {
 [data-theme-kind="cyber"] .impostor-random-toggle {
     border-width: 2px !important;
     backdrop-filter: none;
-    border-color: var(--cyber-ui-border, rgba(255, 255, 255, 0.28)) !important;
+    border-color: var(--cyber-ui-border, rgba(92, 225, 255, 0.58)) !important;
     background: var(--cyber-ui-bg, rgba(0, 0, 0, 0.9)) !important;
     color: #ffffff !important;
 }
@@ -3258,7 +3258,7 @@ html.low-power .server-busy__orb {
 [data-theme-kind="cyber"] .impostor-fairness-toggle:hover,
 [data-theme-kind="cyber"] .impostor-random-toggle:hover {
     background: var(--cyber-ui-bg-hover, rgba(36, 36, 36, 0.96)) !important;
-    border-color: rgba(92, 225, 255, 0.42) !important;
+    border-color: rgba(92, 225, 255, 0.72) !important;
 }
 
 [data-theme-kind="cyber"] .btn-collapsible-toggle[aria-expanded="true"],
@@ -3280,14 +3280,14 @@ html.low-power .server-busy__orb {
 
 [data-theme-kind="cyber"] .guest-link-chip {
     border-width: 2px !important;
-    border-color: var(--cyber-ui-border, rgba(255, 255, 255, 0.28)) !important;
+    border-color: var(--cyber-ui-border, rgba(92, 225, 255, 0.58)) !important;
     background: var(--cyber-ui-bg, rgba(0, 0, 0, 0.9)) !important;
     color: #ffffff !important;
 }
 
 [data-theme-kind="cyber"] .guest-link-chip:hover {
     background: var(--cyber-ui-bg-hover, rgba(36, 36, 36, 0.96)) !important;
-    border-color: rgba(92, 225, 255, 0.42) !important;
+    border-color: rgba(92, 225, 255, 0.72) !important;
 }
 
 [data-theme-kind="cyber"] .guest-link-chip--active {
@@ -3346,7 +3346,7 @@ html.low-power .server-busy__orb {
 [data-theme-kind="cyber"] .bug-report-panel .settings-toggle:hover,
 [data-theme-kind="cyber"] .bug-report-panel .bug-report-category:hover {
     background: var(--bug-option-hover-bg, rgba(36, 36, 36, 0.96)) !important;
-    border-color: var(--bug-option-hover-border, rgba(92, 225, 255, 0.45)) !important;
+    border-color: var(--bug-option-hover-border, rgba(92, 225, 255, 0.72)) !important;
 }
 
 [data-theme-kind="cyber"] .settings-panel .settings-toggle[aria-pressed="true"],

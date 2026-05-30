@@ -58,3 +58,6 @@ Rozwuj wersji:
 1.4.2 Visual Fix of dark-blue style
 1.4.3 Cyber Visual Reskin
 1.5.0 Bug report feature
+1.5.1 Bug report Graphic Update
+1.5.2 Tab bug fix
+1.5.3 Cyber blue bug fix

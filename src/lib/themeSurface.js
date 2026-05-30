@@ -182,7 +182,7 @@ const CYBER = {
     successBright: '#5ce1ff',
     surface: {
         glassBg: 'rgba(0, 0, 0, 0.82)',
-        glassBorder: 'rgba(255, 255, 255, 0.28)',
+        glassBorder: 'rgba(92, 225, 255, 0.58)',
         panelDark: 'rgba(0, 0, 0, 0.92)',
         textPrimary: '#f0f8ff',
         textOnGlass: '#ffffff',
@@ -191,7 +191,7 @@ const CYBER = {
         overlayPanelText: '#f0f8ff',
         overlayPanelBorder: 'rgba(255, 255, 255, 0.24)',
         overlayToggleBg: 'rgba(0, 0, 0, 0.9)',
-        overlayToggleBorder: 'rgba(255, 255, 255, 0.28)',
+        overlayToggleBorder: 'rgba(92, 225, 255, 0.58)',
         overlayToggleText: '#ffffff',
         overlayHintText: 'rgba(220, 230, 240, 0.88)',
         overlayInputBg: 'rgba(0, 0, 0, 0.9)',
@@ -215,7 +215,7 @@ function setBugOptionTokens(root, accent, { light = false, hardBorders = false, 
         root.style.setProperty('--bug-option-border', surface.overlayToggleBorder);
         root.style.setProperty('--bug-option-text', surface.overlayToggleText);
         root.style.setProperty('--bug-option-hover-bg', 'rgba(36, 36, 36, 0.96)');
-        root.style.setProperty('--bug-option-hover-border', accentAlpha(accent, 0.45));
+        root.style.setProperty('--bug-option-hover-border', accentAlpha(accent, 0.72));
         root.style.setProperty('--bug-option-active-bg', accentAlpha(accent, 0.2));
         root.style.setProperty('--bug-option-active-border', accentAlpha('#00d4ff', 0.78));
         root.style.setProperty('--bug-option-active-ring', accentAlpha(accent, 0.38));
@@ -369,7 +369,7 @@ function applyCyberTheme(root, stops) {
     const accent = palette.accent;
     root.style.setProperty('--cyber-ui-bg', 'rgba(0, 0, 0, 0.9)');
     root.style.setProperty('--cyber-ui-bg-hover', 'rgba(36, 36, 36, 0.96)');
-    root.style.setProperty('--cyber-ui-border', 'rgba(255, 255, 255, 0.28)');
+    root.style.setProperty('--cyber-ui-border', 'rgba(92, 225, 255, 0.58)');
     root.style.setProperty('--cyber-ui-selected-bg', accentAlpha(accent, 0.22));
     root.style.setProperty('--cyber-ui-selected-border', accentAlpha('#00d4ff', 0.78));
     root.style.setProperty('--cyber-ui-selected-ring', accentAlpha(accent, 0.42));
@@ -383,7 +383,7 @@ function applyCyberTheme(root, stops) {
     root.style.setProperty('--accent-muted-bg', 'rgba(36, 36, 36, 0.96)');
     root.style.setProperty('--accent-hover-bg', accentAlpha(accent, 0.16));
     root.style.setProperty('--guest-chip-active-bg', accentAlpha(accent, 0.22));
-    root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.28)');
+    root.style.setProperty('--glass-border', 'rgba(92, 225, 255, 0.58)');
     setBugOptionTokens(root, accent, { hardBorders: true, surface: palette.surface });
 }
 
