@@ -15,7 +15,18 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import { auth, firestore } from "../../lib/firebase/client";
-import type { UserProfile } from "../../types/sessionModels";
+
+type UserProfile = {
+  nickname: string;
+  createdAt: number;
+  lastLoginAt: number;
+  recentSessions: Array<{
+    sessionId: string;
+    gameType: string;
+    status: string;
+    updatedAt: number;
+  }>;
+};
 
 const EMAIL_STORAGE_KEY = "auth.emailForSignIn";
 

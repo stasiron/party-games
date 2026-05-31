@@ -7,7 +7,7 @@ import { ServerBusyContext } from './ServerBusyContext';
 export function ServerBusyProvider({ children }) {
     const [busyCount, setBusyCount] = useState(0);
     const [piQueueDepth, setPiQueueDepth] = useState(0);
-    const ping = useConnectionPing(true);
+    const ping = useConnectionPing();
 
     useEffect(() => subscribePiQueue(setPiQueueDepth), []);
 

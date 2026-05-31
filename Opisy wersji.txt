@@ -57,7 +57,13 @@ Rozwuj wersji:
 1.4.1 BugFix of new implememnted Room Locks
 1.4.2 Visual Fix of dark-blue style
 1.4.3 Cyber Visual Reskin
-1.5.0 Bug report feature
+1.5.0 Optimisation and Usability Update - Bug report feature
 1.5.1 Bug report Graphic Update
 1.5.2 Tab bug fix
 1.5.3 Cyber blue bug fix
+1.5.4 Mega Optimised
+1.5.5 Room filtration tab
+1.5.6 Implementet i18n
+1.5.7 Ui translated to En
+1.5.8 Hot Fix
+1.5.9 Mafia reveal button fix

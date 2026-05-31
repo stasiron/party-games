@@ -1,21 +1,24 @@
 import { useCallback, useMemo } from 'react';
 import { ref } from 'firebase/database';
-import { set } from '../../lib/rtdb';
+import { set, update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
-import gameData from '../../data/gameContent.js';
-import { getDarkStoriesDifficulties } from '../../lib/gameContentUtils';
-import { useRoomGameState } from '../../lib/useRoomGameState';
-import { usePiGameSession } from '../../lib/usePiGameSession';
-import { shuffleArray } from '../../lib/shuffle';
+import { buildDeckFromContentMap, getDarkStoriesDifficulties } from '../../lib/gameContentUtils';
+import { useLocale } from '../../locales/LocaleContext';
+import { useShuffledQuestionDeck } from '../../lib/useShuffledQuestionDeck';
 import ConfirmButton from '../../components/ConfirmButton';
 import GameRules from '../../components/GameRules';
+import GameRulesList from '../../components/GameRulesList';
+import GameCategoryLobby from '../../components/GameCategoryLobby';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 
 function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
+    const { gameContent, t } = useLocale();
+    const section = gameContent.darkStories;
+
     const playableDifficulties = useMemo(
-        () => getDarkStoriesDifficulties(gameData.darkStories),
-        []
+        () => getDarkStoriesDifficulties(section),
+        [section]
     );
 
     const {
@@ -23,68 +26,37 @@ function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
         toggleId: toggleDifficulty,
         resetToAll: resetDifficultiesToAll,
     } = useCategorySelection(playableDifficulties);
-    const defaultRoomState = useMemo(
-        () => ({
-            isGameStarted: false,
-            shuffledStories: [],
-            currentStoryIndex: 0,
-            solutionRevealed: false,
-        }),
+
+    const buildDeckFromCategoryIds = useCallback(
+        (categoryIds) => buildDeckFromContentMap(categoryIds, section?.stories),
+        [section]
+    );
+
+    const getCategoryIds = useCallback(() => selectedDifficulties, [selectedDifficulties]);
+
+    const fingerprintExtra = useCallback(
+        (data) => (data.solutionRevealed ? '1' : '0'),
         []
     );
-    const roomData = useRoomGameState(roomId, defaultRoomState, { mergeDefaults: true });
-    usePiGameSession(roomData.isGameStarted);
 
-    const startGame = useCallback(() => {
-        const allStories = [];
-        selectedDifficulties.forEach((diffId) => {
-            const pool = gameData.darkStories.stories[diffId];
-            if (Array.isArray(pool)) {
-                allStories.push(...pool);
-            }
-        });
-
-        const shuffled = shuffleArray(allStories);
-
-        set(ref(db, `rooms/${roomId}/gameState`), {
-            isGameStarted: true,
-            shuffledStories: shuffled,
-            currentStoryIndex: 0,
-            solutionRevealed: false,
-        });
-    }, [selectedDifficulties, roomId]);
-
-    const forceResetTable = useCallback(() => {
-        set(ref(db, `rooms/${roomId}/gameState`), null);
-        resetDifficultiesToAll();
-    }, [roomId, resetDifficultiesToAll]);
-
-    const currentStory = roomData.shuffledStories?.[roomData.currentStoryIndex];
-
-    const navigateToStory = useCallback(
-        (index) => {
-            if (!roomData.shuffledStories?.length) return;
-            set(ref(db, `rooms/${roomId}/gameState`), {
-                isGameStarted: true,
-                shuffledStories: roomData.shuffledStories,
-                currentStoryIndex: index,
-                solutionRevealed: false,
-            });
-        },
-        [roomData.shuffledStories, roomId]
-    );
-
-    const nextStory = useCallback(() => {
-        if (roomData.currentStoryIndex < roomData.shuffledStories.length - 1) {
-            navigateToStory(roomData.currentStoryIndex + 1);
-        }
-    }, [roomData.currentStoryIndex, roomData.shuffledStories, navigateToStory]);
-
-    const prevStory = useCallback(() => {
-        if (roomData.currentStoryIndex > 0) {
-            navigateToStory(roomData.currentStoryIndex - 1);
-        }
-    }, [roomData.currentStoryIndex, navigateToStory]);
+    const {
+        roomData,
+        deckLength: storyCount,
+        currentQuestion: currentStory,
+        currentIndex,
+        startGame,
+        forceResetTable,
+        prevQuestion: prevStory,
+        isLastQuestion: isLastStory,
+    } = useShuffledQuestionDeck(roomId, {
+        buildDeckFromCategoryIds,
+        getCategoryIds,
+        onResetCategories: resetDifficultiesToAll,
+        indexKey: 'currentStoryIndex',
+        legacyDeckKey: 'shuffledStories',
+        extraStartFields: { solutionRevealed: false },
+        fingerprintExtra,
+    });
 
     const toggleSolutionRevealed = useCallback(() => {
         set(
@@ -93,91 +65,45 @@ function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
         );
     }, [roomData.solutionRevealed, roomId]);
 
+    const navigateToStory = useCallback(
+        (index) => {
+            if (storyCount === 0) return;
+            update(ref(db), {
+                [`rooms/${roomId}/gameState/currentStoryIndex`]: index,
+                [`rooms/${roomId}/gameState/solutionRevealed`]: false,
+            });
+        },
+        [storyCount, roomId]
+    );
+
     const handleEndGame = useCallback(() => {
         forceResetTable();
         onLeave();
     }, [forceResetTable, onLeave]);
 
-    const isLastStory =
-        roomData.shuffledStories &&
-        roomData.currentStoryIndex === roomData.shuffledStories.length - 1;
-
     return (
         <div className="dark-stories">
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="🕯️ Czarne historie">
-                        <ol className="game-rules__list">
-                            <li>
-                                <strong>Host jest narratorem</strong> — zna pełne rozwiązanie każdej
-                                historii (widzi je tylko na swoim ekranie).
-                            </li>
-                            <li>
-                                Narrator czyta na głos <strong>zagadkę</strong> (scenariusz bez
-                                wyjaśnienia). Pozostali gracze odkrywają ją pytaniami.
-                            </li>
-                            <li>
-                                Gracze zadają pytania, na które narrator odpowiada wyłącznie:{' '}
-                                <strong>Tak</strong>, <strong>Nie</strong> lub{' '}
-                                <strong>Nieistotne</strong>.
-                            </li>
-                            <li>
-                                Gdy ktoś uważa, że rozwiązał zagadkę, opowiada teorię. Narrator
-                                potwierdza, czy jest blisko, czy trafił w punkt.
-                            </li>
-                            <li>
-                                Po rozwiązaniu narrator może <strong>odsłonić rozwiązanie</strong> dla
-                                wszystkich, potem przechodzi do następnej historii (odsłonięcie się resetuje).
-                            </li>
-                        </ol>
+                    <GameRules title={t('games.dark-stories.name')}>
+                        <GameRulesList gameId="dark-stories" />
                     </GameRules>
 
-                    {isHost ? (
-                        <>
-                            <p>Wybierz poziom trudności (możesz zaznaczyć kilka):</p>
-                            <div className="games-grid categories-grid">
-                                {playableDifficulties.map((diff) => {
-                                    const isSelected = selectedDifficulties.includes(diff.id);
-                                    return (
-                                        <button
-                                            key={diff.id}
-                                            type="button"
-                                            onClick={() => toggleDifficulty(diff.id)}
-                                            className={
-                                                isSelected
-                                                    ? 'category-btn-selected'
-                                                    : 'category-btn-unselected'
-                                            }
-                                        >
-                                            <span className="game-title">{diff.name}</span>
-                                            <span className="game-desc">{diff.desc}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div className="lobby-start-actions actions-stack">
-                                <button
-                                    type="button"
-                                    onClick={startGame}
-                                    className="btn-accent btn-lobby-start"
-                                    disabled={selectedDifficulties.length === 0}
-                                >
-                                    Rozpocznij grę ({selectedDifficulties.length})
-                                </button>
-                            </div>
-                            <HostShareOptions shareOptions={shareOptions} />
-                        </>
-                    ) : (
-                        <p>
-                            Czekamy aż Host (narrator) wybierze poziom trudności i wystartuje grę…
-                        </p>
-                    )}
+                    <GameCategoryLobby
+                        isHost={isHost}
+                        categories={playableDifficulties}
+                        selectedIds={selectedDifficulties}
+                        onToggle={toggleDifficulty}
+                        onStart={startGame}
+                        selectPrompt={t('gameLobby.selectDifficulties')}
+                        guestWaitMessage={t('gameLobby.waitForHostNarrator')}
+                        shareOptions={shareOptions}
+                    />
                 </div>
             ) : (
                 <div>
                     <p className="ds-progress-text">
-                        Historia {roomData.currentStoryIndex + 1} z{' '}
-                        {roomData.shuffledStories?.length ?? 0}
+                        Historia {currentIndex + 1} z {storyCount}
                     </p>
 
                     <div className="content-panel content-panel--dark">
@@ -222,16 +148,18 @@ function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
                                 <button
                                     type="button"
                                     onClick={prevStory}
-                                    disabled={roomData.currentStoryIndex === 0}
-                                    className={`btn-ds-prev ${
-                                        roomData.currentStoryIndex === 0 ? 'disabled' : ''
-                                    }`}
+                                    disabled={currentIndex === 0}
+                                    className={`btn-ds-prev ${currentIndex === 0 ? 'disabled' : ''}`}
                                 >
                                     Cofnij
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={nextStory}
+                                    onClick={() => {
+                                        if (currentIndex < storyCount - 1) {
+                                            navigateToStory(currentIndex + 1);
+                                        }
+                                    }}
                                     disabled={isLastStory}
                                     className="btn-ds-next"
                                 >

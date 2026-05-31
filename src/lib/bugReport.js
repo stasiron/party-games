@@ -1,6 +1,7 @@
 import { push, ref, runTransaction } from 'firebase/database';
 import { db } from './firebase';
 import { isLowPowerDevice } from './lowPower';
+import { ADMISSION_MODES, JOIN_MODES, normalizeAdmission, normalizeJoinMode } from './roomAccess';
 
 export const BUG_REPORT_CATEGORIES = [
     { id: 'styling', label: 'Kolorystyka / wygląd' },
@@ -19,19 +20,57 @@ const IP_LOOKUP_TIMEOUT_MS = 2500;
 const IP_HASH_CACHE_MS = 10 * 60 * 1000;
 const DEVICE_ID_KEY = 'partyGames.bugReportDevice.v1';
 
+const MAX_PANEL_LENGTH = 160;
+
 let cachedIpHash = '';
 let cachedIpHashAt = 0;
 
+function hasSubtleDigest() {
+    return typeof crypto !== 'undefined' && typeof crypto.subtle?.digest === 'function';
+}
+
+/** 64 zn. hex — fallback gdy brak crypto.subtle (HTTP na imprezie, nie localhost). */
+function fingerprintHex(value) {
+    const bytes = new TextEncoder().encode(String(value));
+    const chunks = [];
+    let seedA = 0x811c9dc5;
+    let seedB = 0x01000193;
+
+    for (let round = 0; round < 4; round++) {
+        for (let i = 0; i < bytes.length; i++) {
+            seedA = Math.imul(seedA ^ bytes[i], 0x01000193) >>> 0;
+            seedB = (Math.imul(31, seedB) + bytes[i]) >>> 0;
+        }
+        chunks.push(seedA.toString(16).padStart(8, '0'), seedB.toString(16).padStart(8, '0'));
+    }
+
+    return chunks.join('').padEnd(64, '0').slice(0, 64);
+}
+
 async function sha256Hex(value) {
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    if (hasSubtleDigest()) {
+        try {
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+            return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+        } catch {
+            // secure context / polityka przeglądarki — fallback poniżej
+        }
+    }
+    return fingerprintHex(value);
+}
+
+function createDeviceId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 async function getDeviceFallbackHash() {
     if (typeof window === 'undefined') return sha256Hex('device:unknown');
     let deviceId = window.localStorage.getItem(DEVICE_ID_KEY);
     if (!deviceId) {
-        deviceId = crypto.randomUUID();
+        deviceId = createDeviceId();
         window.localStorage.setItem(DEVICE_ID_KEY, deviceId);
     }
     return sha256Hex(`device:${deviceId}`);
@@ -176,50 +215,72 @@ export function buildBugReportContext({
         entryRole,
         isHost,
         effectiveIsHost,
-    });
+    }).slice(0, MAX_PANEL_LENGTH);
     const nick = (playerName || accountNickname || '').trim().slice(0, 24) || null;
+    const role = effectiveIsHost || isHost ? 'host' : entryRole === 'guest' ? 'guest' : 'none';
+    const joinMode = roomId ? normalizeJoinMode({ joinMode: currentRoomJoinMode }) : null;
+    const admission = roomId ? normalizeAdmission({ admission: roomAdmission }) : null;
 
     return {
-        v: version || '',
-        roomId: roomId || null,
-        gameId: gameId || null,
-        gameName: gameName || null,
-        theme: themePreset || null,
-        email: authEmail || null,
-        conn: connectionMode || null,
+        v: (version || '').slice(0, 32),
+        roomId: roomId ? String(roomId).slice(0, 16) : null,
+        gameId: gameId ? String(gameId).slice(0, 64) : null,
+        gameName: gameName ? String(gameName).slice(0, 64) : null,
+        theme: themePreset ? String(themePreset).slice(0, 32) : null,
+        email: authEmail ? String(authEmail).slice(0, 128) : null,
+        conn: connectionMode ? String(connectionMode).slice(0, 16) : null,
         path:
             typeof window !== 'undefined'
-                ? `${window.location.pathname}${window.location.search}`
+                ? `${window.location.pathname}${window.location.search}`.slice(0, 256)
                 : null,
         ua: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 256) : null,
         panel,
-        screen,
-        role: effectiveIsHost || isHost ? 'host' : entryRole === 'guest' ? 'guest' : entryRole || 'none',
+        screen: String(screen).slice(0, 32),
+        role,
         inGame: Boolean(isJoined && roomId),
-        playerCount: playerStats?.active ?? 0,
-        playersTotal: playerStats?.total ?? 0,
-        playersOnline: playerStats?.online ?? 0,
-        pendingJoin: playerStats?.pendingJoin ?? 0,
-        joinMode: roomId ? currentRoomJoinMode || null : null,
-        admission: roomId ? roomAdmission || null : null,
+        playerCount: Math.min(64, Math.max(0, playerStats?.active ?? 0)),
+        playersTotal: Math.min(64, Math.max(0, playerStats?.total ?? 0)),
+        playersOnline: Math.min(64, Math.max(0, playerStats?.online ?? 0)),
+        pendingJoin: Math.min(64, Math.max(0, playerStats?.pendingJoin ?? 0)),
+        joinMode: joinMode && JOIN_MODES.includes(joinMode) ? joinMode : null,
+        admission: admission && ADMISSION_MODES.includes(admission) ? admission : null,
         nick,
-        playerId: myPlayerId || null,
+        playerId: myPlayerId ? String(myPlayerId).slice(0, 64) : null,
         lowPower: isLowPowerDevice(),
     };
+}
+
+function compactPayload(payload) {
+    return Object.fromEntries(
+        Object.entries(payload).filter(([, value]) => value !== null && value !== undefined)
+    );
+}
+
+function mapFirebaseError(error) {
+    const code = error?.code || error?.message || '';
+    if (code === 'PERMISSION_DENIED' || String(code).includes('PERMISSION_DENIED')) {
+        return new Error('PERMISSION_DENIED');
+    }
+    return error instanceof Error ? error : new Error('SUBMIT_FAILED');
 }
 
 async function acquireBugReportLease(ipHash) {
     const leaseRef = ref(db, `${BUG_REPORT_LEASES_ROOT}/${ipHash}`);
     const now = Date.now();
-    const result = await runTransaction(leaseRef, (current) => {
-        if (current?.expiresAt > now) {
-            return;
-        }
-        return {
-            expiresAt: now + LEASE_MS,
-            updatedAt: now,
-        };
-    });
+    let result;
+    try {
+        result = await runTransaction(leaseRef, (current) => {
+            if (current?.expiresAt > now) {
+                return;
+            }
+            return {
+                expiresAt: now + LEASE_MS,
+                updatedAt: now,
+            };
+        });
+    } catch (error) {
+        throw mapFirebaseError(error);
+    }
 
     if (!result.committed) {
         throw new Error('RATE_LIMIT');
@@ -235,16 +296,20 @@ export async function submitBugReport({ category, message, context }) {
     await acquireBugReportLease(ipHash);
 
     const trimmedMessage = (message || '').trim().slice(0, MAX_MESSAGE_LENGTH);
-    const payload = {
+    const payload = compactPayload({
         category,
         createdAt: Date.now(),
         ipHash,
         ipSource,
         ...context,
-    };
+    });
     if (trimmedMessage) {
         payload.message = trimmedMessage;
     }
 
-    await push(ref(db, BUG_REPORTS_ROOT), payload);
+    try {
+        await push(ref(db, BUG_REPORTS_ROOT), payload);
+    } catch (error) {
+        throw mapFirebaseError(error);
+    }
 }

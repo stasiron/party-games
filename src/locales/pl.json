@@ -1,0 +1,560 @@
+{
+  "common": {
+    "back": "Wróć",
+    "close": "Zamknij",
+    "loading": "Ładowanie…",
+    "loadingGame": "Ładowanie gry…",
+    "loadingRoom": "Ładowanie pokoju…",
+    "soon": "Wkrótce",
+    "player": "Gracz",
+    "continue": "Dalej",
+    "cancel": "Anuluj",
+    "yes": "Tak",
+    "no": "Nie",
+    "remove": "Usuń",
+    "you": "Ty",
+    "version": "Wersja {{version}}"
+  },
+  "app": {
+    "title": "Party Games",
+    "logoHint": "Przytrzymaj 0,6 s (telefon) lub kliknij dwukrotnie — konsola admina",
+    "partyBannerOnGateway": "Jesteś na {{gateway}} — dobrze. Goście: Wi‑Fi {{wifi}}, ten sam adres w przeglądarce.",
+    "partyBannerOffGateway": "Impreza: Wi‑Fi {{wifi}} i {{link}} u wszystkich (nie mieszaj z IP w LAN)."
+  },
+  "triggers": {
+    "account": "Otwórz centrum konta",
+    "settings": "Otwórz ustawienia",
+    "bugReport": "Zgłoś błąd"
+  },
+  "language": {
+    "openAria": "Zmień język interfejsu",
+    "panelTitle": "Język",
+    "hint": "Dotyczy menu i przycisków. Pytania i hasła w grach na razie pozostają po polsku."
+  },
+  "entryRole": {
+    "prompt": "Jak chcesz wejść do platformy?",
+    "host": "Jestem Hostem",
+    "guest": "Jestem Gościem"
+  },
+  "lobby": {
+    "host": {
+      "hint": "Wybierz tryb gry. Utworzymy nowy pokój.",
+      "accessLabel": "Tryb dostępu do pokoju",
+      "passwordLabel": "Hasło pokoju",
+      "passwordPlaceholder": "{{min}}–{{max}} znaków",
+      "comingSoonDesc": "Gra w trakcie tworzenia — niedostępna."
+    },
+    "guest": {
+      "hint": "Wybierz aktywny pokój albo wpisz kod/link od Hosta.",
+      "roomCodePlaceholder": "Kod pokoju (roomId)",
+      "joinByCode": "Dołącz po kodzie",
+      "hideFilters": "▲ Ukryj filtry",
+      "showFilters": "▼ Filtry listy pokoi",
+      "filtersDisabled": "wyłączone",
+      "filtersAria": "Filtry listy pokoi",
+      "filtersEnabled": "Filtry włączone",
+      "filterGame": "Gra",
+      "filterAllGames": "Wszystkie",
+      "filterAllGamesDesc": "Każda gra",
+      "filterMinOnline": "Min. graczy online",
+      "filterHideClosed": "Ukryj zamknięte pokoje",
+      "refreshing": "Odświeżanie…",
+      "refresh": "🔄 Odśwież listę pokoi",
+      "roomWaiting": "{{count}} czeka",
+      "roomOfHost": "Pokój gracza „{{name}}\"",
+      "roomNoHost": "Pokój bez hosta",
+      "playersOnline": "Gracze online: {{count}}",
+      "inviteOnlyHint": "Wejście tylko przez link lub kod od hosta",
+      "adminDeleteRoom": "🧹 Usuń pokój",
+      "adminDeleteTitle": "Admin: usuń pokój {{roomId}}",
+      "loadingRooms": "Ładowanie listy pokoi…",
+      "noRooms": "Brak aktywnych pokoi. Poproś Hosta o link lub kod QR."
+    }
+  },
+  "joinModes": {
+    "public": {
+      "label": "Publiczny",
+      "desc": "Gość z listy wpisuje nick i wchodzi."
+    },
+    "password": {
+      "label": "Z hasłem",
+      "desc": "Z listy wymagane hasło. Link i QR omijają hasło."
+    },
+    "invite": {
+      "label": "Tylko zaproszenie",
+      "desc": "Z listy brak wejścia. Kod domyślnie ukryty — host może go włączyć na liście."
+    }
+  },
+  "admission": {
+    "open": {
+      "label": "Otwarty",
+      "desc": "Nowi gracze wchodzą od razu (wg trybu pokoju)."
+    },
+    "approval": {
+      "label": "Za pozwoleniem",
+      "desc": "Prośby trafiają do kolejki — host decyduje."
+    },
+    "closed": {
+      "label": "Zamknięty",
+      "desc": "Nikt nowy nie dołączy (wracający gracze — tak)."
+    },
+    "clickToChange": "(kliknij, aby zmienić)",
+    "waitingCount": "({{count}} czeka)"
+  },
+  "room": {
+    "title": "Pokój: {{name}}",
+    "playing": "Grasz w: {{name}}",
+    "waitingApproval": "⏳ Czekasz na akceptację hosta…",
+    "waitingApprovalHint": "Nie zamykaj tej strony. Gdy host Cię wpuści, gra wczyta się automatycznie.",
+    "cancelRequest": "Anuluj prośbę",
+    "passwordRequired": "Ten pokój wymaga hasła (wejście z listy):",
+    "passwordPlaceholder": "Hasło ({{min}}–{{max}} znaków)",
+    "enterName": "Wpisz swoje imię, aby wejść:",
+    "namePlaceholder": "Twoje imię...",
+    "join": "Wejdź do pokoju",
+    "backToGames": "Wróć do wyboru gier",
+    "hostMode": "Tryb: {{joinMode}} · Brama: {{admission}}",
+    "inviteSkipQueue": "Wejście przez link lub kod — hasło i kolejka pominięte.",
+    "playersAtTable": "Gracze przy stole:",
+    "emptyRoom": "Pusty pokój...",
+    "kickTitle": "Wyrzuć gracza {{name}}",
+    "adminKickTitle": "Admin: wyrzuć gracza"
+  },
+  "joinRequest": {
+    "title": "Oczekują na wejście",
+    "lead": "Nowi gracze czekają na Twoją decyzję. Wpuść lub odrzuć każdą prośbę.",
+    "approveAll": "Wpuść wszystkich",
+    "waiting": "Czeka {{time}}",
+    "approve": "Wpuść",
+    "reject": "Odrzuć"
+  },
+  "share": {
+    "showOptions": "Opcje udostępniania",
+    "hideOptions": "Ukryj opcje udostępniania",
+    "roomCode": "Kod pokoju",
+    "copyCode": "Kopiuj kod",
+    "copiedCode": "Skopiowano!",
+    "codeVisibleOnList": "👁 Kod widoczny na liście gości",
+    "codeHiddenOnList": "👁 Kod ukryty na liście gości",
+    "linkAndQr": "Link i kod QR",
+    "qrHint": "Zeskanuj telefonem — otworzy się ta sama gra i pokój. Gracz wpisze tylko imię i dołączy.",
+    "copyLink": "Kopiuj link do pokoju",
+    "copiedLink": "Skopiowano link!",
+    "copyLinkFailed": "Nie udało się skopiować linku. Spróbuj ręcznie z paska adresu (parametr room=...).",
+    "copyCodeFailed": "Nie udało się skopiować kodu. Kod pokoju: {{roomId}}"
+  },
+  "gameRules": {
+    "toggleShow": "▼ Zasady gry",
+    "toggleHide": "▲ Ukryj zasady",
+    "suffix": " — {{title}}"
+  },
+  "gameLobby": {
+    "selectCategories": "Wybierz kategorie (możesz zaznaczyć kilka):",
+    "selectDifficulties": "Wybierz trudność zagadek (możesz zaznaczyć kilka):",
+    "startGame": "Rozpocznij grę",
+    "waitForHost": "Czekamy aż Host wybierze kategorie i wystartuje grę...",
+    "waitForHostDeck": "Czekamy aż Host wybierze talię i wystartuje stół...",
+    "waitForHostNarrator": "Czekamy aż Host (narrator) wybierze poziom trudności i wystartuje grę…",
+    "waitForHostImpostor": "Czekamy aż Host wybierze kategorie i wylosuje role...",
+    "categoriesShow": "▼ Kategorie ({{selected}}/{{total}})",
+    "categoriesHide": "▲ Ukryj kategorie",
+    "categoriesLead": "Domyślnie zaznaczone są wszystkie — odznacz te, których nie chcesz w rundzie."
+  },
+  "gameSetup": {
+    "impostor": {
+      "roundSettingsShow": "▼ Ustawienia rundy (losowanie, Impostorzy)",
+      "roundSettingsHide": "▲ Ukryj ustawienia rundy",
+      "fairnessTitle": "Sprawiedliwe losowanie",
+      "fairnessOn": "Większa szansa dla graczy, którzy dawno nie byli Impostorem — bez powtórek z poprzedniej rundy.",
+      "fairnessOff": "Czysta losowość — każdy ma równe szanse co rundę.",
+      "impostorCountTitle": "Liczba Impostorów",
+      "randomImpostorCount": "Losowa liczba Impostorów co rundę",
+      "playersHintFixed": "Graczy przy stole: {{count}} (max {{max}} Impostorów)",
+      "playersHintRandom": "Graczy przy stole: {{count}} (losowanie 1–{{max}} Impostorów, max {{hardMax}})",
+      "startButton": "Wylosuj z {{count}} kategorii i rozdaj role",
+      "needCategory": "Zaznacz co najmniej jedną kategorię.",
+      "needPlayers": "Potrzebujesz co najmniej 2 graczy przy stole.",
+      "startFailed": "Nie udało się rozpocząć rundy. Sprawdź kategorie i graczy przy stole.",
+      "startError": "Błąd startu rundy — sprawdź połączenie z bazą.",
+      "startErrorPermission": "Baza odrzuciła zapis (reguły Firebase). Wdróż database.rules.json: firebase deploy --only database"
+    },
+    "mafia": {
+      "gmPanel": "Panel Mistrza Gry",
+      "activePlayers": "Aktywni gracze (bez Ciebie):",
+      "configureRoles": "Skonfiguruj role:",
+      "rolesAssigned": "Przypisano: {{assigned}} / {{total}}",
+      "startGame": "Rozdaj role i rozpocznij",
+      "waitingTitle": "Mafia (Mistrz Gry: Oczekuje)",
+      "waitingText": "Zaczekaj, aż Mistrz Gry dobierze talie ról i rozpocznie grę...",
+      "noPlayers": "Brak graczy do gry!",
+      "rolesMismatch": "Suma ról ({{assigned}}) musi równać się liczbie graczy ({{total}})!"
+    }
+  },
+  "comingSoon": {
+    "default": "Ta gra jest w trakcie tworzenia. Wróć wkrótce!",
+    "named": "🚧 {{name}} — w trakcie tworzenia. Wybierz inną grę z listy.",
+    "inGameLead": "Ta gra jest w trakcie tworzenia i na razie nie jest dostępna w rozgrywce.",
+    "inGameTitle": "Wkrótce dostępne",
+    "inGameText": "Pracujemy nad pełną wersją. Tymczasem wybierz inną grę z menu głównego.",
+    "backToMenu": "Wróć do menu",
+    "leaveRoom": "Wyjdź z pokoju"
+  },
+  "settings": {
+    "title": "Ustawienia",
+    "closeAria": "Zamknij ustawienia",
+    "themeLabel": "Gradient tła",
+    "sound": "Dźwięk aplikacji",
+    "vibration": "Wibracje",
+    "connectionFooter": "Stopka statusu połączenia",
+    "continuousPing": "Stały pomiar opóźnienia bazy",
+    "continuousPingHint": "Domyślnie wyłączone — oszczędza baterię. W stopce możesz też sprawdzić połączenie jednorazowo.",
+    "powerSave": "Tryb oszczędny sieci",
+    "powerSaveHint": "Rzadszy heartbeat, wyłączony auto-ping, dłuższe debounce synchronizacji.",
+    "adminConsole": "Konsola administratora",
+    "adminConsoleHint": "Konsola deweloperska. HELP, RESET, PURGE… Logo „Party Games” ~0,6 s.",
+    "hintLowPower": "Malinka: tryb oszczędny. Na iPhonie wyłącz prywatny adres Wi‑Fi dla PartBox-Gry.",
+    "hintFull": "Internet: pełne animacje i efekty."
+  },
+  "themes": {
+    "default": "🟣 Fioletowy (domyślny)",
+    "sunrise": "🌅 Żółto-zielono-niebieski",
+    "sunset": "🌇 Różowo-pomarańczowy",
+    "forest": "🌲 Zielono-granatowy",
+    "daltonism": "♿ Daltonizm (niebieski + pomarańcz)",
+    "cyber": "⬛ Czarny + niebieskie obramowania"
+  },
+  "account": {
+    "title": "Centrum konta",
+    "closeAria": "Zamknij centrum konta",
+    "loggedIn": "Zalogowany: {{email}}",
+    "notLoggedIn": "Brak aktywnego konta",
+    "googleAuth": "Utwórz / Zaloguj przez Google",
+    "nicknameLabel": "Stały nick",
+    "nicknamePlaceholder": "Twój stały nick",
+    "saveNickname": "Zapisz nick",
+    "nicknameSaved": "Nick zapisany.",
+    "emailLabel": "Email (link logowania)",
+    "sendLink": "Wyślij link",
+    "completeLink": "Dokończ link",
+    "joinLastRoom": "Dołącz do gry ({{roomId}})",
+    "connectGoogle": "Połącz konto z Google",
+    "signOut": "Wyloguj",
+    "savedRemote": "Zapisano stały nick.",
+    "savedLocal": "Nick zapisany lokalnie (zaloguj się, aby zsynchronizować).",
+    "saveFailed": "Nie udało się zapisać nicku."
+  },
+  "bugReport": {
+    "title": "Zgłoś błąd",
+    "closeAria": "Zamknij zgłoszenie błędu",
+    "category": "Kategoria",
+    "messageLabel": "Co poszło nie tak?",
+    "optional": "(opcjonalnie)",
+    "messagePlaceholder": "Opisz problem — im więcej szczegółów, tym łatwiej go naprawić.",
+    "submit": "Wyślij zgłoszenie",
+    "submitting": "Wysyłanie…",
+    "footerHint": "Do zgłoszenia dołączamy panel, liczbę graczy, wersję i kontekst gry (bez haseł). Limit: 1× / 5 min na IP.",
+    "pickCategory": "Wybierz kategorię błędu.",
+    "thanks": "Dzięki! Zgłoszenie wysłane.",
+    "rateLimit": "Możesz wysłać kolejne zgłoszenie za 5 minut (limit na IP).",
+    "permissionDenied": "Serwer odrzucił zgłoszenie (brak uprawnień). Jeśli to produkcja — wgraj reguły bazy: firebase deploy --only database.",
+    "failed": "Nie udało się wysłać. Spróbuj ponownie za chwilę.",
+    "categories": {
+      "styling": "Kolorystyka / wygląd",
+      "ui-buttons": "Przyciski / interfejs",
+      "game-logic": "Logika gry",
+      "missing-feature": "Brak funkcji",
+      "connection": "Połączenie / sieć",
+      "other": "Inne"
+    }
+  },
+  "connection": {
+    "noDb": "brak połączenia z bazą",
+    "thinking": "serwer myśli…",
+    "notMeasured": "nie mierzono — użyj przycisku poniżej",
+    "fast": "~{{ms}} ms — szybko",
+    "ok": "~{{ms}} ms — OK",
+    "slow": "~{{ms}} ms — wolniej",
+    "verySlow": "~{{ms}} ms — duże opóźnienie",
+    "backendPi": "Raspberry Pi · PartBox Sync ({{host}}:{{port}})",
+    "backendCloud": "Google Cloud · baza w internecie",
+    "perfSave": "Tryb oszczędny: mniej odczytów sieci, animacje wyłączone",
+    "perfPi": "Tryb Pi: animacje i efekty wyłączone",
+    "perfFull": "Tryb pełny: animacje i efekty włączone",
+    "latencyLabel": "Opóźnienie bazy:",
+    "checking": "Sprawdzanie…",
+    "measure": "Sprawdź połączenie",
+    "autoHint": " · auto co kilka sekund",
+    "versionLine": "Party Games v{{version}}"
+  },
+  "offline": {
+    "title": "Brak sieci.",
+    "body": "Gry w pokoju wymagają połączenia z bazą — interfejs może działać z pamięci podręcznej.",
+    "swActive": " Service worker aktywny.",
+    "lastRoom": " Ostatni pokój:"
+  },
+  "pwa": {
+    "iosTitle": "Zainstaluj na iPhone / iPad",
+    "iosText": "W Safari: udostępnij Udostępnij → Dodaj do ekranu początkowego. Szybciej wrócisz do lobby bez wpisywania adresu.",
+    "title": "Zainstaluj Party Games",
+    "text": "Dodaj aplikację na ekran główny — szybszy powrót do lobby i ostatniego pokoju.",
+    "install": "Zainstaluj",
+    "dismiss": "Nie teraz"
+  },
+  "admin": {
+    "placeholder": "Konsola:",
+    "documentTitlePending": "({{count}}) Prośby o wejście — {{title}}",
+    "rateLimitDestructive": "⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą destrukcyjną.",
+    "rateLimitMutation": "⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą admina.",
+    "clearNeedsRoom": "❌ CLEAR działa wewnątrz pokoju.",
+    "clearRoomNotFound": "❌ Nie znaleziono pokoju do czyszczenia.",
+    "clearDone": "🧹 Konsola: Wyczyszczono pokój {{roomId}} (bez usuwania).",
+    "confirmReset": "⚠️ RESET usunie wszystkie pokoje i graczy. Kontynuować?",
+    "resetDone": "🧹 Konsola: RESET zakończony. Wszystko wyczyszczone.",
+    "confirmPurge": "⚠️ PURGE rozłączy wszystkich graczy i usunie wszystkie pokoje. Kontynuować?",
+    "purgeDone": "🧹 Konsola: PURGE zakończony. Wszystkie pokoje usunięte, gracze rozłączeni.",
+    "confirmPurgePlayers": "⚠️ PURGE PLAYERS rozłączy wszystkich graczy, ale zostawi pokoje. Kontynuować?",
+    "purgePlayersDone": "🧹 Konsola: PURGE PLAYERS zakończony. Wszyscy gracze rozłączeni, pokoje zostawione.",
+    "confirmPurgeRooms": "⚠️ PURGE ROOMS usunie wszystkie pokoje. Kontynuować?",
+    "purgeRoomsDone": "🧹 Konsola: PURGE ROOMS zakończony. Wszystkie pokoje usunięte.",
+    "adminModeOn": "🔧 Konsola: Tryb ADMIN włączony.",
+    "adminModeOff": "🔧 Konsola: Tryb ADMIN wyłączony.",
+    "revealNeedsRoom": "❌ REVEAL działa tylko wewnątrz pokoju.",
+    "revealWrongGame": "❌ REVEAL działa tylko w grze Impostor lub Mafia.",
+    "revealDone": "👁️ Konsola: Ujawniono role graczy.",
+    "helpText": "Komendy: RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, REVEAL, ADMIN KICK <name>, HOST / HOST ME / HOST <name>.",
+    "adminNeedsRoom": "❌ Komenda ADMIN wymaga wybranego pokoju.",
+    "kickNameRequired": "❌ Podaj nazwę gracza do wyrzucenia: ADMIN KICK <name>",
+    "playerNotFoundInRoom": "❌ Nie znaleziono gracza o podanej nazwie w tym pokoju.",
+    "kickedPlayer": "🧹 Konsola: Wyrzucono gracza {{name}} z pokoju.",
+    "unknownAdminSubcommand": "❌ Nieznana podkomenda ADMIN. Użyj: ADMIN KICK <name>",
+    "hostNeedsRoom": "❌ Komenda HOST wymaga wybranego pokoju.",
+    "hostMustJoin": "❌ Musisz być graczem w pokoju, aby stać się Hosta. Dołącz najpierw.",
+    "hostPlayerMissing": "❌ Twój gracz nie istnieje w tym pokoju.",
+    "hostTransferredSelf": "🔁 Konsola: Przekazano rolę Hosta do {{name}}.",
+    "hostUsage": "❌ Użycie: HOST <name> lub HOST ME",
+    "hostMeNotInRoom": "❌ Nie jesteś graczem w tym pokoju. Wpisz nazwę gracza lub dołącz zanim użyjesz HOST ME.",
+    "hostTransferred": "🔁 Konsola: Przekazano rolę Hosta do {{name}}.",
+    "unknownCommand": "❌ Nieznana komenda administratora.",
+    "commandError": "❌ Błąd podczas wykonywania komendy. Sprawdź konsolę.",
+    "rateLimitAdminKick": "⏱️ Za szybkie kolejne wyrzucenie przez admina.",
+    "playerNotFound": "❌ Nie znaleziono gracza.",
+    "adminKicked": "🧹 Konsola: Admin wyrzucił {{name}} z pokoju {{roomId}}.",
+    "kickError": "❌ Błąd przy wyrzucaniu gracza.",
+    "roomDeleted": "🧹 Konsola: Usunięto pokój {{roomId}}.",
+    "roomDeleteError": "❌ Błąd przy usuwaniu pokoju."
+  },
+  "notifications": {
+    "rateLimitKick": "⏱️ Za szybkie kolejne wyrzucenie gracza.",
+    "onlyHostCanKick": "❌ Tylko aktywny Host może wyrzucać graczy. Odśwież stronę lub użyj HOST ME w konsoli.",
+    "cannotKickHost": "❌ Nie możesz wyrzucić Hosta.",
+    "hostKicked": "🧹 Host: Wyrzucono {{name}} z pokoju.",
+    "kickErrorConnection": "❌ Błąd przy wyrzucaniu gracza. Sprawdź połączenie z bazą (na dole ekranu).",
+    "rateLimitCreateRoom": "⏱️ Tworzysz pokoje zbyt szybko. Odczekaj chwilę.",
+    "roomCodeFailed": "❌ Nie udało się utworzyć kodu pokoju. Spróbuj ponownie.",
+    "roomPasswordInvalid": "❌ Hasło musi mieć {{min}}–{{max}} znaków.",
+    "roomCreatePermissionDenied": "❌ Baza odrzuciła tę grę (reguły Firebase). Wdróż database.rules.json: firebase deploy --only database",
+    "roomCreateFailed": "❌ Nie udało się utworzyć pokoju. Sprawdź połączenie z bazą.",
+    "roomCloseFailed": "❌ Nie udało się zamknąć pokoju. Spróbuj ponownie."
+  },
+  "guestPlayers": {
+    "toggleShow": "▼ Goście bez telefonu (współdzielenie)",
+    "toggleHide": "▲ Ukryj gości bez telefonu",
+    "hint": "Dodaj osoby bez aplikacji. Nowy gość jest od razu przypisany do telefonu — możesz to zmienić poniżej.",
+    "namePlaceholder": "Imię gościa…",
+    "nameAria": "Imię gościa",
+    "addButton": "Dodaj gościa",
+    "errorEmptyName": "Podaj imię gościa.",
+    "errorNeedPhonePlayer": "Najpierw dołącz do pokoju co najmniej jeden gracz z telefonem.",
+    "errorNameTaken": "Ta nazwa jest już zajęta przy stole.",
+    "errorAddFailed": "Nie udało się dodać gościa.",
+    "removeTitle": "Usuń gościa {{name}}",
+    "sharesPhoneWith": "Współdzieli telefon z",
+    "phoneForAria": "Telefon dla {{name}}",
+    "youSuffix": " · Ty",
+    "summaryYou": " (Ty)"
+  },
+  "sharedPhone": {
+    "allDone": "Wszyscy przy tym telefonie znają swoje role.",
+    "passToNextPerson": "Przekaż następnej osobie",
+    "stepOwner": "Krok 1 — Twoja rola (właściciel telefonu)",
+    "peekHoldOwner": "Kliknij i przytrzymaj, aby zobaczyć swoją rolę",
+    "confirmPassToGuest": "Potwierdzam — przekaż telefon gościowi",
+    "confirmHideScreen": "Potwierdzam — ukryj ekran",
+    "unlockHint": "Przytrzymaj panel powyżej, aby odblokować przycisk.",
+    "secretWarning": "Ukryj ekran przed innymi!",
+    "stepGuest": "Krok 2 — rola gościa",
+    "guestRoleTitle": "Rola gościa",
+    "peekHoldGuest": "{{name}}: przytrzymaj, aby zobaczyć rolę",
+    "nextGuest": "Następny gość przy tym telefonie",
+    "doneHideScreen": "Gotowe — ukryj ekran"
+  },
+  "errors": {
+    "unknownGame": "❌ Nieznana gra: {{game}}",
+    "roomNotFound": "❌ Pokój nie istnieje albo został zamknięty.",
+    "roomLoadFailed": "❌ Nie udało się wczytać pokoju. Spróbuj ponownie.",
+    "roomClosed": "❌ Ten pokój nie istnieje lub został zamknięty.",
+    "roomInviteOnly": "🔗 Ten pokój wymaga linku, kodu QR lub kodu pokoju od hosta.",
+    "wrongPassword": "Nieprawidłowe hasło. Spróbuj ponownie.",
+    "joinTooFast": "⏱️ Za szybkie ponowne dołączenie. Odczekaj chwilę.",
+    "emptyName": "Podaj imię, aby wejść do pokoju.",
+    "emptyPassword": "Wpisz poprawne hasło pokoju.",
+    "roomLocked": "🔒 Pokój jest zamknięty — Host nie wpuszcza nowych graczy.",
+    "kickedName": "Ta nazwa należy do wyrzuconego gracza. Wybierz inną.",
+    "guestNameTaken": "Ta nazwa należy do gościa bez telefonu. Host może zmienić nazwę w panelu gości.",
+    "nameTaken": "Ta nazwa jest już zajęta przez aktywnego gracza. Wybierz inną lub poczekaj, aż gracz się rozłączy (💤).",
+    "joinRejected": "Host odrzucił prośbę o dołączenie.",
+    "joinFailed": "Nie udało się dołączyć. Sprawdź połączenie z bazą (na dole ekranu).",
+    "joinSaveFailed": "Nie udało się zapisać w pokoju. Spróbuj ponownie.",
+    "joinConnecting": "Łączenie z pokojem...",
+    "joinFetching": "Pobieranie stanu pokoju...",
+    "joinSaving": "Zapisywanie gracza...",
+    "joinVerifying": "Weryfikacja wejścia...",
+    "joinRequestSent": "Wysłano prośbę do hosta. Czekaj na akceptację.",
+    "joinErrorRetry": "Błąd wejścia — spróbuj ponownie.",
+    "joinErrorConnection": "Błąd wejścia — sprawdź połączenie.",
+    "approvedPlayer": "✅ Wpuszczono {{name}} do pokoju."
+  },
+  "games": {
+    "never-have-i-ever": {
+      "name": "🙅 Nigdy w życiu",
+      "description": "Klasyczna gra w odkrywanie sekretów.",
+      "rules": [
+        "Host wybiera kategorie i czyta na głos kolejne stwierdzenie „Nigdy w życiu nie…”.",
+        "Gracze, którzy to zrobili, podnoszą palec (lub piją łyk — ustalcie zasady na stole).",
+        "Można krótko skomentować historię, potem Host przechodzi do następnego pytania.",
+        "Bez osądzania — chodzi o zabawę i poznanie się nawzajem."
+      ]
+    },
+    "truth-or-dare": {
+      "name": "🎭 Prawda czy wyzwanie",
+      "description": "Odpowiedz szczerze lub wykonaj zadanie.",
+      "rules": [
+        "Host wybiera kategorie i startuje grę. Aplikacja losuje gracza na kolejkę.",
+        "Wybrany gracz decyduje: Prawda lub Wyzwanie i wykonuje zadanie.",
+        "Host prowadzi stół — po wykonaniu zadania przechodzicie do następnej osoby.",
+        "Host może włączyć tryb bezpieczny (podwójne kliknięcie nagłówka „Kolej gracza”) — łagodniejsze karty."
+      ]
+    },
+    "impostor": {
+      "name": "🕵️ Impostor",
+      "description": "Znajdź oszusta wśród graczy.",
+      "rules": [
+        "Host losuje słowo i Impostorów. Wszyscy podglądają swoją rolę na telefonie.",
+        "Gracze znają hasło — bez kategorii. Impostor widzi tylko kategorię, z której pochodzi słowo.",
+        "Losowany jest gracz, który zaczyna skojarzenia; kolejność dalej idzie jak siedzicie.",
+        "Po rundzie dyskusji głosujecie, kto jest Impostorem. Trafiona osoba przegrywa rundę."
+      ]
+    },
+    "mafia": {
+      "name": "🌃 Mafia",
+      "description": "Miasto zasypia, budzi się mafia. Gra z Mistrzem Gry.",
+      "rules": [
+        "Mistrz Gry (Host) dobiera role tak, by suma ról = liczba graczy przy stole.",
+        "Po rozdaniu każdy podgląda tajną rolę na telefonie. Mafia zna swoich wspólników.",
+        "Fazy nocy i dnia prowadzicie głosowo — aplikacja służy Mistrzowi do oznaczania żywych i martwych.",
+        "Miasto wygrywa, gdy wyeliminuje Mafię. Mafia wygrywa, gdy przejmie miasto."
+      ]
+    },
+    "dark-stories": {
+      "name": "🕯️ Czarne historie",
+      "description": "Zagadki na Tak/Nie — narrator zna mroczne rozwiązanie.",
+      "rules": [
+        "Host jest narratorem — zna pełne rozwiązanie każdej historii (widzi je tylko na swoim ekranie).",
+        "Narrator czyta na głos zagadkę (scenariusz bez wyjaśnienia). Pozostali gracze odkrywają ją pytaniami.",
+        "Gracze zadają pytania, na które narrator odpowiada wyłącznie: Tak, Nie lub Nieistotne.",
+        "Gdy ktoś uważa, że rozwiązał zagadkę, opowiada teorię. Narrator potwierdza, czy jest blisko, czy trafił w punkt.",
+        "Po rozwiązaniu narrator może odsłonić rozwiązanie dla wszystkich, potem przechodzi do następnej historii (odsłonięcie się resetuje)."
+      ]
+    },
+    "who-would-rather": {
+      "name": "🤔 Co wolisz?",
+      "description": "Losowany gracz wybiera między dwoma opcjami A i B.",
+      "rules": [
+        "Host wybiera kategorie i startuje grę. Aplikacja losuje gracza i pokazuje dylemat.",
+        "Wybrany gracz mówi, czy wybiera A czy B — reszta słucha i komentuje.",
+        "Host po odpowiedzi przechodzi do następnej osoby i kolejnego dylematu.",
+        "Bez oceniania — chodzi o zabawę i poznanie grupy."
+      ]
+    },
+    "kto-najpredzej": {
+      "name": "👆 Kto najprędzej?",
+      "description": "Wskaż palcem, kto najbardziej pasuje do pytania.",
+      "rules": [
+        "Host wybiera kategorie i czyta na głos pytanie z ekranu.",
+        "Wszyscy jednocześnie wskazują palcem osobę, która pasuje najbardziej (na głos, nie w aplikacji).",
+        "Osoba z największą liczbą wskazań może krótko się wytłumaczyć — potem następne pytanie.",
+        "Bez obwiniania — to zabawa, nie werdykt."
+      ]
+    },
+    "secret-hitler": {
+      "name": "🎩 Secret Hitler",
+      "description": "Polityczna gra dedukcyjna — faszyści vs liberałowie."
+    },
+    "one-night-werewolf": {
+      "name": "🐺 One Night Werewolf",
+      "description": "Jedna noc — wilkołaki, wieśniacy i role specjalne."
+    },
+    "decrypto": {
+      "name": "🔐 Decrypto",
+      "description": "Dwie drużyny — szyfrujecie hasła, przeciwnicy próbują je złamać."
+    },
+    "fake-artist": {
+      "name": "🎨 Fake Artist",
+      "description": "Wszyscy rysują — jeden nie wie, co jest na karcie."
+    },
+    "just-one": {
+      "name": "💡 Just One",
+      "description": "Wspólne odgadywanie hasła — ale każde słowo może być tylko raz."
+    },
+    "miners": {
+      "name": "⛏️ Miners",
+      "description": "Kopcie złoto w kopalni — uważajcie na zawalenia i zdradę."
+    },
+    "say-anything": {
+      "name": "💬 Say Anything",
+      "description": "Pytanie na stole — obstawiacie, co odpowie wybrany gracz."
+    },
+    "telepathy": {
+      "name": "🧠 Telepathy",
+      "description": "Drużyny synchronizują wybory na siatce — bez zbędnych słów."
+    },
+    "bleff": {
+      "name": "🃏 Bleff",
+      "description": "Blefujcie definicje — głosujcie, co brzmi najbardziej wiarygodnie."
+    },
+    "dutch": {
+      "name": "🎴 Dutch",
+      "description": "Szybka gra karciana — pozbywajcie się kart w odpowiednim momencie."
+    },
+    "jungle-speed": {
+      "name": "🌴 Jungle Speed",
+      "description": "Refleks i symbole — rzućcie rękę na stos, gdy pasuje."
+    }
+  },
+  "gameUi": {
+    "questionProgress": "Pytanie {{current}} z {{total}}",
+    "prev": "Poprzednie",
+    "next": "Następne",
+    "endGame": "Zakończ grę",
+    "leaveRoom": "Wyjdź z pokoju",
+    "resetTable": "Zresetuj stół",
+    "undo": "Cofnij",
+    "closeRoom": "Zamknij pokój",
+    "truth": "Prawda",
+    "dare": "Wyzwanie",
+    "safeMode": "Tryb bezpieczny (łagodniejsze treści)",
+    "emptyPool": "Brak pytań w wybranych kategoriach. Zmień filtry i spróbuj ponownie.",
+    "emptyPoolSafe": "Brak pytań w trybie bezpiecznym dla wybranych kategorii. Wyłącz tryb bezpieczny lub zmień filtry.",
+    "yourTurn": "Twoja kolej!",
+    "guestWaitTurn": "Czekaj na swoją kolej — gracz przy telefonie wybiera.",
+    "turnHeader": "Kolej gracza:",
+    "turnHeaderYou": "TO TY!",
+    "guestPhoneHint": "Gość przy telefonie",
+    "darkStoriesRiddle": "Zagadka",
+    "darkStoriesSolution": "Rozwiązanie",
+    "darkStoriesReveal": "Pokaż rozwiązanie",
+    "darkStoriesNext": "Następna zagadka",
+    "whoWouldRatherBanner": "Wskazany gracz wybiera — reszta może komentować.",
+    "ktoNajpredzejHint": "Wskaż palcem osobę, która najbardziej pasuje do pytania."
+  }
+}

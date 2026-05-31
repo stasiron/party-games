@@ -7,15 +7,6 @@ import {
     showRoomCodeInList,
 } from '../../lib/roomAccess';
 
-export function buildGameIndex(games) {
-    const gameById = new Map();
-    for (const game of games || []) {
-        if (!game?.id) continue;
-        gameById.set(game.id, game);
-    }
-    return gameById;
-}
-
 /** Lista aktywnych pokoi wyłącznie z lekkiego indeksu roomsPublic. */
 export function buildActiveRoomsFromPublic(rawRoomsPublic, gameById) {
     const list = [];
@@ -48,7 +39,21 @@ export function buildActiveRoomsFromPublic(rawRoomsPublic, gameById) {
             admissionBadge: getAdmissionListBadge(admission),
             showCode: showRoomCodeInList(room),
             pendingCount: Math.max(0, Number(room.pendingCount || 0)),
+            updatedAt,
         });
     }
     return list;
+}
+
+/** Porównanie listy pokoi przed setState (mniej mrugania UI). */
+export function fingerprintActiveRoomsList(rooms) {
+    if (!rooms?.length) return '';
+    return rooms
+        .map((r) => [
+            r.roomId,
+            r.onlineCount,
+            r.pendingCount,
+            r.matchesFilters ? 1 : 0,
+        ].join(':'))
+        .join('|');
 }

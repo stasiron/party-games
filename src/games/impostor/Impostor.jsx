@@ -1,20 +1,37 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { ref } from 'firebase/database';
-import { set, get, update } from '../../lib/rtdb';
+import { set, get, update, isRtdbPermissionDenied } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
-import gameData from '../../data/gameContent.js';
+import impostorFallback from '../../data/games/impostor.json';
 import { getImpostorCategories, getCategoryLabel } from '../../lib/gameContentUtils';
+import { useLocale } from '../../locales/LocaleContext';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import { useRoomSettings } from '../../lib/useRoomSettings';
 import { buildRoundState } from './engine';
 import ConfirmButton from '../../components/ConfirmButton';
 import GameRules from '../../components/GameRules';
+import GameRulesList from '../../components/GameRulesList';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { getTablePlayers, getGuestsForOwner } from '../../lib/guestPlayers';
 import SharedPhoneRoleReveal from '../../components/SharedPhoneRoleReveal';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { useCategorySelection } from '../../lib/useCategorySelection';
+import {
+    isLegacyImpostorState,
+    usesImpostorPrivacyModel,
+    buildImpostorPrivacyUpdates,
+    buildImpostorPrivacyPatchUpdates,
+    buildImpostorLegacyStartUpdates,
+    buildImpostorResetUpdates,
+    getImpostorPreviousRoundFromHostOnly,
+} from '../../lib/roomPrivateState';
+import {
+    useHostOnlyGameState,
+    usePrivateRolesForPlayers,
+    getPrivateImpostorFlag,
+    getPrivateWord,
+} from '../../lib/usePrivateGameState';
 
 const DEFAULT_SETTINGS = { fairnessEnabled: false };
 
@@ -28,9 +45,12 @@ function Impostor({
     roomId,
     shareOptions,
 }) {
+    const { gameContent, t } = useLocale();
+    const impostorSection = gameContent.impostor ?? impostorFallback;
+
     const playableCategories = useMemo(
-        () => getImpostorCategories(gameData.impostor),
-        []
+        () => getImpostorCategories(impostorSection),
+        [impostorSection]
     );
 
     const lobbyPlayerCount = useMemo(() => getTablePlayers(tablePlayers).length, [tablePlayers]);
@@ -51,17 +71,22 @@ function Impostor({
     const [randomImpostorCount, setRandomImpostorCount] = useState(false);
     const [randomImpostorMaxCount, setRandomImpostorMaxCount] = useState(maxImpostors);
     const [showRole, setShowRole] = useState(false);
+    const [startErrorKey, setStartErrorKey] = useState('');
 
     useEffect(() => {
         if (impostorCount <= maxImpostors) return undefined;
-        const t = setTimeout(() => setImpostorCount(Math.max(1, maxImpostors)), 0);
-        return () => clearTimeout(t);
+        const timeoutId = setTimeout(() => setImpostorCount(Math.max(1, maxImpostors)), 0);
+        return () => clearTimeout(timeoutId);
     }, [impostorCount, maxImpostors]);
 
     const effectiveRandomImpostorMaxCount = useMemo(() => {
         const hardMax = Math.max(1, lobbyPlayerCount);
         return Math.min(hardMax, Math.max(1, randomImpostorMaxCount));
     }, [lobbyPlayerCount, randomImpostorMaxCount]);
+
+    useEffect(() => {
+        setStartErrorKey('');
+    }, [selectedCategories, lobbyPlayerCount]);
 
     const roomSettings = useRoomSettings(roomId, DEFAULT_SETTINGS);
 
@@ -83,10 +108,23 @@ function Impostor({
 
     const roomData = useRoomGameState(roomId, defaultRoomState, { mergeDefaults: true });
     const roleRevealEpoch = roomData.roleRevealEpoch ?? 0;
+    const isLegacy = isLegacyImpostorState(roomData);
+    const usePrivacy = usesImpostorPrivacyModel(roomData);
+
+    const linkedPlayerIds = useMemo(
+        () => [myPlayerId, ...myLinkedGuests.map((g) => g.id)].filter(Boolean),
+        [myPlayerId, myLinkedGuests]
+    );
+
+    const privateRoles = usePrivateRolesForPlayers(
+        usePrivacy ? roomId : null,
+        usePrivacy ? linkedPlayerIds : []
+    );
+    const hostOnlyState = useHostOnlyGameState(roomId, isHost && (usePrivacy || roomData.phase !== 'lobby'));
 
     usePiGameSession(roomData.phase !== 'lobby');
 
-    const impostorIds = useMemo(() => {
+    const legacyImpostorIds = useMemo(() => {
         if (Array.isArray(roomData.impostorIds) && roomData.impostorIds.length > 0) {
             return roomData.impostorIds;
         }
@@ -95,6 +133,13 @@ function Impostor({
         }
         return [];
     }, [roomData.impostorIds, roomData.impostorId]);
+
+    const revealImpostorIds = useMemo(() => {
+        if (usePrivacy && hostOnlyState?.impostorIds) {
+            return hostOnlyState.impostorIds;
+        }
+        return legacyImpostorIds;
+    }, [usePrivacy, hostOnlyState, legacyImpostorIds]);
 
     const changeImpostorCount = useCallback(
         (delta) => {
@@ -123,56 +168,92 @@ function Impostor({
     }, [roomSettings.fairnessEnabled, roomId]);
 
     const startGame = useCallback(async () => {
-        if (selectedCategories.length === 0) return;
+        setStartErrorKey('');
+        if (selectedCategories.length === 0) {
+            setStartErrorKey('gameSetup.impostor.needCategory');
+            return;
+        }
 
-        const playersRef = ref(db, `rooms/${roomId}/players`);
-        const snapshot = await get(playersRef);
-        const playersData = snapshot.val();
+        const wordsByCategory = impostorSection?.words ?? {};
+        const categoryIds = selectedCategories.filter(
+            (id) => Array.isArray(wordsByCategory[id]) && wordsByCategory[id].length > 0
+        );
+        if (categoryIds.length === 0) {
+            setStartErrorKey('gameSetup.impostor.startFailed');
+            return;
+        }
 
-        if (!playersData) return;
+        try {
+            const playersRef = ref(db, `rooms/${roomId}/players`);
+            const snapshot = await get(playersRef);
+            const playersData = snapshot.val();
 
-        const playerIds = Object.keys(playersData);
-        if (playerIds.length < 2) return;
+            if (!playersData) {
+                setStartErrorKey('gameSetup.impostor.needPlayers');
+                return;
+            }
 
-        const historySnap = await get(ref(db, `rooms/${roomId}/roleHistory`));
-        const roleHistory = historySnap.val();
-        const nextRound = buildRoundState({
-            playerIds,
-            categoryIds: selectedCategories,
-            wordsByCategory: gameData.impostor.words,
-            roleHistory,
-            fairnessEnabled: roomSettings.fairnessEnabled,
-            randomImpostorCount,
-            randomImpostorMaxCount: effectiveRandomImpostorMaxCount,
-            selectedImpostorCount: impostorCount,
-        });
-        if (!nextRound) return;
-        const catNameDisplay = getCategoryLabel(playableCategories, nextRound.chosenCatId);
+            const playerIds = Object.keys(playersData);
+            if (playerIds.length < 2) {
+                setStartErrorKey('gameSetup.impostor.needPlayers');
+                return;
+            }
 
-        await Promise.all([
-            set(ref(db, `rooms/${roomId}/roleHistory`), nextRound.updatedHistory),
-            set(ref(db, `rooms/${roomId}/gameState`), {
-                phase: 'peeking',
-                word: nextRound.randomWord,
-                impostorIds: nextRound.chosenImpostorIds,
+            const historySnap = await get(ref(db, `rooms/${roomId}/roleHistory`));
+            const roleHistory = historySnap.val();
+            const nextRound = buildRoundState({
+                playerIds,
+                categoryIds,
+                wordsByCategory,
+                roleHistory,
+                fairnessEnabled: roomSettings.fairnessEnabled,
+                randomImpostorCount,
+                randomImpostorMaxCount: effectiveRandomImpostorMaxCount,
+                selectedImpostorCount: impostorCount,
+            });
+            if (!nextRound || nextRound.chosenImpostorIds.length === 0) {
+                setStartErrorKey('gameSetup.impostor.startFailed');
+                return;
+            }
+            const catNameDisplay = getCategoryLabel(playableCategories, nextRound.chosenCatId);
+
+            const publicFields = {
                 categoryName: catNameDisplay,
-                startingPlayerId: nextRound.startingPlayerId,
-                categoryIds: selectedCategories,
+                categoryIds,
                 roleRevealEpoch: 1,
-                totalImpostors: nextRound.chosenImpostorIds.length,
-                eliminatedImpostors: 0,
-                roundResult: '',
-                revealAllRoles: false,
-            })
-        ]);
+            };
+            const privacyUpdates = {
+                [`rooms/${roomId}/roleHistory`]: nextRound.updatedHistory,
+                ...buildImpostorPrivacyUpdates(roomId, playerIds, nextRound, publicFields),
+            };
+
+            try {
+                await update(ref(db), privacyUpdates);
+            } catch (privacyErr) {
+                if (!isRtdbPermissionDenied(privacyErr)) throw privacyErr;
+                console.warn('[impostor] privacy write rejected — falling back to legacy gameState', privacyErr);
+                await update(ref(db), {
+                    [`rooms/${roomId}/roleHistory`]: nextRound.updatedHistory,
+                    ...buildImpostorLegacyStartUpdates(roomId, nextRound, publicFields),
+                });
+            }
+        } catch (err) {
+            console.error('[impostor] startGame', err);
+            if (isRtdbPermissionDenied(err)) {
+                setStartErrorKey('gameSetup.impostor.startErrorPermission');
+            } else {
+                setStartErrorKey('gameSetup.impostor.startError');
+            }
+        }
     }, [
         selectedCategories,
         playableCategories,
         impostorCount,
+        impostorSection,
         randomImpostorCount,
         effectiveRandomImpostorMaxCount,
         roomSettings.fairnessEnabled,
-        roomId
+        roomId,
     ]);
 
     const drawNextWord = useCallback(async () => {
@@ -192,11 +273,15 @@ function Impostor({
         if (playerIds.length < 2) return;
 
         const previousStartingPlayerId = roomData.startingPlayerId ?? null;
-        const previousImpostorIds = Array.isArray(roomData.impostorIds)
-            ? roomData.impostorIds
-            : roomData.impostorId
-                ? [roomData.impostorId]
-                : [];
+        const previousFromPrivacy = getImpostorPreviousRoundFromHostOnly(hostOnlyState);
+        const previousImpostorIds = isLegacy
+            ? (Array.isArray(roomData.impostorIds)
+                ? roomData.impostorIds
+                : roomData.impostorId
+                    ? [roomData.impostorId]
+                    : [])
+            : previousFromPrivacy.previousImpostorIds;
+        const previousWord = isLegacy ? roomData.word : previousFromPrivacy.previousWord;
 
         const desiredCountFromState =
             Number.isInteger(roomData.totalImpostors) && roomData.totalImpostors > 0
@@ -211,36 +296,46 @@ function Impostor({
             desiredImpostorCount: effectiveImpostorCount,
             previousImpostorIds,
             previousStartingPlayerId,
-            previousWord: roomData.word,
+            previousWord,
             categoryIds,
-            wordsByCategory: gameData.impostor.words,
+            wordsByCategory: impostorSection?.words,
             roleHistory,
             fairnessEnabled: roomSettings.fairnessEnabled,
         });
         if (!nextRound) return;
         const catNameDisplay = getCategoryLabel(playableCategories, nextRound.chosenCatId);
 
-        await Promise.all([
-            set(ref(db, `rooms/${roomId}/roleHistory`), nextRound.updatedHistory),
-            update(ref(db, `rooms/${roomId}/gameState`), {
-                word: nextRound.randomWord,
-                impostorIds: nextRound.chosenImpostorIds,
-                categoryName: catNameDisplay,
-                startingPlayerId: nextRound.startingPlayerId,
-                phase: 'peeking',
-                roleRevealEpoch: roleRevealEpoch + 1,
-                totalImpostors: nextRound.chosenImpostorIds.length,
-                eliminatedImpostors: 0,
-                roundResult: '',
-                revealAllRoles: false,
-            })
-        ]);
+        if (isLegacy) {
+            await Promise.all([
+                set(ref(db, `rooms/${roomId}/roleHistory`), nextRound.updatedHistory),
+                update(ref(db, `rooms/${roomId}/gameState`), {
+                    word: nextRound.randomWord,
+                    impostorIds: nextRound.chosenImpostorIds,
+                    categoryName: catNameDisplay,
+                    startingPlayerId: nextRound.startingPlayerId,
+                    phase: 'peeking',
+                    roleRevealEpoch: roleRevealEpoch + 1,
+                    totalImpostors: nextRound.chosenImpostorIds.length,
+                    eliminatedImpostors: 0,
+                    roundResult: '',
+                    revealAllRoles: false,
+                }),
+            ]);
+        } else {
+            await Promise.all([
+                set(ref(db, `rooms/${roomId}/roleHistory`), nextRound.updatedHistory),
+                update(ref(db), buildImpostorPrivacyPatchUpdates(roomId, playerIds, nextRound, {
+                    categoryName: catNameDisplay,
+                    roleRevealEpoch: roleRevealEpoch + 1,
+                })),
+            ]);
+        }
         setShowRole(false);
     }, [
         roomData.categoryIds,
         roomData.word,
-        roomData.impostorIds,
-        roomData.impostorId,
+        isLegacy,
+        hostOnlyState,
         roomData.startingPlayerId,
         roomData.totalImpostors,
         selectedCategories,
@@ -270,22 +365,26 @@ function Impostor({
     }, [isRoomLocked, roleRevealEpoch, roomId]);
 
     const forceResetTable = useCallback(() => {
-        set(ref(db, `rooms/${roomId}/gameState`), {
-            phase: 'lobby',
-            word: '',
-            impostorIds: [],
-            categoryName: '',
-            startingPlayerId: null,
-            categoryIds: [],
-            roleRevealEpoch: 0,
-            totalImpostors: 0,
-            eliminatedImpostors: 0,
-            roundResult: '',
-            revealAllRoles: false,
-        });
+        if (isLegacy) {
+            set(ref(db, `rooms/${roomId}/gameState`), {
+                phase: 'lobby',
+                word: '',
+                impostorIds: [],
+                categoryName: '',
+                startingPlayerId: null,
+                categoryIds: [],
+                roleRevealEpoch: 0,
+                totalImpostors: 0,
+                eliminatedImpostors: 0,
+                roundResult: '',
+                revealAllRoles: false,
+            });
+        } else {
+            update(ref(db), buildImpostorResetUpdates(roomId));
+        }
         resetCategoriesToAll();
         setShowRole(false);
-    }, [roomId, resetCategoriesToAll]);
+    }, [isLegacy, roomId, resetCategoriesToAll]);
 
     const handleEndGame = useCallback(() => {
         forceResetTable();
@@ -301,7 +400,9 @@ function Impostor({
             if (!isHost) return;
             const total = Math.max(
                 0,
-                Number.isInteger(roomData.totalImpostors) ? roomData.totalImpostors : impostorIds.length
+                Number.isInteger(roomData.totalImpostors)
+                    ? roomData.totalImpostors
+                    : revealImpostorIds.length
             );
             const current = Math.max(
                 0,
@@ -318,14 +419,22 @@ function Impostor({
             }
             await update(ref(db, `rooms/${roomId}/gameState`), updates);
         },
-        [isHost, roomData.totalImpostors, roomData.eliminatedImpostors, impostorIds.length, roomId]
+        [isHost, roomData.totalImpostors, roomData.eliminatedImpostors, revealImpostorIds.length, roomId]
     );
 
-    const amIImpostor = impostorIds.includes(myPlayerId);
+    const amIImpostor = usePrivacy
+        ? getPrivateImpostorFlag(privateRoles[myPlayerId])
+        : legacyImpostorIds.includes(myPlayerId);
+
+    const myDisplayWord = usePrivacy
+        ? getPrivateWord(privateRoles[myPlayerId])
+        : roomData.word;
 
     const isGuestImpostor = useCallback(
-        (guestId) => impostorIds.includes(guestId),
-        [impostorIds]
+        (guestId) => (usePrivacy
+            ? getPrivateImpostorFlag(privateRoles[guestId])
+            : legacyImpostorIds.includes(guestId)),
+        [usePrivacy, privateRoles, legacyImpostorIds]
     );
 
     const startingPlayerName = useMemo(() => {
@@ -346,20 +455,15 @@ function Impostor({
         <div>
             {roomData.phase === 'lobby' ? (
                 <div>
-                    <GameRules title="🕵️ Impostor">
-                        <ol className="game-rules__list">
-                            <li>Host losuje słowo i Impostorów. Wszyscy podglądają swoją rolę na telefonie.</li>
-                            <li>Gracze znają hasło — bez kategorii. Impostor widzi tylko kategorię, z której pochodzi słowo.</li>
-                            <li>Losowany jest gracz, który zaczyna skojarzenia; kolejność dalej idzie jak siedzicie.</li>
-                            <li>Po rundzie dyskusji głosujecie, kto jest Impostorem. Trafiona osoba przegrywa rundę.</li>
-                        </ol>
+                    <GameRules title={t('games.impostor.name')}>
+                        <GameRulesList gameId="impostor" />
                     </GameRules>
 
                     {isHost ? (
                         <>
                             <CollapsibleSection
-                                toggleLabel="▼ Ustawienia rundy (losowanie, Impostorzy)"
-                                toggleLabelOpen="▲ Ukryj ustawienia rundy"
+                                toggleLabel={t('gameSetup.impostor.roundSettingsShow')}
+                                toggleLabelOpen={t('gameSetup.impostor.roundSettingsHide')}
                                 defaultOpen={false}
                             >
                                 <div className="impostor-room-settings">
@@ -370,11 +474,11 @@ function Impostor({
                                         aria-pressed={roomSettings.fairnessEnabled}
                                     >
                                         <span className="impostor-fairness-toggle__text">
-                                            <strong>Sprawiedliwe losowanie</strong>
+                                            <strong>{t('gameSetup.impostor.fairnessTitle')}</strong>
                                             <span className="impostor-fairness-toggle__hint">
                                                 {roomSettings.fairnessEnabled
-                                                    ? 'Większa szansa dla graczy, którzy dawno nie byli Impostorem — bez powtórek z poprzedniej rundy.'
-                                                    : 'Czysta losowość — każdy ma równe szanse co rundę.'}
+                                                    ? t('gameSetup.impostor.fairnessOn')
+                                                    : t('gameSetup.impostor.fairnessOff')}
                                             </span>
                                         </span>
                                         <span
@@ -386,7 +490,7 @@ function Impostor({
                                 </div>
 
                                 <div className="impostor-impostor-count-box">
-                                    <h3 className="impostor-impostor-count-title">Liczba Impostorów</h3>
+                                    <h3 className="impostor-impostor-count-title">{t('gameSetup.impostor.impostorCountTitle')}</h3>
                                     <button
                                         type="button"
                                         className="settings-toggle impostor-random-toggle"
@@ -403,7 +507,7 @@ function Impostor({
                                         }
                                         aria-pressed={randomImpostorCount}
                                     >
-                                        <span>Losowa liczba Impostorów co rundę</span>
+                                        <span>{t('gameSetup.impostor.randomImpostorCount')}</span>
                                         <span className={`settings-toggle__icon ${randomImpostorCount ? 'on' : 'off'}`}>
                                             {randomImpostorCount ? '✔' : '✕'}
                                         </span>
@@ -439,19 +543,29 @@ function Impostor({
                                     </div>
                                     <p className="impostor-impostor-count-hint">
                                         {randomImpostorCount
-                                            ? `Graczy przy stole: ${lobbyPlayerCount} (losowanie 1-${effectiveRandomImpostorMaxCount} Impostorów, max ${Math.max(1, lobbyPlayerCount)})`
-                                            : `Graczy przy stole: ${lobbyPlayerCount} (max ${maxImpostors} Impostorów)`}
+                                            ? t('gameSetup.impostor.playersHintRandom', {
+                                                count: lobbyPlayerCount,
+                                                max: effectiveRandomImpostorMaxCount,
+                                                hardMax: Math.max(1, lobbyPlayerCount),
+                                            })
+                                            : t('gameSetup.impostor.playersHintFixed', {
+                                                count: lobbyPlayerCount,
+                                                max: maxImpostors,
+                                            })}
                                     </p>
                                 </div>
                             </CollapsibleSection>
 
                             <CollapsibleSection
-                                toggleLabel={`▼ Kategorie (${selectedCategories.length}/${playableCategories.length})`}
-                                toggleLabelOpen="▲ Ukryj kategorie"
+                                toggleLabel={t('gameLobby.categoriesShow', {
+                                    selected: selectedCategories.length,
+                                    total: playableCategories.length,
+                                })}
+                                toggleLabelOpen={t('gameLobby.categoriesHide')}
                                 defaultOpen={true}
                             >
                                 <p className="collapsible-section__lead">
-                                    Domyślnie zaznaczone są wszystkie — odznacz te, których nie chcesz w rundzie.
+                                    {t('gameLobby.categoriesLead')}
                                 </p>
                                 <div className="games-grid categories-grid">
                                     {playableCategories.map((cat) => {
@@ -479,23 +593,26 @@ function Impostor({
                                     className="btn-accent btn-lobby-start"
                                     disabled={!canStart}
                                 >
-                                    Wylosuj z {selectedCategories.length} kategorii i rozdaj role
+                                    {t('gameSetup.impostor.startButton', { count: selectedCategories.length })}
                                 </button>
                                 {selectedCategories.length === 0 && (
                                     <p className="impostor-start-hint text-error">
-                                        Zaznacz co najmniej jedną kategorię.
+                                        {t('gameSetup.impostor.needCategory')}
                                     </p>
                                 )}
                                 {lobbyPlayerCount < 2 && (
                                     <p className="impostor-start-hint text-error">
-                                        Potrzebujesz co najmniej 2 graczy przy stole.
+                                        {t('gameSetup.impostor.needPlayers')}
                                     </p>
+                                )}
+                                {startErrorKey && (
+                                    <p className="impostor-start-hint text-error">{t(startErrorKey)}</p>
                                 )}
                             </div>
                             <HostShareOptions shareOptions={shareOptions} />
                         </>
                     ) : (
-                        <p>Czekamy aż Host wybierze kategorie i wylosuje role...</p>
+                        <p>{t('gameLobby.waitForHostImpostor')}</p>
                     )}
                 </div>
             ) : (
@@ -506,7 +623,7 @@ function Impostor({
                             <div className="players-list">
                                 {getTablePlayers(tablePlayers).map((player) => (
                                     <span key={player.id} className="player-tag">
-                                        {player.name}: {impostorIds.includes(player.id) ? 'IMPOSTOR' : 'GRACZ'}
+                                        {player.name}: {revealImpostorIds.includes(player.id) ? 'IMPOSTOR' : 'GRACZ'}
                                     </span>
                                 ))}
                             </div>
@@ -536,7 +653,7 @@ function Impostor({
                                             <h2
                                                 className={`impostor-role-title ${amIImpostor ? 'text-danger' : 'text-success'}`}
                                             >
-                                                {amIImpostor ? 'JESTEŚ OSZUSTEM!' : roomData.word}
+                                                {amIImpostor ? 'JESTEŚ OSZUSTEM!' : myDisplayWord}
                                             </h2>
                                             {amIImpostor && (
                                                 <p className="impostor-cat-info">
@@ -548,12 +665,15 @@ function Impostor({
                                     )}
                                     renderGuestReveal={(guest) => {
                                         const guestIsImpostor = isGuestImpostor(guest.id);
+                                        const guestWord = usePrivacy
+                                            ? getPrivateWord(privateRoles[guest.id])
+                                            : roomData.word;
                                         return (
                                             <>
                                                 <h2
                                                     className={`impostor-role-title ${guestIsImpostor ? 'text-danger' : 'text-success'}`}
                                                 >
-                                                    {guestIsImpostor ? 'GOŚĆ JEST OSZUSTEM!' : roomData.word}
+                                                    {guestIsImpostor ? 'GOŚĆ JEST OSZUSTEM!' : guestWord}
                                                 </h2>
                                                 {guestIsImpostor && (
                                                     <p className="impostor-cat-info">
@@ -584,7 +704,7 @@ function Impostor({
                                                 <h2
                                                     className={`impostor-role-title ${amIImpostor ? 'text-danger' : 'text-success'}`}
                                                 >
-                                                    {amIImpostor ? 'JESTEŚ OSZUSTEM!' : roomData.word}
+                                                    {amIImpostor ? 'JESTEŚ OSZUSTEM!' : myDisplayWord}
                                                 </h2>
                                                 {amIImpostor && (
                                                     <p className="impostor-cat-info">
@@ -664,7 +784,7 @@ function Impostor({
                                         className="btn-impostor-counter"
                                         disabled={
                                             (roomData.eliminatedImpostors ?? 0) >=
-                                            (roomData.totalImpostors ?? impostorIds.length)
+                                            (roomData.totalImpostors ?? revealImpostorIds.length)
                                         }
                                     >
                                         +

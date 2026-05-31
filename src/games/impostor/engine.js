@@ -37,11 +37,17 @@ function pickDifferentWord(wordsByCategory, categoryIds, previousWord) {
     let randomWord = previousWord;
     for (let attempt = 0; attempt < MAX_RETRY; attempt += 1) {
         chosenCatId = categoryIds[Math.floor(Math.random() * categoryIds.length)];
-        const words = wordsByCategory[chosenCatId] ?? [];
-        if (words.length === 0) return null;
+        const words = (wordsByCategory[chosenCatId] ?? []).filter(
+            (w) => typeof w === 'string' && w.length > 0 && w.length <= 64
+        );
+        if (words.length === 0) continue;
         randomWord = words[Math.floor(Math.random() * words.length)];
         if (randomWord !== previousWord || words.length === 1) break;
     }
+    const finalWords = (wordsByCategory[chosenCatId] ?? []).filter(
+        (w) => typeof w === 'string' && w.length > 0 && w.length <= 64
+    );
+    if (finalWords.length === 0 || !randomWord || randomWord.length > 64) return null;
     return { chosenCatId, randomWord };
 }
 

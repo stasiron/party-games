@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { ref, push, remove } from 'firebase/database';
 import { set } from '../lib/rtdb';
 import { db } from '../lib/firebase';
@@ -9,8 +9,10 @@ import {
     pickDefaultPhoneOwner,
 } from '../lib/guestPlayers';
 import CollapsibleSection from './CollapsibleSection';
+import { useLocale } from '../locales/LocaleContext';
 
 function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
+    const { t } = useLocale();
     const [guestName, setGuestName] = useState('');
     const [guestError, setGuestError] = useState('');
 
@@ -27,12 +29,12 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
     const addGuest = useCallback(async () => {
         const cleaned = guestName.trim();
         if (!cleaned) {
-            setGuestError('Podaj imię gościa.');
+            setGuestError(t('guestPlayers.errorEmptyName'));
             return;
         }
 
         if (onlinePlayers.length === 0) {
-            setGuestError('Najpierw dołącz do pokoju co najmniej jeden gracz z telefonem.');
+            setGuestError(t('guestPlayers.errorNeedPhonePlayer'));
             return;
         }
 
@@ -40,7 +42,7 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
             (p) => p.name?.trim().toLowerCase() === cleaned.toLowerCase()
         );
         if (taken) {
-            setGuestError('Ta nazwa jest już zajęta przy stole.');
+            setGuestError(t('guestPlayers.errorNameTaken'));
             return;
         }
 
@@ -62,10 +64,10 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                 setGuestError('');
             } catch (err) {
                 console.error(err);
-                setGuestError('Nie udało się dodać gościa.');
+                setGuestError(t('guestPlayers.errorAddFailed'));
             }
         });
-    }, [guestName, playersList, roomId, runWithBusy, onlinePlayers.length, myPlayerId]);
+    }, [guestName, playersList, roomId, runWithBusy, onlinePlayers.length, myPlayerId, t]);
 
     const linkGuestToOwner = useCallback(
         async (guestId, ownerId) => {
@@ -94,13 +96,12 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
     return (
         <CollapsibleSection
             className="guest-players-panel"
-            toggleLabel={`▼ Goście bez telefonu (współdzielenie)${guestCountLabel}`}
-            toggleLabelOpen={`▲ Ukryj gości bez telefonu${guestCountLabel}`}
+            toggleLabel={`${t('guestPlayers.toggleShow')}${guestCountLabel}`}
+            toggleLabelOpen={`${t('guestPlayers.toggleHide')}${guestCountLabel}`}
             defaultOpen={false}
         >
             <p className="guest-players-panel__hint">
-                Dodaj osoby bez aplikacji. Nowy gość jest od razu przypisany do telefonu — możesz to
-                zmienić poniżej.
+                {t('guestPlayers.hint')}
             </p>
 
             <div className="guest-players-panel__add">
@@ -111,9 +112,9 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                         setGuestName(e.target.value);
                         setGuestError('');
                     }}
-                    placeholder="Imię gościa…"
+                    placeholder={t('guestPlayers.namePlaceholder')}
                     onKeyDown={(e) => e.key === 'Enter' && addGuest()}
-                    aria-label="Imię gościa"
+                    aria-label={t('guestPlayers.nameAria')}
                     disabled={onlinePlayers.length === 0}
                 />
                 <button
@@ -121,7 +122,7 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                     onClick={addGuest}
                     disabled={guestName.trim() === '' || onlinePlayers.length === 0}
                 >
-                    Dodaj gościa
+                    {t('guestPlayers.addButton')}
                 </button>
             </div>
             {guestError && <p className="error-message">{guestError}</p>}
@@ -139,14 +140,14 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                                     type="button"
                                     className="guest-players-panel__remove"
                                     onClick={() => removeGuest(guest.id)}
-                                    title={`Usuń gościa ${guest.name}`}
+                                    title={t('guestPlayers.removeTitle', { name: guest.name })}
                                 >
-                                    Usuń
+                                    {t('common.remove')}
                                 </button>
                             </div>
                             <div className="guest-players-panel__link">
-                                <span className="guest-players-panel__link-title">Współdzieli telefon z</span>
-                                <div className="guest-link-chips" role="group" aria-label={`Telefon dla ${guest.name}`}>
+                                <span className="guest-players-panel__link-title">{t('guestPlayers.sharesPhoneWith')}</span>
+                                <div className="guest-link-chips" role="group" aria-label={t('guestPlayers.phoneForAria', { name: guest.name })}>
                                     {onlinePlayers.map((p) => {
                                         const isActive = guest.linkedToPlayerId === p.id;
                                         return (
@@ -158,7 +159,7 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                                                 aria-pressed={isActive}
                                             >
                                                 {p.name}
-                                                {p.id === myPlayerId ? ' · Ty' : ''}
+                                                {p.id === myPlayerId ? t('guestPlayers.youSuffix') : ''}
                                             </button>
                                         );
                                     })}
@@ -177,7 +178,7 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                         return (
                             <p key={owner.id}>
                                 <strong>{owner.name}</strong>
-                                {owner.id === myPlayerId ? ' (Ty)' : ''}
+                                {owner.id === myPlayerId ? t('guestPlayers.summaryYou') : ''}
                                 <span className="guest-players-panel__summary-arrow"> → </span>
                                 {linked.map((g) => g.name).join(', ')}
                             </p>
@@ -189,4 +190,4 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
     );
 }
 
-export default GuestPlayersPanel;
+export default memo(GuestPlayersPanel);

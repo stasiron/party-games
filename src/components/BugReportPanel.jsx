@@ -1,7 +1,9 @@
 import { memo, useCallback, useState } from 'react';
 import { BUG_REPORT_CATEGORIES, submitBugReport } from '../lib/bugReport';
+import { useLocale } from '../locales/LocaleContext';
 
 const BugReportPanel = memo(({ context, onClose }) => {
+    const { t } = useLocale();
     const [category, setCategory] = useState('');
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
@@ -10,7 +12,7 @@ const BugReportPanel = memo(({ context, onClose }) => {
     const handleSubmit = useCallback(async () => {
         if (busy) return;
         if (!category) {
-            setStatus('Wybierz kategorię błędu.');
+            setStatus(t('bugReport.pickCategory'));
             return;
         }
 
@@ -20,34 +22,39 @@ const BugReportPanel = memo(({ context, onClose }) => {
             await submitBugReport({ category, message, context });
             setCategory('');
             setMessage('');
-            setStatus('Dzięki! Zgłoszenie wysłane.');
+            setStatus(t('bugReport.thanks'));
         } catch (error) {
             if (error?.message === 'RATE_LIMIT') {
-                setStatus('Możesz wysłać kolejne zgłoszenie za 5 minut (limit na IP).');
+                setStatus(t('bugReport.rateLimit'));
+            } else if (error?.message === 'PERMISSION_DENIED') {
+                setStatus(t('bugReport.permissionDenied'));
             } else {
-                setStatus('Nie udało się wysłać. Spróbuj ponownie za chwilę.');
+                if (import.meta.env.DEV) {
+                    console.error('[BugReport] submit failed', error);
+                }
+                setStatus(t('bugReport.failed'));
             }
         } finally {
             setBusy(false);
         }
-    }, [busy, category, message, context]);
+    }, [busy, category, message, context, t]);
 
     return (
-        <div className="settings-panel bug-report-panel" role="dialog" aria-label="Zgłoś błąd">
+        <div className="settings-panel bug-report-panel" role="dialog" aria-label={t('bugReport.title')}>
             <div className="settings-panel__header">
-                <h2>Zgłoś błąd</h2>
+                <h2>{t('bugReport.title')}</h2>
                 <button
                     type="button"
                     className="settings-close"
                     onClick={onClose}
-                    aria-label="Zamknij zgłoszenie błędu"
+                    aria-label={t('bugReport.closeAria')}
                 >
                     ✕
                 </button>
             </div>
 
             <fieldset className="bug-report-categories">
-                <legend className="settings-panel__label">Kategoria</legend>
+                <legend className="settings-panel__label">{t('bugReport.category')}</legend>
                 <div className="bug-report-categories__grid">
                     {BUG_REPORT_CATEGORIES.map((item) => (
                         <label
@@ -61,7 +68,7 @@ const BugReportPanel = memo(({ context, onClose }) => {
                                 checked={category === item.id}
                                 onChange={() => setCategory(item.id)}
                             />
-                            <span>{item.label}</span>
+                            <span>{t(`bugReport.categories.${item.id}`)}</span>
                         </label>
                     ))}
                 </div>
@@ -69,7 +76,8 @@ const BugReportPanel = memo(({ context, onClose }) => {
 
             <div className="settings-panel__group">
                 <label className="settings-panel__label" htmlFor="bug-report-message">
-                    Co poszło nie tak? <span className="bug-report-optional">(opcjonalnie)</span>
+                    {t('bugReport.messageLabel')}{' '}
+                    <span className="bug-report-optional">{t('bugReport.optional')}</span>
                 </label>
                 <textarea
                     id="bug-report-message"
@@ -78,7 +86,7 @@ const BugReportPanel = memo(({ context, onClose }) => {
                     onChange={(event) => setMessage(event.target.value)}
                     maxLength={2000}
                     rows={4}
-                    placeholder="Opisz problem — im więcej szczegółów, tym łatwiej go naprawić."
+                    placeholder={t('bugReport.messagePlaceholder')}
                 />
             </div>
 
@@ -88,13 +96,13 @@ const BugReportPanel = memo(({ context, onClose }) => {
                 onClick={handleSubmit}
                 disabled={busy}
             >
-                <span>{busy ? 'Wysyłanie…' : 'Wyślij zgłoszenie'}</span>
+                <span>{busy ? t('bugReport.submitting') : t('bugReport.submit')}</span>
                 <span className="settings-toggle__icon on">→</span>
             </button>
 
             {status && <p className="settings-hint settings-hint--tight">{status}</p>}
             <p className="settings-hint settings-hint--tight">
-                Do zgłoszenia dołączamy panel, liczbę graczy, wersję i kontekst gry (bez haseł). Limit: 1× / 5 min na IP.
+                {t('bugReport.footerHint')}
             </p>
         </div>
     );

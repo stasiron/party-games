@@ -1,0 +1,560 @@
+{
+  "common": {
+    "back": "Back",
+    "close": "Close",
+    "loading": "Loading…",
+    "loadingGame": "Loading game…",
+    "loadingRoom": "Loading room…",
+    "soon": "Coming soon",
+    "player": "Player",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "yes": "Yes",
+    "no": "No",
+    "remove": "Remove",
+    "you": "You",
+    "version": "Version {{version}}"
+  },
+  "app": {
+    "title": "Party Games",
+    "logoHint": "Hold 0.6 s (phone) or double-click — admin console",
+    "partyBannerOnGateway": "You are on {{gateway}} — good. Guests: Wi‑Fi {{wifi}}, same address in the browser.",
+    "partyBannerOffGateway": "Party mode: Wi‑Fi {{wifi}} and {{link}} for everyone (do not mix with LAN IP)."
+  },
+  "triggers": {
+    "account": "Open account center",
+    "settings": "Open settings",
+    "bugReport": "Report a bug"
+  },
+  "language": {
+    "openAria": "Change interface language",
+    "panelTitle": "Language",
+    "hint": "Applies to menus and buttons. Game questions and prompts stay in Polish for now."
+  },
+  "entryRole": {
+    "prompt": "How do you want to join?",
+    "host": "I'm the Host",
+    "guest": "I'm a Guest"
+  },
+  "lobby": {
+    "host": {
+      "hint": "Pick a game mode. We'll create a new room.",
+      "accessLabel": "Room access mode",
+      "passwordLabel": "Room password",
+      "passwordPlaceholder": "{{min}}–{{max}} characters",
+      "comingSoonDesc": "Game in development — unavailable."
+    },
+    "guest": {
+      "hint": "Pick an active room or enter a code/link from the Host.",
+      "roomCodePlaceholder": "Room code (roomId)",
+      "joinByCode": "Join by code",
+      "hideFilters": "▲ Hide filters",
+      "showFilters": "▼ Room list filters",
+      "filtersDisabled": "off",
+      "filtersAria": "Room list filters",
+      "filtersEnabled": "Filters enabled",
+      "filterGame": "Game",
+      "filterAllGames": "All",
+      "filterAllGamesDesc": "Any game",
+      "filterMinOnline": "Min. players online",
+      "filterHideClosed": "Hide closed rooms",
+      "refreshing": "Refreshing…",
+      "refresh": "🔄 Refresh room list",
+      "roomWaiting": "{{count}} waiting",
+      "roomOfHost": "Room by \"{{name}}\"",
+      "roomNoHost": "Room without host",
+      "playersOnline": "Players online: {{count}}",
+      "inviteOnlyHint": "Join via link or code from host only",
+      "adminDeleteRoom": "🧹 Delete room",
+      "adminDeleteTitle": "Admin: delete room {{roomId}}",
+      "loadingRooms": "Loading room list…",
+      "noRooms": "No active rooms. Ask the Host for a link or QR code."
+    }
+  },
+  "joinModes": {
+    "public": {
+      "label": "Public",
+      "desc": "Guest picks a nickname from the list and joins."
+    },
+    "password": {
+      "label": "Password",
+      "desc": "Password required from the list. Link and QR skip the password."
+    },
+    "invite": {
+      "label": "Invite only",
+      "desc": "No join from the list. Code hidden by default — host can show it on the list."
+    }
+  },
+  "admission": {
+    "open": {
+      "label": "Open",
+      "desc": "New players join immediately (per room mode)."
+    },
+    "approval": {
+      "label": "With approval",
+      "desc": "Requests go to a queue — host decides."
+    },
+    "closed": {
+      "label": "Closed",
+      "desc": "No new players (returning players — yes)."
+    },
+    "clickToChange": "(click to change)",
+    "waitingCount": "({{count}} waiting)"
+  },
+  "room": {
+    "title": "Room: {{name}}",
+    "playing": "Playing: {{name}}",
+    "waitingApproval": "⏳ Waiting for host approval…",
+    "waitingApprovalHint": "Don't close this page. When the host lets you in, the game loads automatically.",
+    "cancelRequest": "Cancel request",
+    "passwordRequired": "This room requires a password (from the list):",
+    "passwordPlaceholder": "Password ({{min}}–{{max}} characters)",
+    "enterName": "Enter your name to join:",
+    "namePlaceholder": "Your name...",
+    "join": "Join room",
+    "backToGames": "Back to game selection",
+    "hostMode": "Mode: {{joinMode}} · Gate: {{admission}}",
+    "inviteSkipQueue": "Join via link or code — password and queue skipped.",
+    "playersAtTable": "Players at the table:",
+    "emptyRoom": "Empty room...",
+    "kickTitle": "Kick player {{name}}",
+    "adminKickTitle": "Admin: kick player"
+  },
+  "joinRequest": {
+    "title": "Waiting to join",
+    "lead": "New players are waiting for your decision. Approve or reject each request.",
+    "approveAll": "Let everyone in",
+    "waiting": "Waiting {{time}}",
+    "approve": "Let in",
+    "reject": "Reject"
+  },
+  "share": {
+    "showOptions": "Share options",
+    "hideOptions": "Hide share options",
+    "roomCode": "Room code",
+    "copyCode": "Copy code",
+    "copiedCode": "Copied!",
+    "codeVisibleOnList": "👁 Code visible on guest list",
+    "codeHiddenOnList": "👁 Code hidden on guest list",
+    "linkAndQr": "Link and QR code",
+    "qrHint": "Scan with a phone — opens the same game and room. Player only enters a name to join.",
+    "copyLink": "Copy room link",
+    "copiedLink": "Link copied!",
+    "copyLinkFailed": "Could not copy link. Try manually from the address bar (room= parameter).",
+    "copyCodeFailed": "Could not copy code. Room code: {{roomId}}"
+  },
+  "gameRules": {
+    "toggleShow": "▼ Game rules",
+    "toggleHide": "▲ Hide rules",
+    "suffix": " — {{title}}"
+  },
+  "gameLobby": {
+    "selectCategories": "Select categories (you can pick several):",
+    "selectDifficulties": "Select puzzle difficulty (you can pick several):",
+    "startGame": "Start game",
+    "waitForHost": "Waiting for the Host to pick categories and start the game...",
+    "waitForHostDeck": "Waiting for the Host to pick the deck and start the table...",
+    "waitForHostNarrator": "Waiting for the Host (narrator) to pick difficulty and start the game…",
+    "waitForHostImpostor": "Waiting for the Host to pick categories and draw roles...",
+    "categoriesShow": "▼ Categories ({{selected}}/{{total}})",
+    "categoriesHide": "▲ Hide categories",
+    "categoriesLead": "All categories are selected by default — uncheck any you don't want in this round."
+  },
+  "gameSetup": {
+    "impostor": {
+      "roundSettingsShow": "▼ Round settings (draw, Impostors)",
+      "roundSettingsHide": "▲ Hide round settings",
+      "fairnessTitle": "Fair draw",
+      "fairnessOn": "Higher chance for players who haven't been Impostor recently — no repeats from the previous round.",
+      "fairnessOff": "Pure randomness — everyone has equal odds each round.",
+      "impostorCountTitle": "Number of Impostors",
+      "randomImpostorCount": "Random Impostor count each round",
+      "playersHintFixed": "Players at the table: {{count}} (max {{max}} Impostors)",
+      "playersHintRandom": "Players at the table: {{count}} (draw 1–{{max}} Impostors, max {{hardMax}})",
+      "startButton": "Draw from {{count}} categories and deal roles",
+      "needCategory": "Select at least one category.",
+      "needPlayers": "You need at least 2 players at the table.",
+      "startFailed": "Could not start the round. Check categories and players at the table.",
+      "startError": "Round start failed — check database connection.",
+      "startErrorPermission": "Database rejected the write (Firebase rules). Deploy database.rules.json: firebase deploy --only database"
+    },
+    "mafia": {
+      "gmPanel": "Game Master panel",
+      "activePlayers": "Active players (excluding you):",
+      "configureRoles": "Configure roles:",
+      "rolesAssigned": "Assigned: {{assigned}} / {{total}}",
+      "startGame": "Deal roles and start",
+      "waitingTitle": "Mafia (Game Master: Waiting)",
+      "waitingText": "Wait for the Game Master to set up role decks and start the game...",
+      "noPlayers": "No players for the game!",
+      "rolesMismatch": "Role total ({{assigned}}) must equal player count ({{total}})!"
+    }
+  },
+  "comingSoon": {
+    "default": "This game is in development. Check back soon!",
+    "named": "🚧 {{name}} — in development. Pick another game from the list.",
+    "inGameLead": "This game is in development and is not available to play yet.",
+    "inGameTitle": "Coming soon",
+    "inGameText": "We're working on the full version. Meanwhile, pick another game from the main menu.",
+    "backToMenu": "Back to menu",
+    "leaveRoom": "Leave room"
+  },
+  "settings": {
+    "title": "Settings",
+    "closeAria": "Close settings",
+    "themeLabel": "Background gradient",
+    "sound": "App sound",
+    "vibration": "Vibration",
+    "connectionFooter": "Connection status footer",
+    "continuousPing": "Continuous database latency ping",
+    "continuousPingHint": "Off by default — saves battery. You can also check connection once in the footer.",
+    "powerSave": "Network power-save mode",
+    "powerSaveHint": "Less frequent heartbeat, no auto-ping, longer sync debounce.",
+    "adminConsole": "Administrator console",
+    "adminConsoleHint": "Developer console. HELP, RESET, PURGE… “Party Games” logo ~0.6 s.",
+    "hintLowPower": "Raspberry Pi: power-save mode. On iPhone disable Private Wi‑Fi Address for PartBox-Gry.",
+    "hintFull": "Online: full animations and effects."
+  },
+  "themes": {
+    "default": "🟣 Purple (default)",
+    "sunrise": "🌅 Yellow-green-blue",
+    "sunset": "🌇 Pink-orange",
+    "forest": "🌲 Green-navy",
+    "daltonism": "♿ Color-blind (blue + orange)",
+    "cyber": "⬛ Black + blue borders"
+  },
+  "account": {
+    "title": "Account center",
+    "closeAria": "Close account center",
+    "loggedIn": "Signed in: {{email}}",
+    "notLoggedIn": "No active account",
+    "googleAuth": "Sign up / Sign in with Google",
+    "nicknameLabel": "Permanent nickname",
+    "nicknamePlaceholder": "Your permanent nickname",
+    "saveNickname": "Save nickname",
+    "nicknameSaved": "Nickname saved.",
+    "emailLabel": "Email (magic link)",
+    "sendLink": "Send link",
+    "completeLink": "Complete link",
+    "joinLastRoom": "Join game ({{roomId}})",
+    "connectGoogle": "Link Google account",
+    "signOut": "Sign out",
+    "savedRemote": "Permanent nickname saved.",
+    "savedLocal": "Nickname saved locally (sign in to sync).",
+    "saveFailed": "Could not save nickname."
+  },
+  "bugReport": {
+    "title": "Report a bug",
+    "closeAria": "Close bug report",
+    "category": "Category",
+    "messageLabel": "What went wrong?",
+    "optional": "(optional)",
+    "messagePlaceholder": "Describe the issue — the more detail, the easier to fix.",
+    "submit": "Send report",
+    "submitting": "Sending…",
+    "footerHint": "We attach panel, player count, version and game context (no passwords). Limit: 1× / 5 min per IP.",
+    "pickCategory": "Pick a bug category.",
+    "thanks": "Thanks! Report sent.",
+    "rateLimit": "You can send another report in 5 minutes (IP limit).",
+    "permissionDenied": "Server rejected the report (permission denied). On production — deploy rules: firebase deploy --only database.",
+    "failed": "Could not send. Try again in a moment.",
+    "categories": {
+      "styling": "Colors / appearance",
+      "ui-buttons": "Buttons / interface",
+      "game-logic": "Game logic",
+      "missing-feature": "Missing feature",
+      "connection": "Connection / network",
+      "other": "Other"
+    }
+  },
+  "connection": {
+    "noDb": "no database connection",
+    "thinking": "server thinking…",
+    "notMeasured": "not measured — use the button below",
+    "fast": "~{{ms}} ms — fast",
+    "ok": "~{{ms}} ms — OK",
+    "slow": "~{{ms}} ms — slower",
+    "verySlow": "~{{ms}} ms — high latency",
+    "backendPi": "Raspberry Pi · PartBox Sync ({{host}}:{{port}})",
+    "backendCloud": "Google Cloud · online database",
+    "perfSave": "Power-save: fewer network reads, animations off",
+    "perfPi": "Pi mode: animations and effects off",
+    "perfFull": "Full mode: animations and effects on",
+    "latencyLabel": "Database latency:",
+    "checking": "Checking…",
+    "measure": "Check connection",
+    "autoHint": " · auto every few seconds",
+    "versionLine": "Party Games v{{version}}"
+  },
+  "offline": {
+    "title": "No network.",
+    "body": "In-room games need a database connection — the UI may work from cache.",
+    "swActive": " Service worker active.",
+    "lastRoom": " Last room:"
+  },
+  "pwa": {
+    "iosTitle": "Install on iPhone / iPad",
+    "iosText": "In Safari: Share → Add to Home Screen. Get back to the lobby faster without typing the address.",
+    "title": "Install Party Games",
+    "text": "Add the app to your home screen — quicker return to the lobby and last room.",
+    "install": "Install",
+    "dismiss": "Not now"
+  },
+  "admin": {
+    "placeholder": "Console:",
+    "documentTitlePending": "({{count}}) Join requests — {{title}}",
+    "rateLimitDestructive": "⏱️ Too fast. Wait before another destructive command.",
+    "rateLimitMutation": "⏱️ Too fast. Wait before another admin command.",
+    "clearNeedsRoom": "❌ CLEAR works inside a room.",
+    "clearRoomNotFound": "❌ Room to clear not found.",
+    "clearDone": "🧹 Console: Cleared room {{roomId}} (not deleted).",
+    "confirmReset": "⚠️ RESET will remove all rooms and players. Continue?",
+    "resetDone": "🧹 Console: RESET complete. Everything cleared.",
+    "confirmPurge": "⚠️ PURGE will disconnect all players and remove all rooms. Continue?",
+    "purgeDone": "🧹 Console: PURGE complete. All rooms removed, players disconnected.",
+    "confirmPurgePlayers": "⚠️ PURGE PLAYERS will disconnect all players but keep rooms. Continue?",
+    "purgePlayersDone": "🧹 Console: PURGE PLAYERS complete. All players disconnected, rooms kept.",
+    "confirmPurgeRooms": "⚠️ PURGE ROOMS will remove all rooms. Continue?",
+    "purgeRoomsDone": "🧹 Console: PURGE ROOMS complete. All rooms removed.",
+    "adminModeOn": "🔧 Console: ADMIN mode enabled.",
+    "adminModeOff": "🔧 Console: ADMIN mode disabled.",
+    "revealNeedsRoom": "❌ REVEAL works only inside a room.",
+    "revealWrongGame": "❌ REVEAL works only in Impostor or Mafia.",
+    "revealDone": "👁️ Console: Player roles revealed.",
+    "helpText": "Commands: RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, REVEAL, ADMIN KICK <name>, HOST / HOST ME / HOST <name>.",
+    "adminNeedsRoom": "❌ ADMIN command requires a selected room.",
+    "kickNameRequired": "❌ Enter player name to kick: ADMIN KICK <name>",
+    "playerNotFoundInRoom": "❌ No player with that name in this room.",
+    "kickedPlayer": "🧹 Console: Kicked player {{name}} from the room.",
+    "unknownAdminSubcommand": "❌ Unknown ADMIN subcommand. Use: ADMIN KICK <name>",
+    "hostNeedsRoom": "❌ HOST command requires a selected room.",
+    "hostMustJoin": "❌ You must be a player in the room to become Host. Join first.",
+    "hostPlayerMissing": "❌ Your player does not exist in this room.",
+    "hostTransferredSelf": "🔁 Console: Host role transferred to {{name}}.",
+    "hostUsage": "❌ Usage: HOST <name> or HOST ME",
+    "hostMeNotInRoom": "❌ You are not a player in this room. Enter a name or join before using HOST ME.",
+    "hostTransferred": "🔁 Console: Host role transferred to {{name}}.",
+    "unknownCommand": "❌ Unknown admin command.",
+    "commandError": "❌ Error running command. Check the console.",
+    "rateLimitAdminKick": "⏱️ Kicking players too quickly.",
+    "playerNotFound": "❌ Player not found.",
+    "adminKicked": "🧹 Console: Admin kicked {{name}} from room {{roomId}}.",
+    "kickError": "❌ Error kicking player.",
+    "roomDeleted": "🧹 Console: Deleted room {{roomId}}.",
+    "roomDeleteError": "❌ Error deleting room."
+  },
+  "notifications": {
+    "rateLimitKick": "⏱️ Kicking players too quickly.",
+    "onlyHostCanKick": "❌ Only the active Host can kick players. Refresh or use HOST ME in the console.",
+    "cannotKickHost": "❌ You cannot kick the Host.",
+    "hostKicked": "🧹 Host: Kicked {{name}} from the room.",
+    "kickErrorConnection": "❌ Error kicking player. Check database connection (footer).",
+    "rateLimitCreateRoom": "⏱️ Creating rooms too quickly. Wait a moment.",
+    "roomCodeFailed": "❌ Could not generate room code. Try again.",
+    "roomPasswordInvalid": "❌ Password must be {{min}}–{{max}} characters.",
+    "roomCreatePermissionDenied": "❌ Database rejected this game (Firebase rules). Deploy database.rules.json: firebase deploy --only database",
+    "roomCreateFailed": "❌ Could not create room. Check database connection.",
+    "roomCloseFailed": "❌ Could not close room. Try again."
+  },
+  "guestPlayers": {
+    "toggleShow": "▼ Guests without phone (shared device)",
+    "toggleHide": "▲ Hide guests without phone",
+    "hint": "Add people without the app. New guests are assigned to a phone immediately — you can change it below.",
+    "namePlaceholder": "Guest name…",
+    "nameAria": "Guest name",
+    "addButton": "Add guest",
+    "errorEmptyName": "Enter guest name.",
+    "errorNeedPhonePlayer": "At least one player with a phone must join the room first.",
+    "errorNameTaken": "That name is already taken at the table.",
+    "errorAddFailed": "Could not add guest.",
+    "removeTitle": "Remove guest {{name}}",
+    "sharesPhoneWith": "Shares phone with",
+    "phoneForAria": "Phone for {{name}}",
+    "youSuffix": " · You",
+    "summaryYou": " (You)"
+  },
+  "sharedPhone": {
+    "allDone": "Everyone at this phone knows their roles.",
+    "passToNextPerson": "Pass to the next person",
+    "stepOwner": "Step 1 — Your role (phone owner)",
+    "peekHoldOwner": "Click and hold to see your role",
+    "confirmPassToGuest": "Confirm — pass phone to guest",
+    "confirmHideScreen": "Confirm — hide screen",
+    "unlockHint": "Hold the panel above to unlock the button.",
+    "secretWarning": "Hide the screen from others!",
+    "stepGuest": "Step 2 — guest role",
+    "guestRoleTitle": "Guest role",
+    "peekHoldGuest": "{{name}}: hold to see role",
+    "nextGuest": "Next guest on this phone",
+    "doneHideScreen": "Done — hide screen"
+  },
+  "errors": {
+    "unknownGame": "❌ Unknown game: {{game}}",
+    "roomNotFound": "❌ Room does not exist or was closed.",
+    "roomLoadFailed": "❌ Could not load room. Try again.",
+    "roomClosed": "❌ This room does not exist or was closed.",
+    "roomInviteOnly": "🔗 This room requires a link, QR code or room code from the host.",
+    "wrongPassword": "Wrong password. Try again.",
+    "joinTooFast": "⏱️ Rejoining too fast. Wait a moment.",
+    "emptyName": "Enter a name to join the room.",
+    "emptyPassword": "Enter a valid room password.",
+    "roomLocked": "🔒 Room is closed — Host is not admitting new players.",
+    "kickedName": "This name belongs to a kicked player. Choose another.",
+    "guestNameTaken": "This name belongs to a guest without a phone. Host can rename in the guest panel.",
+    "nameTaken": "This name is taken by an active player. Choose another or wait until they disconnect (💤).",
+    "joinRejected": "Host rejected your join request.",
+    "joinFailed": "Could not join. Check database connection (footer).",
+    "joinSaveFailed": "Could not save to room. Try again.",
+    "joinConnecting": "Connecting to room...",
+    "joinFetching": "Fetching room state...",
+    "joinSaving": "Saving player...",
+    "joinVerifying": "Verifying entry...",
+    "joinRequestSent": "Request sent to host. Wait for approval.",
+    "joinErrorRetry": "Join error — try again.",
+    "joinErrorConnection": "Join error — check connection.",
+    "approvedPlayer": "✅ {{name}} was let into the room."
+  },
+  "games": {
+    "never-have-i-ever": {
+      "name": "🙅 Never have I ever",
+      "description": "Classic game of revealing secrets.",
+      "rules": [
+        "The Host picks categories and reads each \"Never have I ever…\" statement aloud.",
+        "Players who have done it raise a finger (or take a sip — agree on house rules).",
+        "Brief story comments are fine, then the Host moves to the next question.",
+        "No judging — it's about fun and getting to know each other."
+      ]
+    },
+    "truth-or-dare": {
+      "name": "🎭 Truth or dare",
+      "description": "Answer honestly or complete a challenge.",
+      "rules": [
+        "The Host picks categories and starts the game. The app picks a player for their turn.",
+        "The chosen player picks Truth or Dare and completes the task.",
+        "The Host runs the table — after the task, move to the next player.",
+        "The Host can enable safe mode (double-click the \"Player turn\" header) for milder cards."
+      ]
+    },
+    "impostor": {
+      "name": "🕵️ Impostor",
+      "description": "Find the impostor among the players.",
+      "rules": [
+        "The Host draws a word and Impostors. Everyone checks their role on their phone.",
+        "Players know the word — not the category. The Impostor only sees the word's category.",
+        "A starting player is drawn for associations; turn order follows how you sit.",
+        "After discussion, vote for the Impostor. If caught, they lose the round."
+      ]
+    },
+    "mafia": {
+      "name": "🌃 Mafia",
+      "description": "The city sleeps, mafia wakes. Game master required.",
+      "rules": [
+        "The Game Master (Host) picks roles so the total equals players at the table.",
+        "After dealing, everyone checks their secret role on their phone. Mafia knows their allies.",
+        "Run night and day phases verbally — the app helps the GM mark alive and dead players.",
+        "The town wins when mafia is eliminated. Mafia wins when they take over the town."
+      ]
+    },
+    "dark-stories": {
+      "name": "🕯️ Dark stories",
+      "description": "Yes/No riddles — narrator knows the dark solution.",
+      "rules": [
+        "The Host is the narrator — they know each story's full solution (only on their screen).",
+        "The narrator reads the riddle aloud (scenario without explanation). Others uncover it with questions.",
+        "Players ask questions the narrator answers only with: Yes, No, or Irrelevant.",
+        "When someone thinks they solved it, they explain their theory. The narrator confirms if they're close or correct.",
+        "After solving, the narrator may reveal the solution for everyone, then move to the next story (reveal resets)."
+      ]
+    },
+    "who-would-rather": {
+      "name": "🤔 Would you rather",
+      "description": "Random player picks between options A and B.",
+      "rules": [
+        "The Host picks categories and starts the game. The app picks a player and shows a dilemma.",
+        "The chosen player says whether they pick A or B — others listen and comment.",
+        "After the answer, the Host moves to the next player and dilemma.",
+        "No judging — it's about fun and getting to know the group."
+      ]
+    },
+    "kto-najpredzej": {
+      "name": "👆 Who's most likely",
+      "description": "Point at who best fits the question.",
+      "rules": [
+        "The Host picks categories and reads the on-screen question aloud.",
+        "Everyone at once points at who fits best (out loud, not in the app).",
+        "The person with the most fingers may briefly explain — then the next question.",
+        "No blame — it's fun, not a verdict."
+      ]
+    },
+    "secret-hitler": {
+      "name": "🎩 Secret Hitler",
+      "description": "Political deduction — fascists vs liberals."
+    },
+    "one-night-werewolf": {
+      "name": "🐺 One Night Werewolf",
+      "description": "One night — werewolves, villagers and special roles."
+    },
+    "decrypto": {
+      "name": "🔐 Decrypto",
+      "description": "Two teams — encrypt clues, opponents try to break them."
+    },
+    "fake-artist": {
+      "name": "🎨 Fake Artist",
+      "description": "Everyone draws — one doesn't know the card."
+    },
+    "just-one": {
+      "name": "💡 Just One",
+      "description": "Guess the word together — but each word only once."
+    },
+    "miners": {
+      "name": "⛏️ Miners",
+      "description": "Mine gold — watch for cave-ins and betrayal."
+    },
+    "say-anything": {
+      "name": "💬 Say Anything",
+      "description": "Bet on what the chosen player will answer."
+    },
+    "telepathy": {
+      "name": "🧠 Telepathy",
+      "description": "Teams sync picks on a grid — no extra words."
+    },
+    "bleff": {
+      "name": "🃏 Bleff",
+      "description": "Bluff definitions — vote for what sounds most believable."
+    },
+    "dutch": {
+      "name": "🎴 Dutch",
+      "description": "Fast card game — shed cards at the right moment."
+    },
+    "jungle-speed": {
+      "name": "🌴 Jungle Speed",
+      "description": "Reflex and symbols — slap the pile when it matches."
+    }
+  },
+  "gameUi": {
+    "questionProgress": "Question {{current}} of {{total}}",
+    "prev": "Previous",
+    "next": "Next",
+    "endGame": "End game",
+    "leaveRoom": "Leave room",
+    "resetTable": "Reset table",
+    "undo": "Undo",
+    "closeRoom": "Close room",
+    "truth": "Truth",
+    "dare": "Dare",
+    "safeMode": "Safe mode (milder content)",
+    "emptyPool": "No questions in the selected categories. Change filters and try again.",
+    "emptyPoolSafe": "No questions in safe mode for the selected categories. Turn off safe mode or change filters.",
+    "yourTurn": "Your turn!",
+    "guestWaitTurn": "Wait for your turn — the player on the phone chooses.",
+    "turnHeader": "Player turn:",
+    "turnHeaderYou": "IT'S YOU!",
+    "guestPhoneHint": "Guest on phone",
+    "darkStoriesRiddle": "Riddle",
+    "darkStoriesSolution": "Solution",
+    "darkStoriesReveal": "Reveal solution",
+    "darkStoriesNext": "Next riddle",
+    "whoWouldRatherBanner": "The chosen player picks — others may comment.",
+    "ktoNajpredzejHint": "Point at who best fits the question."
+  }
+}

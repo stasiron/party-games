@@ -1,11 +1,15 @@
 import { useState, useCallback } from 'react';
+import { useLocale } from '../locales/LocaleContext';
 
-function GameRules({ title = 'Zasady gry', children, defaultOpen = false }) {
+function GameRules({ title, children, defaultOpen = false }) {
+    const { t } = useLocale();
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     const toggle = useCallback(() => {
         setIsOpen((prev) => !prev);
     }, []);
+
+    const titleSuffix = title ? t('gameRules.suffix', { title }) : '';
 
     return (
         <div className="game-rules">
@@ -15,8 +19,8 @@ function GameRules({ title = 'Zasady gry', children, defaultOpen = false }) {
                 onClick={toggle}
                 aria-expanded={isOpen}
             >
-                {isOpen ? '▲ Ukryj zasady' : '▼ Zasady gry'}
-                {title !== 'Zasady gry' ? ` — ${title}` : ''}
+                {isOpen ? t('gameRules.toggleHide') : t('gameRules.toggleShow')}
+                {titleSuffix}
             </button>
             {isOpen && (
                 <div className="game-rules__panel content-panel content-panel--dark">

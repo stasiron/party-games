@@ -125,8 +125,13 @@ export function isRoomClosedForNewPlayers(room, joinViaInvite, isReconnect) {
     return normalizeAdmission(room) === 'closed';
 }
 
+export function getPendingJoinRequests(joinRequestsMap) {
+    return Object.entries(joinRequestsMap || {})
+        .map(([id, req]) => ({ id, ...req }))
+        .filter((req) => req?.status === 'pending' || !req?.status)
+        .sort((a, b) => Number(a.requestedAt || 0) - Number(b.requestedAt || 0));
+}
+
 export function countPendingJoinRequests(joinRequestsMap) {
-    return Object.values(joinRequestsMap || {}).filter(
-        (req) => req && (req.status === 'pending' || !req.status)
-    ).length;
+    return getPendingJoinRequests(joinRequestsMap).length;
 }

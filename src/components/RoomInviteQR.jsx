@@ -1,4 +1,5 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, lazy, Suspense, memo } from 'react';
+import { useLocale } from '../locales/LocaleContext';
 
 const QRCodeSVG = lazy(() =>
     import('qrcode.react').then((m) => ({ default: m.QRCodeSVG }))
@@ -11,6 +12,7 @@ function RoomInviteQR({
     onToggleShowCodeInList,
     className = '',
 }) {
+    const { t } = useLocale();
     const [isOpen, setIsOpen] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
     const [copiedCode, setCopiedCode] = useState(false);
@@ -22,9 +24,9 @@ function RoomInviteQR({
             setCopiedLink(true);
             setTimeout(() => setCopiedLink(false), 2000);
         } catch {
-            alert('Nie udało się skopiować linku. Spróbuj ręcznie z paska adresu (parametr room=...).');
+            alert(t('share.copyLinkFailed'));
         }
-    }, [inviteUrl]);
+    }, [inviteUrl, t]);
 
     const handleCopyCode = useCallback(async () => {
         if (!roomId) return;
@@ -33,9 +35,9 @@ function RoomInviteQR({
             setCopiedCode(true);
             setTimeout(() => setCopiedCode(false), 2000);
         } catch {
-            alert(`Nie udało się skopiować kodu. Kod pokoju: ${roomId}`);
+            alert(t('share.copyCodeFailed', { roomId }));
         }
-    }, [roomId]);
+    }, [roomId, t]);
 
     if (!inviteUrl && !roomId) return null;
 
@@ -49,14 +51,14 @@ function RoomInviteQR({
                 className="btn-invite-toggle"
                 aria-expanded={isOpen}
             >
-                {isOpen ? 'Ukryj opcje udostępniania' : 'Opcje udostępniania'}
+                {isOpen ? t('share.hideOptions') : t('share.showOptions')}
             </button>
 
             {isOpen && (
                 <div className="room-invite__panel">
                     {roomId && (
                         <div className="room-invite__section">
-                            <p className="room-invite__section-title">Kod pokoju</p>
+                            <p className="room-invite__section-title">{t('share.roomCode')}</p>
                             <div className="room-invite__code-row">
                                 <span className="room-invite__code">{roomId}</span>
                                 <button
@@ -64,7 +66,7 @@ function RoomInviteQR({
                                     onClick={handleCopyCode}
                                     className="room-invite__mini-btn"
                                 >
-                                    {copiedCode ? 'Skopiowano!' : 'Kopiuj kod'}
+                                    {copiedCode ? t('share.copiedCode') : t('share.copyCode')}
                                 </button>
                             </div>
                             {canToggleList && (
@@ -75,8 +77,8 @@ function RoomInviteQR({
                                     aria-pressed={showCodeInList}
                                 >
                                     {showCodeInList
-                                        ? '👁 Kod widoczny na liście gości'
-                                        : '👁 Kod ukryty na liście gości'}
+                                        ? t('share.codeVisibleOnList')
+                                        : t('share.codeHiddenOnList')}
                                 </button>
                             )}
                         </div>
@@ -84,9 +86,9 @@ function RoomInviteQR({
 
                     {inviteUrl && (
                         <div className="room-invite__section">
-                            <p className="room-invite__section-title">Link i kod QR</p>
+                            <p className="room-invite__section-title">{t('share.linkAndQr')}</p>
                             <p className="room-invite__hint">
-                                Zeskanuj telefonem — otworzy się ta sama gra i pokój. Gracz wpisze tylko imię i dołączy.
+                                {t('share.qrHint')}
                             </p>
                             <div className="room-invite__qr" aria-hidden="true">
                                 <Suspense fallback={<div className="room-invite__qr-placeholder" aria-hidden="true" />}>
@@ -94,7 +96,7 @@ function RoomInviteQR({
                                 </Suspense>
                             </div>
                             <button type="button" onClick={handleCopyLink} className="btn-copy-invite">
-                                {copiedLink ? 'Skopiowano link!' : 'Kopiuj link do pokoju'}
+                                {copiedLink ? t('share.copiedLink') : t('share.copyLink')}
                             </button>
                         </div>
                     )}
@@ -117,4 +119,4 @@ export function HostShareOptions({ shareOptions, className = 'room-invite--slot'
     );
 }
 
-export default RoomInviteQR;
+export default memo(RoomInviteQR);

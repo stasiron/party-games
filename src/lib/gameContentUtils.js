@@ -108,3 +108,15 @@ export function getCategoryLabel(categories, id) {
     const found = categories.find((c) => c.id === id);
     return found?.name ?? labelFromId(id);
 }
+
+/** Scala pule treści z wielu kategorii w jedną talię (używane przy starcie gry). */
+export function buildDeckFromContentMap(categoryIds, contentMap) {
+    const items = [];
+    for (const catId of categoryIds) {
+        const pool = contentMap?.[catId];
+        if (Array.isArray(pool)) {
+            items.push(...pool);
+        }
+    }
+    return items;
+}

@@ -6,7 +6,7 @@ import { set, update } from '../../lib/rtdb';
 
 import { db } from '../../lib/firebase';
 
-import gameData from '../../data/gameContent.js';
+import { useLocale } from '../../locales/LocaleContext';
 
 import { useRoomGameState } from '../../lib/useRoomGameState';
 
@@ -15,6 +15,7 @@ import { usePiGameSession } from '../../lib/usePiGameSession';
 import ConfirmButton from '../../components/ConfirmButton';
 
 import GameRules from '../../components/GameRules';
+import GameRulesList from '../../components/GameRulesList';
 
 import { HostShareOptions } from '../../components/RoomInviteQR';
 
@@ -26,6 +27,9 @@ import { buildRolesPool, assignRolesToPlayers, sumAssignedRoles } from './engine
 
 
 function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = false, roomId, shareOptions }) {
+
+    const { gameContent, t } = useLocale();
+    const mafiaSection = gameContent.mafia;
 
     const defaultRoomState = useMemo(
 
@@ -87,7 +91,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
         const presetKey = count > 10 ? '10' : count.toString();
 
-        const preset = gameData.mafia.presets[presetKey];
+        const preset = mafiaSection?.presets?.[presetKey];
 
         if (preset) return preset;
 
@@ -145,7 +149,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
     const roleById = useMemo(() => {
         const nextMap = new Map();
-        for (const role of gameData.mafia.roles) {
+        for (const role of mafiaSection?.roles || []) {
             nextMap.set(role.id, role);
         }
         return nextMap;
@@ -155,13 +159,16 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
     const startGame = useCallback(() => {
 
-        if (lobbyPlayers.length === 0) return alert('Brak graczy do gry!');
+        if (lobbyPlayers.length === 0) return alert(t('gameSetup.mafia.noPlayers'));
 
         if (totalRolesAssigned !== lobbyPlayers.length) {
 
             return alert(
 
-                `Suma ról (${totalRolesAssigned}) musi równać się liczbie graczy (${lobbyPlayers.length})!`
+                t('gameSetup.mafia.rolesMismatch', {
+                    assigned: totalRolesAssigned,
+                    total: lobbyPlayers.length,
+                })
 
             );
 
@@ -186,7 +193,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
         });
 
-    }, [lobbyPlayers, totalRolesAssigned, roleCounts, roomId]);
+    }, [lobbyPlayers, totalRolesAssigned, roleCounts, roomId, t]);
 
 
 
@@ -199,22 +206,6 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
         });
 
     }, [roomId]);
-
-
-
-    const replayRoles = useCallback(async () => {
-
-        if (isRoomLocked) return;
-
-        await update(ref(db, `rooms/${roomId}/gameState`), {
-
-            roleRevealEpoch: roleRevealEpoch + 1,
-
-        });
-
-        setShowRole(false);
-
-    }, [isRoomLocked, roleRevealEpoch, roomId]);
 
 
 
@@ -322,8 +313,6 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                             peekHiddenClassName="hidden"
 
-                            secretWarning="Ukryj ekran przed innymi!"
-
                             renderOwnerReveal={() => null}
 
                             renderGuestReveal={renderGuestRole}
@@ -363,19 +352,9 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                 <div>
 
-                    <GameRules title="🌃 Mafia">
+                    <GameRules title={t('games.mafia.name')}>
 
-                        <ol className="game-rules__list">
-
-                            <li>Mistrz Gry (Host) dobiera role tak, by suma ról = liczba graczy przy stole.</li>
-
-                            <li>Po rozdaniu każdy podgląda tajną rolę na telefonie. Mafia zna swoich wspólników.</li>
-
-                            <li>Fazy nocy i dnia prowadzicie głosowo — aplikacja służy Mistrzowi do oznaczania żywych i martwych.</li>
-
-                            <li>Miasto wygrywa, gdy wyeliminuje Mafię. Mafia wygrywa, gdy przejmie miasto.</li>
-
-                        </ol>
+                        <GameRulesList gameId="mafia" />
 
                     </GameRules>
 
@@ -385,11 +364,11 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                         <div className="mafia-host-panel">
 
-                            <h2 className="mafia-title-pink">Panel Mistrza Gry</h2>
+                            <h2 className="mafia-title-pink">{t('gameSetup.mafia.gmPanel')}</h2>
 
                             <p>
 
-                                Aktywni gracze (bez Ciebie): <strong>{lobbyPlayers.length}</strong>
+                                {t('gameSetup.mafia.activePlayers')} <strong>{lobbyPlayers.length}</strong>
 
                             </p>
 
@@ -397,11 +376,11 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                             <div className="mafia-role-config-box">
 
-                                <h3 className="mafia-role-config-title">Skonfiguruj role:</h3>
+                                <h3 className="mafia-role-config-title">{t('gameSetup.mafia.configureRoles')}</h3>
 
 
 
-                                {gameData.mafia.roles.map((role) => (
+                                {(mafiaSection?.roles || []).map((role) => (
 
                                     <div key={role.id} className="mafia-role-row">
 
@@ -459,7 +438,10 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                                     >
 
-                                        Przypisano: {totalRolesAssigned} / {lobbyPlayers.length}
+                                        {t('gameSetup.mafia.rolesAssigned', {
+                                            assigned: totalRolesAssigned,
+                                            total: lobbyPlayers.length,
+                                        })}
 
                                     </span>
 
@@ -487,7 +469,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                                 >
 
-                                    Rozdaj role i rozpocznij
+                                    {t('gameSetup.mafia.startGame')}
 
                                 </button>
 
@@ -501,11 +483,11 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                         <div>
 
-                            <h2>Mafia (Mistrz Gry: Oczekuje)</h2>
+                            <h2>{t('gameSetup.mafia.waitingTitle')}</h2>
 
                             <p className="mafia-waiting-text">
 
-                                Zaczekaj, aż Mistrz Gry dobierze talie ról i rozpocznie grę...
+                                {t('gameSetup.mafia.waitingText')}
 
                             </p>
 
@@ -670,8 +652,6 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                                             peekHiddenClassName="hidden"
 
-                                            secretWarning="Ukryj ekran przed innymi!"
-
                                             renderOwnerReveal={() => (
 
                                                 <>
@@ -756,19 +736,6 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                             )}
 
-                        </div>
-
-                    )}
-
-
-
-                    {!isRoomLocked && roomData.phase === 'playing' && (
-
-                        <div className="role-replay-bar">
-
-                            <button type="button" className="btn-role-replay" onClick={replayRoles}>
-                                Pokaż role ponownie (wszyscy przy telefonach)
-                            </button>
                         </div>
 
                     )}

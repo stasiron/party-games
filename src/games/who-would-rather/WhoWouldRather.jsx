@@ -1,17 +1,18 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ref } from 'firebase/database';
-import { set, update } from '../../lib/rtdb';
+import { update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
-import { getMinUiSyncMs } from '../../lib/lowPower';
-import { subscribePiQueue } from '../../lib/rtdbThrottle';
-import gameData from '../../data/gameContent.js';
-import { getWhoWouldRatherCategories } from '../../lib/gameContentUtils';
-import { useRoomGameState } from '../../lib/useRoomGameState';
-import { usePiGameSession } from '../../lib/usePiGameSession';
-import { shuffleArray } from '../../lib/shuffle';
-import { pickRandomPlayerName } from '../truth-or-dare/engine';
+import { useRtdbSync } from '../../lib/useRtdbSync';
+import { useTurnVibration } from '../../lib/useTurnVibration';
+import { buildDeckFromContentMap, getWhoWouldRatherCategories } from '../../lib/gameContentUtils';
+import { useLocale } from '../../locales/LocaleContext';
+import { useShuffledQuestionDeck } from '../../lib/useShuffledQuestionDeck';
+import { pickRandomPlayerName } from '../../lib/playerNames';
 import ConfirmButton from '../../components/ConfirmButton';
 import GameRules from '../../components/GameRules';
+import GameRulesList from '../../components/GameRulesList';
+import GameCategoryLobby from '../../components/GameCategoryLobby';
+import TurnHeader from '../../components/TurnHeader';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 import { isTurnForPhoneOwner, isCurrentPlayerGuest } from '../../lib/guestPlayers';
 import { useCategorySelection } from '../../lib/useCategorySelection';
@@ -26,9 +27,12 @@ function WhoWouldRather({
     roomId,
     shareOptions,
 }) {
+    const { gameContent, t } = useLocale();
+    const section = gameContent.whoWouldRather;
+
     const playableCategories = useMemo(
-        () => getWhoWouldRatherCategories(gameData.whoWouldRather),
-        []
+        () => getWhoWouldRatherCategories(section),
+        [section]
     );
 
     const {
@@ -36,121 +40,82 @@ function WhoWouldRather({
         toggleId: toggleCategory,
         resetToAll: resetCategoriesToAll,
     } = useCategorySelection(playableCategories);
-    const defaultRoomState = useMemo(
-        () => ({
-            isGameStarted: false,
-            shuffledDilemmas: [],
-            currentDilemmaIndex: 0,
-            currentPlayerName: '',
-        }),
+
+    const buildDeckFromCategoryIds = useCallback(
+        (categoryIds) => buildDeckFromContentMap(categoryIds, section?.dilemmas),
+        [section]
+    );
+
+    const getCategoryIds = useCallback(() => selectedCategories, [selectedCategories]);
+
+    const getExtraStartFields = useCallback(
+        () => ({ currentPlayerName: pickRandomPlayerName(tablePlayers, null) }),
+        [tablePlayers]
+    );
+
+    const fingerprintExtra = useCallback(
+        (data) => data.currentPlayerName || '',
         []
     );
 
-    const roomData = useRoomGameState(roomId, defaultRoomState, { mergeDefaults: true });
-    const lastVibratedTurnRef = useRef('');
-    const [rtdbBusy, setRtdbBusy] = useState(false);
-    const syncOpts = useMemo(() => ({ minUiMs: getMinUiSyncMs() }), []);
+    const {
+        roomData,
+        deckLength,
+        currentQuestion: currentDilemma,
+        currentIndex,
+        startGame,
+        forceResetTable,
+        isLastQuestion: atLastDilemma,
+    } = useShuffledQuestionDeck(roomId, {
+        buildDeckFromCategoryIds,
+        getCategoryIds,
+        onResetCategories: resetCategoriesToAll,
+        indexKey: 'currentDilemmaIndex',
+        legacyDeckKey: 'shuffledDilemmas',
+        additionalState: { currentPlayerName: '' },
+        getExtraStartFields,
+        fingerprintExtra,
+    });
 
-    useEffect(() => subscribePiQueue((depth) => setRtdbBusy(depth > 0)), []);
-    usePiGameSession(roomData.isGameStarted);
+    const { rtdbBusy, syncOpts } = useRtdbSync();
 
-    useEffect(() => {
-        lastVibratedTurnRef.current = '';
-    }, [roomData.currentPlayerName]);
-
-    const triggerPlayerVibration = useCallback(() => {
-        if (!vibrationEnabled || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') {
-            return;
-        }
-        try {
-            navigator.vibrate(120);
-        } catch {
-            /* vibrate API */
-        }
-    }, [vibrationEnabled]);
-
-    useEffect(() => {
-        if (!vibrationEnabled || !roomData.currentPlayerName) return;
-        if (!isTurnForPhoneOwner(tablePlayers, myPlayerId, roomData.currentPlayerName)) return;
-        const turnKey = roomData.currentPlayerName.trim();
-        if (lastVibratedTurnRef.current === turnKey) return;
-        lastVibratedTurnRef.current = turnKey;
-        triggerPlayerVibration();
-    }, [roomData.currentPlayerName, tablePlayers, myPlayerId, triggerPlayerVibration, vibrationEnabled]);
-
-    const startGame = useCallback(async () => {
-        if (selectedCategories.length === 0) return;
-
-        const allDilemmas = [];
-        selectedCategories.forEach((catId) => {
-            const pool = gameData.whoWouldRather.dilemmas[catId];
-            if (Array.isArray(pool)) {
-                allDilemmas.push(...pool);
-            }
-        });
-
-        const firstPlayer = pickRandomPlayerName(tablePlayers, null);
-
-        await set(
-            ref(db, `rooms/${roomId}/gameState`),
-            {
-                isGameStarted: true,
-                shuffledDilemmas: shuffleArray(allDilemmas),
-                currentDilemmaIndex: 0,
-                currentPlayerName: firstPlayer,
-            },
-            syncOpts
-        );
-    }, [selectedCategories, syncOpts, roomId, tablePlayers]);
+    useTurnVibration({
+        currentPlayerName: roomData.currentPlayerName,
+        tablePlayers,
+        myPlayerId,
+        vibrationEnabled,
+    });
 
     const nextTurn = useCallback(async () => {
-        const dilemmas = roomData.shuffledDilemmas || [];
-        if (roomData.currentDilemmaIndex >= dilemmas.length - 1) return;
+        if (currentIndex >= deckLength - 1) return;
 
         const nextPlayer = pickRandomPlayerName(tablePlayers, roomData.currentPlayerName);
 
         await update(
             ref(db, `rooms/${roomId}/gameState`),
             {
-                currentDilemmaIndex: roomData.currentDilemmaIndex + 1,
+                currentDilemmaIndex: currentIndex + 1,
                 currentPlayerName: nextPlayer,
             },
             syncOpts
         );
-    }, [
-        roomData.currentDilemmaIndex,
-        roomData.shuffledDilemmas,
-        roomData.currentPlayerName,
-        syncOpts,
-        roomId,
-        tablePlayers,
-    ]);
+    }, [currentIndex, deckLength, roomData.currentPlayerName, syncOpts, roomId, tablePlayers]);
 
     const prevTurn = useCallback(async () => {
-        if (roomData.currentDilemmaIndex <= 0) return;
+        if (currentIndex <= 0) return;
 
         await update(
             ref(db, `rooms/${roomId}/gameState`),
-            {
-                currentDilemmaIndex: roomData.currentDilemmaIndex - 1,
-            },
+            { currentDilemmaIndex: currentIndex - 1 },
             syncOpts
         );
-    }, [roomData.currentDilemmaIndex, syncOpts, roomId]);
-
-    const forceResetTable = useCallback(() => {
-        set(ref(db, `rooms/${roomId}/gameState`), null);
-        resetCategoriesToAll();
-    }, [roomId, resetCategoriesToAll]);
+    }, [currentIndex, syncOpts, roomId]);
 
     const handleEndGame = useCallback(() => {
         forceResetTable();
         onLeave();
     }, [forceResetTable, onLeave]);
 
-    const currentDilemma = roomData.shuffledDilemmas?.[roomData.currentDilemmaIndex];
-    const amICurrentPlayer = roomData.currentPlayerName?.trim() === playerName?.trim();
-    const isGuestTurn = isCurrentPlayerGuest(tablePlayers, roomData.currentPlayerName);
     const isSharedPhoneTurn = isTurnForPhoneOwner(
         tablePlayers,
         myPlayerId,
@@ -158,77 +123,42 @@ function WhoWouldRather({
     );
 
     const sharedPhoneGuestName = useMemo(() => {
-        if (!isGuestTurn || !isSharedPhoneTurn) return null;
+        if (!isCurrentPlayerGuest(tablePlayers, roomData.currentPlayerName) || !isSharedPhoneTurn) {
+            return null;
+        }
         return roomData.currentPlayerName;
-    }, [isGuestTurn, isSharedPhoneTurn, roomData.currentPlayerName]);
-
-    const atLastDilemma =
-        roomData.shuffledDilemmas &&
-        roomData.currentDilemmaIndex >= roomData.shuffledDilemmas.length - 1;
+    }, [tablePlayers, isSharedPhoneTurn, roomData.currentPlayerName]);
 
     return (
         <div>
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="🤔 Co wolisz?">
-                        <ol className="game-rules__list">
-                            <li>Host wybiera kategorie i startuje grę. Aplikacja losuje gracza i pokazuje dylemat.</li>
-                            <li>Wybrany gracz mówi, czy wybiera <strong>A</strong> czy <strong>B</strong> — reszta słucha i komentuje.</li>
-                            <li>Host po odpowiedzi przechodzi do następnej osoby i kolejnego dylematu.</li>
-                            <li>Bez oceniania — chodzi o zabawę i poznanie grupy.</li>
-                        </ol>
+                    <GameRules title={t('games.who-would-rather.name')}>
+                        <GameRulesList gameId="who-would-rather" />
                     </GameRules>
 
-                    {isHost ? (
-                        <>
-                            <p>Wybierz kategorie (możesz zaznaczyć kilka):</p>
-                            <div className="games-grid categories-grid">
-                                {playableCategories.map((cat) => {
-                                    const isSelected = selectedCategories.includes(cat.id);
-                                    return (
-                                        <button
-                                            key={cat.id}
-                                            onClick={() => toggleCategory(cat.id)}
-                                            className={isSelected ? 'category-btn-selected' : 'category-btn-unselected'}
-                                        >
-                                            <span className="game-title">{cat.name}</span>
-                                            <span className="game-desc">{cat.desc}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div className="lobby-start-actions actions-stack">
-                                <button
-                                    type="button"
-                                    onClick={startGame}
-                                    className="btn-accent btn-lobby-start"
-                                    disabled={selectedCategories.length === 0}
-                                >
-                                    Rozpocznij grę ({selectedCategories.length})
-                                </button>
-                            </div>
-                            <HostShareOptions shareOptions={shareOptions} />
-                        </>
-                    ) : (
-                        <p>Czekamy aż Host wybierze kategorie i wystartuje grę...</p>
-                    )}
+                    <GameCategoryLobby
+                        isHost={isHost}
+                        categories={playableCategories}
+                        selectedIds={selectedCategories}
+                        onToggle={toggleCategory}
+                        onStart={startGame}
+                        shareOptions={shareOptions}
+                    />
                 </div>
             ) : (
                 <div>
-                    <div className="turn-header">
-                        <h2 className="tod-turn-h2">Kolej gracza:</h2>
-                        <h1 className={`tod-turn-h1 ${isSharedPhoneTurn ? 'active' : 'inactive'}`}>
-                            {roomData.currentPlayerName}
-                            {amICurrentPlayer && ' (TO TY!)'}
-                            {sharedPhoneGuestName && ' (gość przy Twoim telefonie)'}
-                        </h1>
-                    </div>
-
-                    {sharedPhoneGuestName && isSharedPhoneTurn && (
-                        <p className="tod-shared-phone-banner">
-                            Współdzielony telefon — odpowiada: <strong>{sharedPhoneGuestName}</strong>
-                        </p>
-                    )}
+                    <TurnHeader
+                        currentPlayerName={roomData.currentPlayerName}
+                        playerName={playerName}
+                        tablePlayers={tablePlayers}
+                        myPlayerId={myPlayerId}
+                        renderSharedPhoneBanner={(guestName) => (
+                            <p className="tod-shared-phone-banner">
+                                Współdzielony telefon — odpowiada: <strong>{guestName}</strong>
+                            </p>
+                        )}
+                    />
 
                     <p className={`wwr-choice-text ${isSharedPhoneTurn ? 'active' : 'inactive'}`}>
                         {isSharedPhoneTurn
@@ -239,8 +169,7 @@ function WhoWouldRather({
                     </p>
 
                     <p className="wwr-progress-text">
-                        Dylemat {roomData.currentDilemmaIndex + 1} z{' '}
-                        {roomData.shuffledDilemmas ? roomData.shuffledDilemmas.length : 0}
+                        Dylemat {currentIndex + 1} z {deckLength}
                     </p>
 
                     <div className="wwr-dilemma-grid">
@@ -267,8 +196,8 @@ function WhoWouldRather({
                             <div className="game-nav-row wwr-nav-buttons">
                                 <button
                                     onClick={prevTurn}
-                                    disabled={roomData.currentDilemmaIndex === 0 || rtdbBusy}
-                                    className={`btn-wwr-prev ${roomData.currentDilemmaIndex === 0 ? 'disabled' : ''}`}
+                                    disabled={currentIndex === 0 || rtdbBusy}
+                                    className={`btn-wwr-prev ${currentIndex === 0 ? 'disabled' : ''}`}
                                 >
                                     Cofnij
                                 </button>

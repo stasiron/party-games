@@ -1,21 +1,21 @@
 import { useCallback, useMemo } from 'react';
-import { ref } from 'firebase/database';
-import { set } from '../../lib/rtdb';
-import { db } from '../../lib/firebase';
-import gameData from '../../data/gameContent.js';
-import { getKtoNajpredzejCategories } from '../../lib/gameContentUtils';
-import { useRoomGameState } from '../../lib/useRoomGameState';
-import { usePiGameSession } from '../../lib/usePiGameSession';
-import { shuffleArray } from '../../lib/shuffle';
+import { buildDeckFromContentMap, getKtoNajpredzejCategories } from '../../lib/gameContentUtils';
+import { useLocale } from '../../locales/LocaleContext';
+import { useShuffledQuestionDeck } from '../../lib/useShuffledQuestionDeck';
 import ConfirmButton from '../../components/ConfirmButton';
 import GameRules from '../../components/GameRules';
+import GameRulesList from '../../components/GameRulesList';
+import GameCategoryLobby from '../../components/GameCategoryLobby';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 
 function KtoNajpredzej({ isHost, onLeave, roomId, shareOptions }) {
+    const { gameContent, t } = useLocale();
+    const section = gameContent.ktoNajpredzej;
+
     const playableCategories = useMemo(
-        () => getKtoNajpredzejCategories(gameData.ktoNajpredzej),
-        []
+        () => getKtoNajpredzejCategories(section),
+        [section]
     );
 
     const {
@@ -23,45 +23,30 @@ function KtoNajpredzej({ isHost, onLeave, roomId, shareOptions }) {
         toggleId: toggleCategory,
         resetToAll: resetCategoriesToAll,
     } = useCategorySelection(playableCategories);
-    const defaultRoomState = useMemo(
-        () => ({ isGameStarted: false, shuffledQuestions: [], currentQuestionIndex: 0 }),
-        []
+
+    const buildDeckFromCategoryIds = useCallback(
+        (categoryIds) => buildDeckFromContentMap(categoryIds, section?.questions),
+        [section]
     );
-    const roomData = useRoomGameState(roomId, defaultRoomState);
-    usePiGameSession(roomData.isGameStarted);
 
-    const startGame = useCallback(() => {
-        const allQuestions = [];
-        selectedCategories.forEach((catId) => {
-            const pool = gameData.ktoNajpredzej.questions[catId];
-            if (Array.isArray(pool)) {
-                allQuestions.push(...pool);
-            }
-        });
+    const getCategoryIds = useCallback(() => selectedCategories, [selectedCategories]);
 
-        set(ref(db, `rooms/${roomId}/gameState`), {
-            isGameStarted: true,
-            shuffledQuestions: shuffleArray(allQuestions),
-            currentQuestionIndex: 0,
-        });
-    }, [selectedCategories, roomId]);
-
-    const forceResetTable = useCallback(() => {
-        set(ref(db, `rooms/${roomId}/gameState`), null);
-        resetCategoriesToAll();
-    }, [roomId, resetCategoriesToAll]);
-
-    const nextQuestion = useCallback(() => {
-        if (roomData.currentQuestionIndex < roomData.shuffledQuestions.length - 1) {
-            set(ref(db, `rooms/${roomId}/gameState/currentQuestionIndex`), roomData.currentQuestionIndex + 1);
-        }
-    }, [roomData.currentQuestionIndex, roomData.shuffledQuestions, roomId]);
-
-    const prevQuestion = useCallback(() => {
-        if (roomData.currentQuestionIndex > 0) {
-            set(ref(db, `rooms/${roomId}/gameState/currentQuestionIndex`), roomData.currentQuestionIndex - 1);
-        }
-    }, [roomData.currentQuestionIndex, roomId]);
+    const {
+        roomData,
+        deckLength,
+        currentQuestion,
+        currentIndex,
+        startGame,
+        forceResetTable,
+        nextQuestion,
+        prevQuestion,
+        isLastQuestion,
+        isFirstQuestion,
+    } = useShuffledQuestionDeck(roomId, {
+        buildDeckFromCategoryIds,
+        getCategoryIds,
+        onResetCategories: resetCategoriesToAll,
+    });
 
     const handleEndGame = useCallback(() => {
         forceResetTable();
@@ -72,63 +57,30 @@ function KtoNajpredzej({ isHost, onLeave, roomId, shareOptions }) {
         <div>
             {!roomData.isGameStarted ? (
                 <div>
-                    <GameRules title="👆 Kto najprędzej?">
-                        <ol className="game-rules__list">
-                            <li>Host wybiera kategorie i czyta na głos pytanie z ekranu.</li>
-                            <li>Wszyscy jednocześnie wskazują palcem osobę, która pasuje najbardziej (na głos, nie w aplikacji).</li>
-                            <li>Osoba z największą liczbą wskazań może krótko się wytłumaczyć — potem następne pytanie.</li>
-                            <li>Bez obwiniania — to zabawa, nie werdykt.</li>
-                        </ol>
+                    <GameRules title={t('games.kto-najpredzej.name')}>
+                        <GameRulesList gameId="kto-najpredzej" />
                     </GameRules>
 
-                    {isHost ? (
-                        <>
-                            <p>Wybierz kategorie (możesz zaznaczyć kilka):</p>
-                            <div className="games-grid categories-grid">
-                                {playableCategories.map((cat) => {
-                                    const isSelected = selectedCategories.includes(cat.id);
-                                    return (
-                                        <button
-                                            key={cat.id}
-                                            onClick={() => toggleCategory(cat.id)}
-                                            className={isSelected ? 'category-btn-selected' : 'category-btn-unselected'}
-                                        >
-                                            <span className="game-title">{cat.name}</span>
-                                            <span className="game-desc">{cat.desc}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div className="lobby-start-actions actions-stack">
-                                <button
-                                    type="button"
-                                    onClick={startGame}
-                                    className="btn-accent btn-lobby-start"
-                                    disabled={selectedCategories.length === 0}
-                                >
-                                    Rozpocznij grę ({selectedCategories.length})
-                                </button>
-                            </div>
-                            <HostShareOptions shareOptions={shareOptions} />
-                        </>
-                    ) : (
-                        <p>Czekamy aż Host wybierze kategorie i wystartuje grę...</p>
-                    )}
+                    <GameCategoryLobby
+                        isHost={isHost}
+                        categories={playableCategories}
+                        selectedIds={selectedCategories}
+                        onToggle={toggleCategory}
+                        onStart={startGame}
+                        shareOptions={shareOptions}
+                    />
                 </div>
             ) : (
                 <div>
                     <p className="nhie-progress-text">
-                        Pytanie {roomData.currentQuestionIndex + 1} z{' '}
-                        {roomData.shuffledQuestions ? roomData.shuffledQuestions.length : 0}
+                        {t('gameUi.questionProgress', { current: currentIndex + 1, total: deckLength })}
                     </p>
 
-                    <p className="knp-hint">Wskażcie palcem — kto pasuje najbardziej?</p>
+                    <p className="knp-hint">{t('gameUi.ktoNajpredzejHint')}</p>
 
                     <div className="content-panel content-panel--dark">
                         <h3 className="nhie-question-text">
-                            {roomData.shuffledQuestions
-                                ? roomData.shuffledQuestions[roomData.currentQuestionIndex]
-                                : 'Ładowanie...'}
+                            {currentQuestion ?? t('common.loading')}
                         </h3>
                     </div>
 
@@ -137,27 +89,21 @@ function KtoNajpredzej({ isHost, onLeave, roomId, shareOptions }) {
                             <div className="game-nav-row nhie-nav-buttons">
                                 <button
                                     onClick={prevQuestion}
-                                    disabled={roomData.currentQuestionIndex === 0}
-                                    className={`btn-nhie-prev ${roomData.currentQuestionIndex === 0 ? 'disabled' : ''}`}
+                                    disabled={isFirstQuestion}
+                                    className={`btn-nhie-prev ${isFirstQuestion ? 'disabled' : ''}`}
                                 >
-                                    Cofnij
+                                    {t('gameUi.undo')}
                                 </button>
                                 <button
                                     onClick={nextQuestion}
-                                    disabled={
-                                        roomData.shuffledQuestions &&
-                                        roomData.currentQuestionIndex === roomData.shuffledQuestions.length - 1
-                                    }
+                                    disabled={isLastQuestion}
                                     className="btn-nhie-next"
                                 >
-                                    {roomData.shuffledQuestions &&
-                                    roomData.currentQuestionIndex === roomData.shuffledQuestions.length - 1
-                                        ? 'Koniec pytań'
-                                        : 'Następne'}
+                                    {isLastQuestion ? t('gameUi.endGame') : t('gameUi.next')}
                                 </button>
                             </div>
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
+                            <ConfirmButton onClick={forceResetTable} text={t('gameUi.resetTable')} />
                         </div>
                     )}
                 </div>
@@ -166,7 +112,7 @@ function KtoNajpredzej({ isHost, onLeave, roomId, shareOptions }) {
             <div className="bottom-controls">
                 <ConfirmButton
                     onClick={isHost ? handleEndGame : onLeave}
-                    text={isHost ? 'Zamknij pokój' : 'Wyjdź z pokoju'}
+                    text={isHost ? t('gameUi.closeRoom') : t('gameUi.leaveRoom')}
                 />
             </div>
         </div>

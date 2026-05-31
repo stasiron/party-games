@@ -1,28 +1,28 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { ref, push, remove, onValue, onDisconnect } from 'firebase/database';
 import { GoogleAuthProvider, linkWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { set, get, update, runTransaction } from '../lib/rtdb';
 import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
 import { auth as firebaseAuth, firestore } from '../lib/firebase/client';
-import gameData from '../data/gameContent.js';
+import { buildCatalogIndex, getComingSoonMessage, isGameComingSoon } from '../lib/gameCatalog.js';
+import { getLocalizedGameMeta } from '../lib/gameMeta.js';
+import { useLocale } from '../locales/LocaleContext.jsx';
 import { resolveGameId, isPlayableGameId } from '../data/gameIds.js';
-import { getComingSoonMessage, isGameComingSoon } from '../lib/gameCatalog.js';
-import GuestPlayersPanel from '../components/GuestPlayersPanel';
-import { isGuestPlayer } from '../lib/guestPlayers';
+import BugReportPanel from '../components/BugReportPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 import IosWifiHelp from '../components/IosWifiHelp';
+import PwaInstallPrompt from '../components/PwaInstallPrompt';
+import OfflineBanner from '../components/OfflineBanner';
 import { useServerBusy } from '../context/useServerBusy';
 import { useLongPress } from '../hooks/useLongPress';
 import {
     isLowPowerDevice,
     getJoinGraceMs,
-    getPresenceMissingGraceMs,
-    getPlayersDebounceMs,
+    applyLowPowerClass,
 } from '../lib/lowPower';
 import {
     isPlayerActive,
-    shouldRemoveInactivePlayer,
     countActivePlayers,
     findRoomHostName,
 } from '../lib/playerPresence';
@@ -40,14 +40,10 @@ import {
     roomsPurgeAllUpdates,
     ROOMS_PUBLIC_ROOT,
 } from '../lib/roomIndex';
-import JoinRequestPanel from '../components/JoinRequestPanel';
-import RoomInviteQR from '../components/RoomInviteQR';
 import {
-    JOIN_MODE_OPTIONS,
     normalizeJoinMode,
     normalizeAdmission,
     cycleAdmission,
-    getAdmissionOption,
     needsPasswordFromList,
     needsApprovalToJoin,
     isRoomClosedForNewPlayers,
@@ -55,78 +51,47 @@ import {
     defaultShowCodeInList,
     showRoomCodeInList,
 } from '../lib/roomAccess';
-import { buildGameIndex, buildActiveRoomsFromPublic } from './utils/activeRooms';
+import { buildActiveRoomsFromPublic, fingerprintActiveRoomsList } from './utils/activeRooms';
+import { fingerprintRoomPublicEntry, applyLobbyFilters } from '../lib/roomPublicSync';
+import { getRoomsPublicDebounceMs, loadLobbyFilters, saveLobbyFilters } from '../lib/lobbyFilters';
 import { applyThemeSurface } from '../lib/themeSurface';
-import { themePresets, findThemePreset } from '../lib/themePresets';
+import { findThemePreset } from '../lib/themePresets';
 import { buildBugReportContext, prefetchReporterIpHash } from '../lib/bugReport';
+import { prefetchGameChunk } from '../lib/prefetchGameChunk';
+import { loadUiSettings, notifyUiSettingsChanged, UI_SETTINGS_KEY } from '../lib/uiSettings';
+import { useRoomSnapshot } from '../lib/useRoomSnapshot';
+import { usePlayerHeartbeat } from '../lib/usePlayerHeartbeat';
+import {
+    BACKGROUND_CLEANUP_INTERVAL_MS,
+    CLEANUP_LEASE_PATH,
+    CLEANUP_LEASE_TTL_MS,
+    ROOM_CLEANUP_COOLDOWN_MS,
+    runRoomsCleanupFromSnapshots,
+    cleanupOrphanRoomsPublicFromSnapshots,
+    shouldRunClientRoomsCleanup,
+} from '../lib/roomCleanup';
+import RoomScreen from './RoomScreen';
+import AccountCenterPanel from './components/AccountCenterPanel';
+import SettingsPanel from './components/SettingsPanel';
+import LanguagePicker from './components/LanguagePicker';
+import AdminConsole from './components/AdminConsole';
+import EntryRolePicker from './components/EntryRolePicker';
+import HostLobby from './components/HostLobby';
+import GuestLobby from './components/GuestLobby';
+import {
+    ROOMS_PUBLIC_SYNC_COOLDOWN_MS,
+    PRESENCE_INDEX_ROOT,
+    RATE_LIMITS_MS,
+    NICKNAME_KEY,
+    LAST_ROOM_KEY,
+} from './constants';
+import { loadLocalNickname, loadLastRoomId, generateRoomCode } from './utils/localPrefs';
 import versionData from '../../version.json';
 import '../styles/app.css';
 
-const NeverHaveIEver = lazy(() => import('../games/never-have-i-ever/NeverHaveIEver'));
-const Impostor = lazy(() => import('../games/impostor/Impostor'));
-const TruthOrDare = lazy(() => import('../games/truth-or-dare/TruthOrDare'));
-const Mafia = lazy(() => import('../games/mafia/Mafia'));
-const DarkStories = lazy(() => import('../games/dark-stories/DarkStories'));
-const WhoWouldRather = lazy(() => import('../games/who-would-rather/WhoWouldRather'));
-const KtoNajpredzej = lazy(() => import('../games/kto-najpredzej/KtoNajpredzej'));
-const ComingSoonGame = lazy(() => import('../components/ComingSoonGame'));
-const BugReportPanel = lazy(() => import('../components/BugReportPanel'));
-
-const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const ROOM_CODE_LENGTH = 6;
-const PAGE_TITLE = 'Party Games';
-const ORPHAN_ROOM_TTL_MS = 5 * 60 * 1000;
-const EMPTY_ROOM_TTL_MS = 3 * 60 * 1000;
-const ABANDONED_ROOM_TTL_MS = 90 * 1000;
-const ROOM_CLEANUP_COOLDOWN_MS = 30 * 1000;
-const BACKGROUND_CLEANUP_INTERVAL_MS = 60 * 1000;
-const CLEANUP_LEASE_PATH = '_maintenance/roomsCleanupLease';
-const CLEANUP_LEASE_TTL_MS = 3 * 60 * 1000;
-const ROOMS_PUBLIC_SYNC_COOLDOWN_MS = 2000;
-const PRESENCE_INDEX_ROOT = 'playerPresenceByAuthUid';
-const RATE_LIMITS_MS = {
-    join: 1800,
-    createRoom: 1200,
-    kick: 1200,
-    adminDestructive: 3500,
-    adminMutation: 1200,
-};
-const UI_SETTINGS_KEY = 'partyGames.uiSettings.v1';
-const NICKNAME_KEY = 'partyGames.nickname.v1';
-const LAST_ROOM_KEY = 'partyGames.lastRoomId.v1';
-
-function loadUiSettings() {
-    if (typeof window === 'undefined') return null;
-    try {
-        const raw = window.localStorage.getItem(UI_SETTINGS_KEY);
-        if (!raw) return null;
-        return JSON.parse(raw);
-    } catch {
-        return null;
-    }
-}
-
-function loadLocalNickname() {
-    if (typeof window === 'undefined') return '';
-    return window.localStorage.getItem(NICKNAME_KEY) || '';
-}
-
-function loadLastRoomId() {
-    if (typeof window === 'undefined') return '';
-    return window.localStorage.getItem(LAST_ROOM_KEY) || '';
-}
-
-function generateRoomCode() {
-    let code = '';
-    for (let i = 0; i < ROOM_CODE_LENGTH; i += 1) {
-        const idx = Math.floor(Math.random() * ROOM_CODE_ALPHABET.length);
-        code += ROOM_CODE_ALPHABET[idx];
-    }
-    return code;
-}
-
 function App() {
     const { runWithBusy } = useServerBusy();
+    const { t, gameContent } = useLocale();
     const [selectedGame, setSelectedGame] = useState(null); // roomId
     const [selectedGameType, setSelectedGameType] = useState(null);
     const [entryRole, setEntryRole] = useState(null);
@@ -144,6 +109,9 @@ function App() {
     const [waitingForApproval, setWaitingForApproval] = useState(false);
     const [myJoinRequestId, setMyJoinRequestId] = useState(null);
     const [activeRooms, setActiveRooms] = useState([]);
+    const [guestRoomsListReady, setGuestRoomsListReady] = useState(false);
+    const [guestRoomsRefreshing, setGuestRoomsRefreshing] = useState(false);
+    const [lobbyFilters, setLobbyFilters] = useState(() => loadLobbyFilters());
     const [playerName, setPlayerName] = useState('');
     const [isJoined, setIsJoined] = useState(false);
     const [isHost, setIsHost] = useState(false);
@@ -163,6 +131,7 @@ function App() {
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [showBugReport, setShowBugReport] = useState(false);
+    const [showLanguagePicker, setShowLanguagePicker] = useState(false);
     const [showAccountCenter, setShowAccountCenter] = useState(false);
     const [accountEmail, setAccountEmail] = useState('');
     const [accountNickname, setAccountNickname] = useState(() => loadLocalNickname());
@@ -189,6 +158,10 @@ function App() {
         }
         return false;
     });
+    const [powerSaveMode, setPowerSaveMode] = useState(() => loadUiSettings()?.powerSaveMode === true);
+    const [continuousPingEnabled, setContinuousPingEnabled] = useState(
+        () => loadUiSettings()?.continuousPingEnabled === true
+    );
     const [adminCommand, setAdminCommand] = useState('');
     const [isAdminMode, setIsAdminMode] = useState(false);
     const [adminBypassEnabled, setAdminBypassEnabled] = useState(false);
@@ -211,6 +184,12 @@ function App() {
     const lastZombieCleanupAtRef = useRef(0);
     const lastRoomsCleanupAtRef = useRef(0);
     const lastRoomPublicSyncAtRef = useRef(0);
+    const lastPublicSyncFingerprintRef = useRef('');
+    const lastPublicSnapshotRef = useRef(null);
+    const lastActiveRoomsFingerprintRef = useRef('');
+    const guestRoomsRefreshInFlightRef = useRef(false);
+    const lastPlayersListFingerprintRef = useRef('');
+    const authUserRef = useRef(null);
     const cachedRoomRef = useRef({
         players: null,
         joinMode: 'public',
@@ -224,89 +203,6 @@ function App() {
     const actionRateRef = useRef(new Map());
     const openRoomAsGuestRef = useRef(null);
 
-    const runRoomsCleanup = useCallback(async (rawRooms, rawRoomsPublic, now = Date.now()) => {
-        const raw = rawRooms || {};
-        const publicRaw = rawRoomsPublic || {};
-        const cleanupUpdates = {};
-
-        Object.entries(raw).forEach(([roomId, room]) => {
-            if (!room?.gameId) return;
-            const playersEntries = Object.entries(room.players || {});
-            const activePlayers = [];
-
-            playersEntries.forEach(([playerId, player]) => {
-                if (!player || player.isKicked === true) {
-                    cleanupUpdates[`rooms/${roomId}/players/${playerId}`] = null;
-                    if (player?.authUid) {
-                        cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
-                    }
-                    return;
-                }
-                if (shouldRemoveInactivePlayer(player, now)) {
-                    cleanupUpdates[`rooms/${roomId}/players/${playerId}`] = null;
-                    if (player.authUid) {
-                        cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
-                    }
-                    return;
-                }
-                if (isPlayerActive(player, now)) {
-                    activePlayers.push(player);
-                }
-            });
-
-            const hasActiveHost = activePlayers.some((player) => player.isHost === true);
-            const ageMs = Math.max(0, now - Number(room.createdAt || 0));
-            const publicEntry = publicRaw[roomId];
-            const publicAgeMs = publicEntry
-                ? Math.max(0, now - Number(publicEntry.updatedAt || room.createdAt || 0))
-                : ageMs;
-            const neverHadPlayers = playersEntries.length === 0;
-            const emptyRoomTtl = neverHadPlayers ? ABANDONED_ROOM_TTL_MS : EMPTY_ROOM_TTL_MS;
-            const isEmptyTooLong = activePlayers.length === 0 && (
-                ageMs >= emptyRoomTtl || publicAgeMs >= emptyRoomTtl
-            );
-            const isOrphanTooLong = !hasActiveHost && ageMs >= ORPHAN_ROOM_TTL_MS;
-
-            if (isEmptyTooLong || isOrphanTooLong) {
-                cleanupUpdates[`rooms/${roomId}`] = null;
-                cleanupUpdates[roomPublicPath(roomId)] = null;
-                playersEntries.forEach(([, player]) => {
-                    if (player?.authUid) {
-                        cleanupUpdates[`${PRESENCE_INDEX_ROOT}/${player.authUid}`] = null;
-                    }
-                });
-            }
-        });
-
-        Object.entries(publicRaw).forEach(([roomId, publicEntry]) => {
-            if (!publicEntry?.gameId) return;
-            if (raw[roomId]) return;
-            const publicAgeMs = Math.max(0, now - Number(publicEntry.updatedAt || 0));
-            const onlineCount = Math.max(0, Number(publicEntry.onlineCount || 0));
-            if (onlineCount <= 0 && publicAgeMs >= ABANDONED_ROOM_TTL_MS) {
-                cleanupUpdates[roomPublicPath(roomId)] = null;
-            }
-        });
-
-        if (Object.keys(cleanupUpdates).length === 0) return;
-        lastRoomsCleanupAtRef.current = now;
-        await update(ref(db), cleanupUpdates);
-    }, []);
-
-    const cleanupOrphanRoomsPublic = useCallback(async (rawRoomsPublic, rawRooms) => {
-        const publicEntries = Object.entries(rawRoomsPublic || {});
-        if (publicEntries.length === 0) return;
-        const roomIds = new Set(Object.keys(rawRooms || {}));
-        const orphanUpdates = {};
-        for (const [roomId] of publicEntries) {
-            if (!roomIds.has(roomId)) {
-                orphanUpdates[roomPublicPath(roomId)] = null;
-            }
-        }
-        if (Object.keys(orphanUpdates).length === 0) return;
-        await update(ref(db), orphanUpdates);
-    }, []);
-
     const syncRoomPublicSummary = useCallback((
         roomId,
         gameId,
@@ -318,21 +214,25 @@ function App() {
         if (!roomId || !gameId) return;
         if (isLeavingVoluntarily.current) return;
         const now = Date.now();
-        if (now - lastRoomPublicSyncAtRef.current < ROOMS_PUBLIC_SYNC_COOLDOWN_MS) return;
-        lastRoomPublicSyncAtRef.current = now;
         const onlineCount = countActivePlayers(playersMap, now);
         const hostName = findRoomHostName({ players: playersMap });
+        const entry = buildRoomPublicEntry({
+            gameId,
+            joinMode,
+            admission,
+            onlineCount,
+            hostName,
+            pendingCount,
+            showCodeInList: showCodeInListRef.current,
+            updatedAt: now,
+        });
+        const fingerprint = fingerprintRoomPublicEntry(entry);
+        if (fingerprint === lastPublicSyncFingerprintRef.current) return;
+        if (now - lastRoomPublicSyncAtRef.current < ROOMS_PUBLIC_SYNC_COOLDOWN_MS) return;
+        lastPublicSyncFingerprintRef.current = fingerprint;
+        lastRoomPublicSyncAtRef.current = now;
         void update(ref(db), {
-            [roomPublicPath(roomId)]: buildRoomPublicEntry({
-                gameId,
-                joinMode,
-                admission,
-                onlineCount,
-                hostName,
-                pendingCount,
-                showCodeInList: showCodeInListRef.current,
-                updatedAt: now,
-            }),
+            [roomPublicPath(roomId)]: entry,
         }).catch(() => {
             /* best effort room public sync */
         });
@@ -340,6 +240,7 @@ function App() {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+            authUserRef.current = user;
             setAuthUser(user);
         });
         return () => unsubscribe();
@@ -377,6 +278,8 @@ function App() {
             soundEnabled,
             vibrationEnabled,
             showConnectionFooter,
+            powerSaveMode,
+            continuousPingEnabled,
         };
         const serialized = JSON.stringify(nextSettings);
         if (serialized === lastSavedUiSettingsRef.current) return;
@@ -385,13 +288,15 @@ function App() {
             try {
                 window.localStorage.setItem(UI_SETTINGS_KEY, serialized);
                 lastSavedUiSettingsRef.current = serialized;
+                notifyUiSettingsChanged();
+                applyLowPowerClass();
             } catch {
                 // Ignore storage quota/private mode errors.
             }
         }, 350);
 
         return () => window.clearTimeout(timeoutId);
-    }, [themePreset, soundEnabled, vibrationEnabled, showConnectionFooter]);
+    }, [themePreset, soundEnabled, vibrationEnabled, showConnectionFooter, powerSaveMode, continuousPingEnabled]);
 
     useEffect(() => {
         if (!accountNickname.trim()) return;
@@ -480,17 +385,29 @@ function App() {
         }
     }, [playJoinSound]);
 
-    const gameById = useMemo(() => buildGameIndex(gameData.games), []);
+    const gameById = useMemo(() => buildCatalogIndex(gameContent.games), [gameContent.games]);
     const createHostRoomRef = useRef(null);
     const currentGameMeta = useMemo(
-        () => (selectedGameType ? gameById.get(selectedGameType) || null : null),
-        [selectedGameType, gameById]
+        () => (selectedGameType
+            ? getLocalizedGameMeta(selectedGameType, t, gameById.get(selectedGameType))
+            : null),
+        [selectedGameType, gameById, t]
     );
     const closeBugReport = useCallback(() => setShowBugReport(false), []);
 
     useEffect(() => {
-        if (showBugReport) prefetchReporterIpHash();
-    }, [showBugReport]);
+        const runPrefetch = () => prefetchReporterIpHash();
+        if (typeof requestIdleCallback === 'function') {
+            const idleId = requestIdleCallback(runPrefetch, { timeout: 4000 });
+            return () => cancelIdleCallback(idleId);
+        }
+        const timeoutId = window.setTimeout(runPrefetch, 1500);
+        return () => window.clearTimeout(timeoutId);
+    }, []);
+
+    const prefetchBugReportOnIntent = useCallback(() => {
+        prefetchReporterIpHash();
+    }, []);
 
     const leaveToLobby = useCallback((options = {}) => {
         const { message = '', keepEntryRole = true } = options;
@@ -501,6 +418,8 @@ function App() {
         cachedRoomRef.current = { players: null, joinMode: 'public', admission: 'open', updatedAt: 0 };
         pendingJoinCountRef.current = 0;
         showCodeInListRef.current = true;
+        lastPlayersListFingerprintRef.current = '';
+        lastPublicSyncFingerprintRef.current = '';
         setSelectedGame(null);
         setSelectedGameType(null);
         setIsJoined(false);
@@ -663,15 +582,16 @@ function App() {
     useEffect(() => {
         if (typeof document === 'undefined') return undefined;
         const pending = joinRequestList.length;
+        const title = t('app.title');
         if (effectiveIsHost && selectedGame && pending > 0) {
-            document.title = `(${pending}) Prośby o wejście — ${PAGE_TITLE}`;
+            document.title = t('admin.documentTitlePending', { count: pending, title });
         } else {
-            document.title = PAGE_TITLE;
+            document.title = title;
         }
         return () => {
-            document.title = PAGE_TITLE;
+            document.title = title;
         };
-    }, [joinRequestList.length, effectiveIsHost, selectedGame]);
+    }, [joinRequestList.length, effectiveIsHost, selectedGame, t]);
 
     /** Pełny adres z parametrem `room` — QR i kopiowanie (kanoniczny origin na Malinie). */
     const roomInviteUrl = useMemo(() => {
@@ -720,15 +640,16 @@ function App() {
         }
 
         if (!gameId) {
-            setLobbyMessage(`❌ Nieznana gra: ${rawGame}`);
+            setLobbyMessage(t('errors.unknownGame', { game: rawGame }));
             return undefined;
         }
 
         if (isGameComingSoon(gameId)) {
-            setLobbyMessage(getComingSoonMessage(gameId));
+            setLobbyMessage(getComingSoonMessage(gameId, t));
             return undefined;
         }
 
+        prefetchGameChunk(gameId);
         setEntryRole('host');
         setIsHost(true);
         const t = setTimeout(() => {
@@ -747,6 +668,10 @@ function App() {
     }, [themePreset]);
 
     useEffect(() => {
+        if (selectedGameType) prefetchGameChunk(selectedGameType);
+    }, [selectedGameType]);
+
+    useEffect(() => {
         if (!selectedGame || selectedGameType) return;
         let active = true;
         const loadRoomType = async () => {
@@ -755,7 +680,7 @@ function App() {
                 const roomData = roomSnap.val();
                 if (!active) return;
                 if (!roomData?.gameId) {
-                    setLobbyMessage('❌ Pokój nie istnieje albo został zamknięty.');
+                    setLobbyMessage(t('errors.roomNotFound'));
                     setSelectedGame(null);
                     setSelectedGameType(null);
                     return;
@@ -777,7 +702,7 @@ function App() {
                 };
             } catch {
                 if (!active) return;
-                setLobbyMessage('❌ Nie udało się wczytać pokoju. Spróbuj ponownie.');
+                setLobbyMessage(t('errors.roomLoadFailed'));
                 setSelectedGame(null);
                 setSelectedGameType(null);
             }
@@ -789,243 +714,42 @@ function App() {
     }, [selectedGame, selectedGameType]);
 
     // =========================================================================
-    // POPRAWIONY EFEKT 1: NASŁUCHIWANIE GRACZY, SYSTEM ISKICKED I AUTOMATYCZNA CZYSTKA POKOJU
+    // Jeden listener RTDB na cały pokój (useRoomSnapshot)
     // =========================================================================
-    useEffect(() => {
-        if (!selectedGame) return;
-
-        let playersTimeoutId;
-        let lastPlayersJson = '';
-
-        const applyPlayersSnapshot = (data) => {
-            cachedRoomRef.current = {
-                ...cachedRoomRef.current,
-                players: data,
-                updatedAt: Date.now(),
-            };
-            const playersArray = Object.keys(data)
-                .map((key) => ({
-                    id: key,
-                    ...data[key],
-                }))
-                .filter((p) => !p.isKicked);
-            setPlayersList(playersArray);
-
-            try {
-                const newCount = playersArray.length;
-                const prevCount = prevPlayersCountRef.current || 0;
-                if (isHostRef.current && soundEnabledRef.current && prevCount > 0 && newCount > prevCount) {
-                    playJoinSound();
-                }
-                prevPlayersCountRef.current = newCount;
-            } catch {
-                /* join sound */
-            }
-
-            if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
-                syncRoomPublicSummary(
-                    selectedGame,
-                    selectedGameType,
-                    data,
-                    cachedRoomRef.current.joinMode,
-                    cachedRoomRef.current.admission,
-                    pendingJoinCountRef.current
-                );
-            }
-        };
-
-        const handlePresenceAndKick = (data) => {
-            if (!isJoinedRef.current || !myPlayerIdRef.current || isJoiningRef.current) return;
-            const pid = myPlayerIdRef.current;
-            const myData = data[pid];
-
-            if (myData?.isKicked) {
-                missingPlayerSinceRef.current = 0;
-                onDisconnect(ref(db, `rooms/${selectedGame}/players/${pid}`)).cancel();
-                const kickedRoomId = selectedGame;
-                const kickMessage = isLeavingVoluntarily.current
-                    ? ''
-                    : '⚠️ Zostałeś wyrzucony z pokoju przez Hosta.';
-                leaveToLobby({ message: kickMessage, keepEntryRole: true });
-                void remove(ref(db, `rooms/${kickedRoomId}/players/${pid}`));
-                if (authUser?.uid) {
-                    void clearPresenceIndex(authUser.uid);
-                }
-                return;
-            }
-
-            if (!myData) {
-                if (!missingPlayerSinceRef.current) {
-                    missingPlayerSinceRef.current = Date.now();
-                }
-                const missingFor = Date.now() - missingPlayerSinceRef.current;
-                const pastJoinGrace = Date.now() > joinGraceUntilRef.current;
-                const pastMissingGrace = missingFor >= getPresenceMissingGraceMs();
-                if (
-                    pastJoinGrace &&
-                    pastMissingGrace &&
-                    !isLeavingVoluntarily.current
-                ) {
-                    leaveToLobby({
-                        message: '⚠️ Utracono połączenie z pokojem. Dołącz ponownie.',
-                        keepEntryRole: true,
-                    });
-                }
-                return;
-            }
-
-            missingPlayerSinceRef.current = 0;
-
-            if (myData.isOnline === false) {
-                const now = Date.now();
-                const healCooldownMs = 5000;
-                if (!isOnlineHealSentRef.current && now - lastOnlineHealAtRef.current >= healCooldownMs) {
-                    isOnlineHealSentRef.current = true;
-                    lastOnlineHealAtRef.current = now;
-                    set(ref(db, `rooms/${selectedGame}/players/${pid}/isOnline`), true);
-                }
-            } else {
-                isOnlineHealSentRef.current = false;
-            }
-            setIsHost(myData.isHost || false);
-        };
-
-        const playersDebounceMs = getPlayersDebounceMs();
-
-        const playersRef = ref(db, `rooms/${selectedGame}/players`);
-        const unsubscribe = onValue(playersRef, (snapshot) => {
-            let data = snapshot.val() || {};
-
-            if (isHostRef.current) {
-                const zombieKeys = Object.keys(data).filter((key) => {
-                    const p = data[key];
-                    if (!p) return false;
-                    if (p.isGuest === true) return false;
-                    if (String(p.name || '').trim()) return false;
-                    if (p.isOnline === true) return false;
-                    return true;
-                });
-                if (zombieKeys.length > 0) {
-                    const now = Date.now();
-                    if (now - lastZombieCleanupAtRef.current >= 3000) {
-                        lastZombieCleanupAtRef.current = now;
-                        const updates = {};
-                        zombieKeys.forEach((key) => {
-                            updates[`rooms/${selectedGame}/players/${key}`] = null;
-                        });
-                        update(ref(db), updates);
-                    }
-                    data = { ...data };
-                    zombieKeys.forEach((k) => {
-                        delete data[k];
-                    });
-                }
-            }
-
-            const json = JSON.stringify(data);
-            if (json === lastPlayersJson) return;
-            lastPlayersJson = json;
-
-            clearTimeout(playersTimeoutId);
-            playersTimeoutId = setTimeout(() => {
-                handlePresenceAndKick(data);
-                applyPlayersSnapshot(data);
-            }, playersDebounceMs);
-        });
-
-        const admissionRef = ref(db, `rooms/${selectedGame}/admission`);
-        const unsubscribeAdmission = onValue(admissionRef, (snapshot) => {
-            if (!snapshot.exists()) return;
-            const admission = normalizeAdmission({ admission: snapshot.val() });
-            const locked = admission === 'closed';
-            cachedRoomRef.current = {
-                ...cachedRoomRef.current,
-                admission,
-                updatedAt: Date.now(),
-            };
-            setRoomAdmission(admission);
-            setIsRoomLocked(locked);
-            if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
-                syncRoomPublicSummary(
-                    selectedGame,
-                    selectedGameType,
-                    cachedRoomRef.current.players || {},
-                    cachedRoomRef.current.joinMode,
-                    admission,
-                    pendingJoinCountRef.current
-                );
-            }
-        });
-
-        const joinModeRef = ref(db, `rooms/${selectedGame}/joinMode`);
-        const unsubscribeJoinMode = onValue(joinModeRef, (snapshot) => {
-            const joinMode = normalizeJoinMode({ joinMode: snapshot.val() });
-            cachedRoomRef.current = {
-                ...cachedRoomRef.current,
-                joinMode,
-                updatedAt: Date.now(),
-            };
-            setCurrentRoomJoinMode(joinMode);
-        });
-
-        const showCodeRef = ref(db, `rooms/${selectedGame}/showCodeInList`);
-        const unsubscribeShowCode = onValue(showCodeRef, (snapshot) => {
-            const joinMode = cachedRoomRef.current.joinMode || 'public';
-            const showCode = snapshot.exists()
-                ? snapshot.val() === true
-                : defaultShowCodeInList(joinMode);
-            showCodeInListRef.current = showCode;
-            setRoomShowCodeInList(showCode);
-        });
-
-        const joinRequestsRef = ref(db, `rooms/${selectedGame}/joinRequests`);
-        const unsubscribeJoinRequests = onValue(joinRequestsRef, (snapshot) => {
-            const raw = snapshot.val() || {};
-            const pending = Object.entries(raw)
-                .map(([id, req]) => ({ id, ...req }))
-                .filter((req) => req?.status === 'pending' || !req?.status)
-                .sort((a, b) => Number(a.requestedAt || 0) - Number(b.requestedAt || 0));
-            pendingJoinCountRef.current = pending.length;
-            setJoinRequestList(pending);
-            if (isHostRef.current && selectedGameType && !isLeavingVoluntarily.current) {
-                const newCount = pending.length;
-                const prevCount = prevJoinRequestCountRef.current;
-                if (newCount > prevCount) {
-                    alertHostJoinRequest();
-                }
-                prevJoinRequestCountRef.current = newCount;
-                syncRoomPublicSummary(
-                    selectedGame,
-                    selectedGameType,
-                    cachedRoomRef.current.players || {},
-                    cachedRoomRef.current.joinMode,
-                    cachedRoomRef.current.admission,
-                    newCount
-                );
-            }
-        });
-
-        const roomGameIdRef = ref(db, `rooms/${selectedGame}/gameId`);
-        const unsubscribeRoomRoot = onValue(roomGameIdRef, (snapshot) => {
-            if (snapshot.exists()) return;
-            if (!isJoinedRef.current || isLeavingVoluntarily.current) return;
-            if (Date.now() < joinGraceUntilRef.current) return;
-            leaveToLobby({
-                message: '⚠️ Host zamknął pokój. Wrócono do ekranu wyboru.',
-                keepEntryRole: true,
-            });
-        });
-
-        return () => {
-            clearTimeout(playersTimeoutId);
-            unsubscribe();
-            unsubscribeAdmission();
-            unsubscribeJoinMode();
-            unsubscribeShowCode();
-            unsubscribeJoinRequests();
-            unsubscribeRoomRoot();
-        };
-    }, [selectedGame, selectedGameType, alertHostJoinRequest, leaveToLobby, syncRoomPublicSummary, authUser, clearPresenceIndex]);
+    useRoomSnapshot({
+        roomId: selectedGame,
+        selectedGameType,
+        authUserRef,
+        isHostRef,
+        isJoinedRef,
+        myPlayerIdRef,
+        isJoiningRef,
+        isLeavingVoluntarily,
+        cachedRoomRef,
+        pendingJoinCountRef,
+        showCodeInListRef,
+        prevPlayersCountRef,
+        prevJoinRequestCountRef,
+        missingPlayerSinceRef,
+        joinGraceUntilRef,
+        isOnlineHealSentRef,
+        lastOnlineHealAtRef,
+        lastZombieCleanupAtRef,
+        lastPlayersListFingerprintRef,
+        setPlayersList,
+        setRoomAdmission,
+        setIsRoomLocked,
+        setCurrentRoomJoinMode,
+        setRoomShowCodeInList,
+        setJoinRequestList,
+        setIsHost,
+        leaveToLobby,
+        syncRoomPublicSummary,
+        alertHostJoinRequest,
+        clearPresenceIndex,
+        playJoinSound,
+        soundEnabledRef,
+    });
 
     useEffect(() => {
         if (!isJoined || typeof document === 'undefined') return undefined;
@@ -1038,33 +762,93 @@ function App() {
         return () => document.removeEventListener('visibilitychange', onVisibility);
     }, [isJoined]);
 
-    useEffect(() => {
-        if (!isJoined || !selectedGame || !myPlayerId) return undefined;
-        const playerRef = ref(db, `rooms/${selectedGame}/players/${myPlayerId}`);
+    usePlayerHeartbeat({
+        isJoined,
+        roomId: selectedGame,
+        myPlayerId,
+    });
 
-        const touchPresence = () => {
-            update(playerRef, { isOnline: true, lastSeenAt: Date.now() }).catch(() => {
-                /* best effort heartbeat */
-            });
+    const processPublicRoomsSnapshot = useCallback((raw) => {
+        let rooms = buildActiveRoomsFromPublic(raw || {}, gameById);
+        rooms = rooms.map((room) => ({
+            ...room,
+            gameName: t(`games.${room.gameId}.name`, {}, room.gameName),
+        }));
+        rooms = applyLobbyFilters(rooms, lobbyFilters);
+        const fingerprint = fingerprintActiveRoomsList(rooms);
+        if (fingerprint !== lastActiveRoomsFingerprintRef.current) {
+            lastActiveRoomsFingerprintRef.current = fingerprint;
+            setActiveRooms(rooms);
+        }
+        setGuestRoomsListReady(true);
+    }, [gameById, lobbyFilters, t]);
+
+    const refreshGuestRooms = useCallback(async () => {
+        if (guestRoomsRefreshInFlightRef.current) return;
+        guestRoomsRefreshInFlightRef.current = true;
+        setGuestRoomsRefreshing(true);
+        try {
+            const snapshot = await get(ref(db, ROOMS_PUBLIC_ROOT));
+            const raw = snapshot.val();
+            lastPublicSnapshotRef.current = raw;
+            processPublicRoomsSnapshot(raw);
+        } finally {
+            guestRoomsRefreshInFlightRef.current = false;
+            setGuestRoomsRefreshing(false);
+        }
+    }, [processPublicRoomsSnapshot]);
+
+    useEffect(() => {
+        saveLobbyFilters(lobbyFilters);
+        if (lastPublicSnapshotRef.current != null) {
+            processPublicRoomsSnapshot(lastPublicSnapshotRef.current);
+        }
+    }, [lobbyFilters, processPublicRoomsSnapshot]);
+
+    // Menu gościa: lekki indeks roomsPublic — pierwsza lista od razu, kolejne z debounce.
+    useEffect(() => {
+        if (selectedGame || entryRole !== 'guest') return undefined;
+        let cancelled = false;
+        let timeoutId;
+        let hasListed = false;
+        const debounceMs = getRoomsPublicDebounceMs();
+
+        const applySnapshot = (raw, { immediate = false } = {}) => {
+            if (cancelled) return;
+            lastPublicSnapshotRef.current = raw;
+            clearTimeout(timeoutId);
+            if (immediate || !hasListed) {
+                hasListed = true;
+                processPublicRoomsSnapshot(raw);
+                return;
+            }
+            timeoutId = window.setTimeout(() => {
+                if (!cancelled) processPublicRoomsSnapshot(lastPublicSnapshotRef.current);
+            }, debounceMs);
         };
 
-        touchPresence();
-        const intervalId = window.setInterval(touchPresence, 90 * 1000);
-        return () => window.clearInterval(intervalId);
-    }, [isJoined, selectedGame, myPlayerId]);
-
-    // Menu gościa: tylko lekki indeks roomsPublic (bez gameState i graczy).
-    useEffect(() => {
-        if (selectedGame || entryRole !== 'guest') return;
         const unsubPublic = onValue(ref(db, ROOMS_PUBLIC_ROOT), (snapshot) => {
-            setActiveRooms(buildActiveRoomsFromPublic(snapshot.val() || {}, gameById));
+            applySnapshot(snapshot.val(), { immediate: !hasListed });
         });
 
+        void get(ref(db, ROOMS_PUBLIC_ROOT))
+            .then((snapshot) => {
+                if (!cancelled) applySnapshot(snapshot.val(), { immediate: true });
+            })
+            .catch(() => {
+                if (!cancelled) setGuestRoomsListReady(true);
+            });
+
         return () => {
+            cancelled = true;
+            clearTimeout(timeoutId);
             unsubPublic();
             setActiveRooms([]);
+            setGuestRoomsListReady(false);
+            lastPublicSnapshotRef.current = null;
+            lastActiveRoomsFingerprintRef.current = '';
         };
-    }, [selectedGame, entryRole, gameById]);
+    }, [selectedGame, entryRole, processPublicRoomsSnapshot]);
 
     useEffect(() => {
         let cancelled = false;
@@ -1072,6 +856,17 @@ function App() {
         const leaseOwner = `tab:${tabId}`;
 
         const tryCleanupNow = async () => {
+            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+            if (
+                !shouldRunClientRoomsCleanup({
+                    isJoined,
+                    effectiveIsHost,
+                    hasAdminPowers,
+                })
+            ) {
+                return;
+            }
+
             const leaseRef = ref(db, CLEANUP_LEASE_PATH);
             const now = Date.now();
             const leaseResult = await runTransaction(leaseRef, (current) => {
@@ -1098,10 +893,17 @@ function App() {
                 if (cancelled) return;
                 const raw = roomsSnap.val() || {};
                 const publicRaw = publicSnap.val() || {};
-                await runRoomsCleanup(raw, publicRaw, now);
-                await cleanupOrphanRoomsPublic(publicRaw, raw);
+                const cleaned = await runRoomsCleanupFromSnapshots(raw, publicRaw, now);
+                if (cleaned) lastRoomsCleanupAtRef.current = now;
+                await cleanupOrphanRoomsPublicFromSnapshots(publicRaw, raw);
             } catch {
                 /* best effort background cleanup */
+            }
+        };
+
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                void tryCleanupNow();
             }
         };
 
@@ -1109,12 +911,14 @@ function App() {
         const intervalId = window.setInterval(() => {
             void tryCleanupNow();
         }, BACKGROUND_CLEANUP_INTERVAL_MS);
+        document.addEventListener('visibilitychange', onVisibility);
 
         return () => {
             cancelled = true;
             window.clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', onVisibility);
         };
-    }, [runRoomsCleanup, cleanupOrphanRoomsPublic]);
+    }, [isJoined, effectiveIsHost, hasAdminPowers]);
 
     // 4. OBSŁUGA TAJNYCH KOMEND ADMINISTRATORA pod logo
     const handleAdminCommand = useCallback(async () => {
@@ -1134,7 +938,7 @@ function App() {
         try {
             if (['RESET', 'PURGE', 'PURGE PLAYERS', 'PURGE ROOMS', 'CLEAR'].includes(cleanedCmd)) {
                 if (isAdminRateLimited('admin:destructive', RATE_LIMITS_MS.adminDestructive)) {
-                    setLobbyMessage('⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą destrukcyjną.');
+                    setLobbyMessage(t('admin.rateLimitDestructive'));
                     return;
                 }
             }
@@ -1145,20 +949,20 @@ function App() {
                 cleanedCmd.startsWith('ADMIN ')
             ) {
                 if (isAdminRateLimited('admin:mutation', RATE_LIMITS_MS.adminMutation)) {
-                    setLobbyMessage('⏱️ Za szybko. Odczekaj chwilę przed kolejną komendą admina.');
+                    setLobbyMessage(t('admin.rateLimitMutation'));
                     return;
                 }
             }
 
             if (cleanedCmd === 'CLEAR') {
                 if (!selectedGame) {
-                    alert('❌ CLEAR działa wewnątrz pokoju.');
+                    alert(t('admin.clearNeedsRoom'));
                     return;
                 }
                 const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
                 const roomData = roomSnap.val() || {};
                 if (!roomData.gameId) {
-                    alert('❌ Nie znaleziono pokoju do czyszczenia.');
+                    alert(t('admin.clearRoomNotFound'));
                     return;
                 }
                 const now = Date.now();
@@ -1189,13 +993,13 @@ function App() {
                         updatedAt: now,
                     }),
                 });
-                setLobbyMessage(`🧹 Konsola: Wyczyszczono pokój ${selectedGame} (bez usuwania).`);
+                setLobbyMessage(t('admin.clearDone', { roomId: selectedGame }));
                 finishAdminCommand();
                 return;
             }
 
             if (cleanedCmd === 'RESET') {
-                if (window.confirm('⚠️ RESET usunie wszystkie pokoje i graczy. Kontynuować?')) {
+                if (window.confirm(t('admin.confirmReset'))) {
                     await update(ref(db), roomsPurgeAllUpdates());
                     setSelectedGame(null);
                     setSelectedGameType(null);
@@ -1209,14 +1013,14 @@ function App() {
                     setNameError('');
                     setJoinStatus('');
                     setLastJoinResult('');
-                    setLobbyMessage('🧹 Konsola: RESET zakończony. Wszystko wyczyszczone.');
+                    setLobbyMessage(t('admin.resetDone'));
                     finishAdminCommand();
                 }
                 return;
             }
 
             if (cleanedCmd === 'PURGE') {
-                if (window.confirm('⚠️ PURGE rozłączy wszystkich graczy i usunie wszystkie pokoje. Kontynuować?')) {
+                if (window.confirm(t('admin.confirmPurge'))) {
                     await update(ref(db), roomsPurgeAllUpdates());
                     setSelectedGame(null);
                     setSelectedGameType(null);
@@ -1230,14 +1034,14 @@ function App() {
                     setNameError('');
                     setJoinStatus('');
                     setLastJoinResult('');
-                    setLobbyMessage('🧹 Konsola: PURGE zakończony. Wszystkie pokoje usunięte, gracze rozłączeni.');
+                    setLobbyMessage(t('admin.purgeDone'));
                     finishAdminCommand();
                 }
                 return;
             }
 
             if (cleanedCmd === 'PURGE PLAYERS') {
-                if (window.confirm('⚠️ PURGE PLAYERS rozłączy wszystkich graczy, ale zostawi pokoje. Kontynuować?')) {
+                if (window.confirm(t('admin.confirmPurgePlayers'))) {
                     const roomsSnap = await get(ref(db, 'rooms'));
                     const roomsData = roomsSnap.val() || {};
                     const purgePlayersUpdates = {};
@@ -1257,14 +1061,14 @@ function App() {
                     setNameError('');
                     setJoinStatus('');
                     setLastJoinResult('');
-                    setLobbyMessage('🧹 Konsola: PURGE PLAYERS zakończony. Wszyscy gracze rozłączeni, pokoje zostawione.');
+                    setLobbyMessage(t('admin.purgePlayersDone'));
                     finishAdminCommand();
                 }
                 return;
             }
 
             if (cleanedCmd === 'PURGE ROOMS') {
-                if (window.confirm('⚠️ PURGE ROOMS usunie wszystkie pokoje. Kontynuować?')) {
+                if (window.confirm(t('admin.confirmPurgeRooms'))) {
                     await update(ref(db), roomsPurgeAllUpdates());
                     setSelectedGame(null);
                     setSelectedGameType(null);
@@ -1278,7 +1082,7 @@ function App() {
                     setNameError('');
                     setJoinStatus('');
                     setLastJoinResult('');
-                    setLobbyMessage('🧹 Konsola: PURGE ROOMS zakończony. Wszystkie pokoje usunięte.');
+                    setLobbyMessage(t('admin.purgeRoomsDone'));
                     finishAdminCommand();
                 }
                 return;
@@ -1288,7 +1092,7 @@ function App() {
             if (cleanedCmd === 'ADMIN') {
                 const newState = !isAdminMode;
                 setIsAdminMode(newState);
-                setLobbyMessage(`🔧 Konsola: Tryb ADMIN ${newState ? 'włączony' : 'wyłączony'}.`);
+                setLobbyMessage(newState ? t('admin.adminModeOn') : t('admin.adminModeOff'));
                 finishAdminCommand();
                 return;
             }
@@ -1308,75 +1112,73 @@ function App() {
 
             if (cleanedCmd === 'REVEAL') {
                 if (!selectedGame) {
-                    alert('❌ REVEAL działa tylko wewnątrz pokoju.');
+                    alert(t('admin.revealNeedsRoom'));
                     return;
                 }
                 const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
                 const roomData = roomSnap.val() || {};
                 if (!['impostor', 'mafia'].includes(roomData.gameId)) {
-                    alert('❌ REVEAL działa tylko w grze Impostor lub Mafia.');
+                    alert(t('admin.revealWrongGame'));
                     return;
                 }
                 await update(ref(db, `rooms/${selectedGame}/gameState`), {
                     revealAllRoles: true,
                 });
-                setLobbyMessage('👁️ Konsola: Ujawniono role graczy.');
+                setLobbyMessage(t('admin.revealDone'));
                 finishAdminCommand();
                 return;
             }
 
             if (cleanedCmd === 'HELP') {
-                setLobbyMessage(
-                    'Komendy: RESET, PURGE, PURGE PLAYERS, PURGE ROOMS, CLEAR, REVEAL, ADMIN KICK <name>, HOST / HOST ME / HOST <name>.'
-                );
+                setLobbyMessage(t('admin.helpText'));
                 finishAdminCommand();
                 return;
             }
 
             if (cleanedCmd.startsWith('ADMIN ')) {
                 if (!selectedGame) {
-                    alert('❌ Komenda ADMIN wymaga wybranego pokoju.');
+                    alert(t('admin.adminNeedsRoom'));
                     return;
                 }
                 const sub = rawCmd.slice(6).trim(); // keep case for names
                 if (sub.toUpperCase().startsWith('KICK ')) {
                     const targetName = sub.slice(5).trim();
                     if (!targetName) {
-                        alert('❌ Podaj nazwę gracza do wyrzucenia: ADMIN KICK <name>');
+                        alert(t('admin.kickNameRequired'));
                         return;
                     }
                     const snap = await get(ref(db, `rooms/${selectedGame}/players`));
                     const data = snap.val() || {};
                     const targetKey = Object.keys(data).find(k => String(data[k]?.name || '').toLowerCase() === targetName.toLowerCase());
                     if (!targetKey) {
-                        alert('❌ Nie znaleziono gracza o podanej nazwie w tym pokoju.');
+                        alert(t('admin.playerNotFoundInRoom'));
                         return;
                     }
                     const target = data[targetKey];
                     // Admin wyrzuca natychmiast, niezależnie od stanu isOnline
                     await remove(ref(db, `rooms/${selectedGame}/players/${targetKey}`));
-                    setLobbyMessage(`🧹 Konsola: Wyrzucono gracza ${target.name || targetKey} z pokoju.`);
+                    setLobbyMessage(t('admin.kickedPlayer', { name: target.name || targetKey }));
                     finishAdminCommand();
                     return;
                 }
-                alert('❌ Nieznana podkomenda ADMIN. Użyj: ADMIN KICK <name>');
+                alert(t('admin.unknownAdminSubcommand'));
                 return;
             }
 
             // HOST transfer: HOST <name> or HOST ME or simple HOST -> make caller host
             if (cleanedCmd === 'HOST') {
                 if (!selectedGame) {
-                    alert('❌ Komenda HOST wymaga wybranego pokoju.');
+                    alert(t('admin.hostNeedsRoom'));
                     return;
                 }
                 if (!myPlayerId) {
-                    alert('❌ Musisz być graczem w pokoju, aby stać się Hosta. Dołącz najpierw.');
+                    alert(t('admin.hostMustJoin'));
                     return;
                 }
                 const snap = await get(ref(db, `rooms/${selectedGame}/players`));
                 const data = snap.val() || {};
                 if (!data[myPlayerId]) {
-                    alert('❌ Twój gracz nie istnieje w tym pokoju.');
+                    alert(t('admin.hostPlayerMissing'));
                     return;
                 }
                 const updates = {};
@@ -1385,7 +1187,7 @@ function App() {
                 });
                 updates[`rooms/${selectedGame}/players/${myPlayerId}/isHost`] = true;
                 await update(ref(db), updates);
-                setLobbyMessage(`🔁 Konsola: Przekazano rolę Hosta do ${data[myPlayerId]?.name || myPlayerId}.`);
+                setLobbyMessage(t('admin.hostTransferredSelf', { name: data[myPlayerId]?.name || myPlayerId }));
                 finishAdminCommand();
                 return;
             }
@@ -1393,12 +1195,12 @@ function App() {
             // HOST transfer: HOST <name> or HOST ME
             if (cleanedCmd.startsWith('HOST')) {
                 if (!selectedGame) {
-                    alert('❌ Komenda HOST wymaga wybranego pokoju.');
+                    alert(t('admin.hostNeedsRoom'));
                     return;
                 }
                 const arg = rawCmd.split(/\s+/).slice(1).join(' ').trim();
                 if (!arg) {
-                    alert('❌ Użycie: HOST <name> lub HOST ME');
+                    alert(t('admin.hostUsage'));
                     return;
                 }
                 const snap = await get(ref(db, `rooms/${selectedGame}/players`));
@@ -1407,14 +1209,14 @@ function App() {
                 let targetKey = null;
                 if (arg.toUpperCase() === 'ME') {
                     if (!myPlayerId) {
-                        alert('❌ Nie jesteś graczem w tym pokoju. Wpisz nazwę gracza lub dołącz zanim użyjesz HOST ME.');
+                        alert(t('admin.hostMeNotInRoom'));
                         return;
                     }
                     targetKey = myPlayerId;
                 } else {
                     targetKey = Object.keys(data).find(k => String(data[k]?.name || '').toLowerCase() === arg.toLowerCase());
                     if (!targetKey) {
-                        alert('❌ Nie znaleziono gracza o podanej nazwie w tym pokoju.');
+                        alert(t('admin.playerNotFoundInRoom'));
                         return;
                     }
                 }
@@ -1425,18 +1227,18 @@ function App() {
                 });
                 updates[`rooms/${selectedGame}/players/${targetKey}/isHost`] = true;
                 await update(ref(db), updates);
-                setLobbyMessage(`🔁 Konsola: Przekazano rolę Hosta do ${data[targetKey]?.name || targetKey}.`);
+                setLobbyMessage(t('admin.hostTransferred', { name: data[targetKey]?.name || targetKey }));
                 finishAdminCommand();
                 return;
             }
 
-            alert('❌ Nieznana komenda administratora.');
+            alert(t('admin.unknownCommand'));
         } catch (e) {
             console.error(e);
-            alert('❌ Błąd podczas wykonywania komendy. Sprawdź konsolę.');
+            alert(t('admin.commandError'));
         }
         });
-    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, runWithBusy, isAdminRateLimited, finishAdminCommand]);
+    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, runWithBusy, isAdminRateLimited, finishAdminCommand, t]);
 
     const completeGuestJoin = useCallback(async (playerId, targetPlayerRef, currentAuthUid, joinStartedAt) => {
         try {
@@ -1491,7 +1293,7 @@ function App() {
                     playerId: playerRef.key,
                 },
             });
-            setLobbyMessage(`✅ Wpuszczono ${req.name || 'gracza'} do pokoju.`);
+            setLobbyMessage(t('errors.approvedPlayer', { name: req.name || t('common.player') }));
         });
     }, [selectedGame, myPlayerId, runWithBusy]);
 
@@ -1549,7 +1351,7 @@ function App() {
             if (!snapshot.exists()) {
                 setWaitingForApproval(false);
                 setMyJoinRequestId(null);
-                setNameError('Host odrzucił prośbę o dołączenie.');
+                setNameError(t('errors.joinRejected'));
                 setJoinStatus('');
                 return;
             }
@@ -1578,7 +1380,7 @@ function App() {
     // 5. DOŁĄCZANIE DO POKOJU (NADPISYWANIE DUCHÓW / ZABEZPIECZENIEM PRZED BLOKADĄ)
     const handleJoin = async () => {
         if (isRateLimited('join', RATE_LIMITS_MS.join)) {
-            setNameError('⏱️ Za szybkie ponowne dołączenie. Odczekaj chwilę.');
+            setNameError(t('errors.joinTooFast'));
             return;
         }
         const joinStartedAt = performance.now();
@@ -1588,16 +1390,16 @@ function App() {
         const currentAuthUid = authUser?.uid || null;
         const cleanedName = playerName.trim();
         if (cleanedName === '') {
-            setNameError('Podaj imię, aby wejść do pokoju.');
+            setNameError(t('errors.emptyName'));
             return;
         }
         if (!isHost && needsPasswordFromList(currentRoomJoinMode, guestJoinViaInvite) && !guestPasswordGranted) {
-            setNameError('Wpisz poprawne hasło pokoju.');
+            setNameError(t('errors.emptyPassword'));
             return;
         }
 
         await runWithBusy(async () => {
-        setJoinStatus('Łączenie z pokojem...');
+        setJoinStatus(t('errors.joinConnecting'));
         const playersRef = ref(db, `rooms/${selectedGame}/players`);
         let data = cachedRoomRef.current.players;
 
@@ -1618,7 +1420,7 @@ function App() {
             admission: cachedRoomRef.current.admission,
         };
         if (!data || Date.now() - cachedRoomRef.current.updatedAt > 1500) {
-            setJoinStatus('Pobieranie stanu pokoju...');
+            setJoinStatus(t('errors.joinFetching'));
             const [playersSnap, roomSnap] = await Promise.all([
                 get(ref(db, `rooms/${selectedGame}/players`)),
                 get(ref(db, `rooms/${selectedGame}`)),
@@ -1660,7 +1462,7 @@ function App() {
         };
 
         if (isRoomClosedForNewPlayers(roomForAccess, guestJoinViaInvite, isReconnect)) {
-            setNameError('🔒 Pokój jest zamknięty — Host nie wpuszcza nowych graczy.');
+            setNameError(t('errors.roomLocked'));
             return;
         }
 
@@ -1672,21 +1474,17 @@ function App() {
             const isSameAccount = currentAuthUid && existingPlayer.authUid === currentAuthUid;
 
             if (existingPlayer.isKicked) {
-                setNameError('Ta nazwa należy do wyrzuconego gracza. Wybierz inną.');
+                setNameError(t('errors.kickedName'));
                 return;
             }
 
             if (existingPlayer.isGuest) {
-                setNameError(
-                    'Ta nazwa należy do gościa bez telefonu. Host może zmienić nazwę w panelu gości.'
-                );
+                setNameError(t('errors.guestNameTaken'));
                 return;
             }
 
             if (existingPlayer.isOnline !== false && !isSameAccount) {
-                setNameError(
-                    'Ta nazwa jest już zajęta przez aktywnego gracza. Wybierz inną lub poczekaj, aż gracz się rozłączy (💤).'
-                );
+                setNameError(t('errors.nameTaken'));
                 return;
             }
 
@@ -1710,7 +1508,7 @@ function App() {
             setWaitingForApproval(true);
             setJoinStatus('');
             setNameError('');
-            setLastJoinResult('Wysłano prośbę do hosta. Czekaj na akceptację.');
+            setLastJoinResult(t('errors.joinRequestSent'));
             return;
         } else {
             const newPlayerRef = push(playersRef);
@@ -1763,7 +1561,7 @@ function App() {
         isJoiningRef.current = true;
 
         try {
-            setJoinStatus('Zapisywanie gracza...');
+            setJoinStatus(t('errors.joinSaving'));
             await set(targetPlayerRef, {
                 name: cleanedName,
                 authUid: currentAuthUid,
@@ -1774,11 +1572,11 @@ function App() {
                 lastSeenAt: Date.now(),
             }, { priority: true });
 
-            setJoinStatus('Weryfikacja wejścia...');
+            setJoinStatus(t('errors.joinVerifying'));
             const verify = await get(targetPlayerRef);
             if (!verify.val()?.name) {
-                setNameError('Nie udało się zapisać w pokoju. Spróbuj ponownie.');
-                setLastJoinResult('Błąd wejścia — spróbuj ponownie.');
+                setNameError(t('errors.joinSaveFailed'));
+                setLastJoinResult(t('errors.joinErrorRetry'));
                 return;
             }
 
@@ -1801,8 +1599,8 @@ function App() {
         } catch (err) {
             console.error(err);
             joinGraceUntilRef.current = 0;
-            setNameError('Nie udało się dołączyć. Sprawdź połączenie z bazą (na dole ekranu).');
-            setLastJoinResult('Błąd wejścia — sprawdź połączenie.');
+            setNameError(t('errors.joinFailed'));
+            setLastJoinResult(t('errors.joinErrorConnection'));
             setJoinStatus('');
         } finally {
             isJoiningRef.current = false;
@@ -1819,14 +1617,15 @@ function App() {
         const roomSnap = await get(ref(db, `rooms/${normalizedRoomId}`));
         const roomData = roomSnap.val();
         if (!roomData?.gameId) {
-            setLobbyMessage('❌ Ten pokój nie istnieje lub został zamknięty.');
+            setLobbyMessage(t('errors.roomClosed'));
             return;
         }
         const joinMode = normalizeJoinMode(roomData);
         if (fromList && !canJoinFromList(joinMode)) {
-            setLobbyMessage('🔗 Ten pokój wymaga linku, kodu QR lub kodu pokoju od hosta.');
+            setLobbyMessage(t('errors.roomInviteOnly'));
             return;
         }
+        prefetchGameChunk(roomData.gameId);
         setEntryRole('guest');
         setSelectedGame(normalizedRoomId);
         setSelectedGameType(roomData.gameId);
@@ -1873,7 +1672,7 @@ function App() {
             }
             const ok = await verifyRoomPassword(selectedGame, password, roomData.passwordHash);
             if (!ok) {
-                setGuestPasswordError('Nieprawidłowe hasło. Spróbuj ponownie.');
+                setGuestPasswordError(t('errors.wrongPassword'));
                 return;
             }
             setGuestPasswordGranted(true);
@@ -1905,21 +1704,25 @@ function App() {
         const { joinMode = 'public', password = '' } = options;
         const gameId = resolveGameId(rawGameId);
         if (!gameId) {
-            setLobbyMessage(`❌ Nieznana gra: ${rawGameId}`);
+            setLobbyMessage(t('errors.unknownGame', { game: rawGameId }));
             return;
         }
         if (!isPlayableGameId(gameId)) {
-            setLobbyMessage(getComingSoonMessage(gameId));
+            setLobbyMessage(getComingSoonMessage(gameId, t));
             return;
         }
+        prefetchGameChunk(gameId);
         if (joinMode === 'password' && !isValidRoomPassword(password)) {
             setLobbyMessage(
-                `❌ Hasło musi mieć ${MIN_ROOM_PASSWORD_LENGTH}–${MAX_ROOM_PASSWORD_LENGTH} znaków.`
+                t('notifications.roomPasswordInvalid', {
+                    min: MIN_ROOM_PASSWORD_LENGTH,
+                    max: MAX_ROOM_PASSWORD_LENGTH,
+                })
             );
             return;
         }
         if (isRateLimited('create-room', RATE_LIMITS_MS.createRoom)) {
-            setLobbyMessage('⏱️ Tworzysz pokoje zbyt szybko. Odczekaj chwilę.');
+            setLobbyMessage(t('notifications.rateLimitCreateRoom'));
             return;
         }
         await runWithBusy(async () => {
@@ -1932,7 +1735,7 @@ function App() {
                 }
                 const finalExistsSnap = await get(ref(db, `rooms/${roomCode}`));
                 if (finalExistsSnap.exists()) {
-                    setLobbyMessage('❌ Nie udało się utworzyć kodu pokoju. Spróbuj ponownie.');
+                    setLobbyMessage(t('notifications.roomCodeFailed'));
                     return;
                 }
                 const now = Date.now();
@@ -1974,6 +1777,7 @@ function App() {
                 setGuestPasswordGranted(true);
                 setGuestJoinViaInvite(false);
                 setHostRoomPassword('');
+                prefetchGameChunk(gameId);
                 setEntryRole('host');
                 setSelectedGame(roomCode);
                 setSelectedGameType(gameId);
@@ -1983,15 +1787,13 @@ function App() {
                 console.error('[createHostRoom]', err);
                 const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : '';
                 if (code.includes('PERMISSION_DENIED')) {
-                    setLobbyMessage(
-                        '❌ Baza odrzuciła tę grę (reguły Firebase). Wdróż database.rules.json: firebase deploy --only database'
-                    );
+                    setLobbyMessage(t('notifications.roomCreatePermissionDenied'));
                 } else {
-                    setLobbyMessage('❌ Nie udało się utworzyć pokoju. Sprawdź połączenie z bazą.');
+                    setLobbyMessage(t('notifications.roomCreateFailed'));
                 }
             }
         });
-    }, [runWithBusy, isRateLimited]);
+    }, [runWithBusy, isRateLimited, t, getComingSoonMessage]);
 
     useEffect(() => {
         createHostRoomRef.current = createHostRoom;
@@ -2000,14 +1802,14 @@ function App() {
     const kickPlayer = useCallback(async (playerId) => {
         if (!selectedGame || !myPlayerId) return;
         if (isRateLimited(`kick:${selectedGame}`, RATE_LIMITS_MS.kick)) {
-            setLobbyMessage('⏱️ Za szybkie kolejne wyrzucenie gracza.');
+            setLobbyMessage(t('notifications.rateLimitKick'));
             return;
         }
         await runWithBusy(async () => {
             try {
                 const meSnap = await get(ref(db, `rooms/${selectedGame}/players/${myPlayerId}`));
                 if (!meSnap.val()?.isHost) {
-                    alert('❌ Tylko aktywny Host może wyrzucać graczy. Odśwież stronę lub użyj HOST ME w konsoli.');
+                    alert(t('notifications.onlyHostCanKick'));
                     return;
                 }
                 const targetRef = ref(db, `rooms/${selectedGame}/players/${playerId}`);
@@ -2015,7 +1817,7 @@ function App() {
                 const target = targetSnap.val();
                 if (!target) return;
                 if (target.isHost) {
-                    alert('❌ Nie możesz wyrzucić Hosta.');
+                    alert(t('notifications.cannotKickHost'));
                     return;
                 }
 
@@ -2037,24 +1839,26 @@ function App() {
                     await clearPresenceIndex(target.authUid);
                 }
 
-                setLobbyMessage(`🧹 Host: Wyrzucono ${target.name || 'gracza'} z pokoju.`);
+                setLobbyMessage(t('notifications.hostKicked', {
+                    name: target.name || t('common.player'),
+                }));
             } catch (err) {
                 console.error(err);
-                alert('❌ Błąd przy wyrzucaniu gracza. Sprawdź połączenie z bazą (na dole ekranu).');
+                alert(t('notifications.kickErrorConnection'));
             }
         });
-    }, [selectedGame, myPlayerId, runWithBusy, clearPresenceIndex, isRateLimited]);
+    }, [selectedGame, myPlayerId, runWithBusy, clearPresenceIndex, isRateLimited, t]);
 
     const adminKick = useCallback(async (gameId, playerKey) => {
         if (isAdminRateLimited(`admin-kick:${gameId}`, RATE_LIMITS_MS.adminMutation)) {
-            setLobbyMessage('⏱️ Za szybkie kolejne wyrzucenie przez admina.');
+            setLobbyMessage(t('admin.rateLimitAdminKick'));
             return;
         }
         try {
             const snap = await get(ref(db, `rooms/${gameId}/players/${playerKey}`));
             const p = snap.val();
             if (!p) {
-                alert('❌ Nie znaleziono gracza.');
+                alert(t('admin.playerNotFound'));
                 return;
             }
             // Admin powinien móc usunąć dowolnego gracza natychmiast
@@ -2062,24 +1866,27 @@ function App() {
             if (p.authUid) {
                 await clearPresenceIndex(p.authUid);
             }
-            setLobbyMessage(`🧹 Konsola: Admin wyrzucił ${p.name || playerKey} z pokoju ${gameId}.`);
+            setLobbyMessage(t('admin.adminKicked', {
+                name: p.name || playerKey,
+                roomId: gameId,
+            }));
         } catch (e) {
             console.error(e);
-            alert('❌ Błąd przy wyrzucaniu gracza.');
+            alert(t('admin.kickError'));
         }
-    }, [clearPresenceIndex, isAdminRateLimited]);
+    }, [clearPresenceIndex, isAdminRateLimited, t]);
 
     const adminDeleteRoom = useCallback(async (roomId) => {
         await runWithBusy(async () => {
             try {
                 await update(ref(db), roomDeleteUpdates(roomId));
-                setLobbyMessage(`🧹 Konsola: Usunięto pokój ${roomId}.`);
+                setLobbyMessage(t('admin.roomDeleted', { roomId }));
             } catch (e) {
                 console.error(e);
-                alert('❌ Błąd przy usuwaniu pokoju.');
+                alert(t('admin.roomDeleteError'));
             }
         });
-    }, [runWithBusy]);
+    }, [runWithBusy, t]);
 
     const handleBackToMenu = useCallback(() => {
         const roomId = selectedGame;
@@ -2124,7 +1931,7 @@ function App() {
                 await update(ref(db), closeUpdates);
             } catch (err) {
                 console.error(err);
-                setLobbyMessage('❌ Nie udało się zamknąć pokoju. Spróbuj ponownie.');
+                setLobbyMessage(t('notifications.roomCloseFailed'));
             } finally {
                 if (authUser?.uid) {
                     void clearPresenceIndex(authUser.uid);
@@ -2132,7 +1939,7 @@ function App() {
                 leaveToLobby({ keepEntryRole: true });
             }
         });
-    }, [selectedGame, myPlayerId, runWithBusy, authUser, clearPresenceIndex, leaveToLobby]);
+    }, [selectedGame, myPlayerId, runWithBusy, authUser, clearPresenceIndex, leaveToLobby, t]);
 
     const handleLeaveRoom = useCallback(() => {
         if (effectiveIsHost) {
@@ -2247,13 +2054,13 @@ function App() {
                     { nickname },
                     { merge: true }
                 );
-                setAuthStatus('Zapisano stały nick.');
+                setAuthStatus(t('account.savedRemote'));
             } else {
-                setAuthStatus('Nick zapisany lokalnie (zaloguj się, aby zsynchronizować).');
+                setAuthStatus(t('account.savedLocal'));
             }
             setPlayerName((prev) => (prev.trim() ? prev : nickname));
         } catch (error) {
-            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się zapisać nicku.');
+            setAuthStatus(error instanceof Error ? error.message : t('account.saveFailed'));
         } finally {
             setAuthBusy(false);
         }
@@ -2273,7 +2080,9 @@ function App() {
           ? 'settings'
           : showBugReport
             ? 'bug-report'
-            : null;
+            : showLanguagePicker
+              ? 'language'
+              : null;
 
     const appContainerRef = useRef(null);
 
@@ -2284,6 +2093,7 @@ function App() {
         if (!overlayOpen) {
             root.style.removeProperty('--overlay-stack-1');
             root.style.removeProperty('--overlay-stack-2');
+            root.style.removeProperty('--overlay-stack-3');
             return undefined;
         }
 
@@ -2291,8 +2101,10 @@ function App() {
             overlayOpen === 'account'
                 ? '.account-panel'
                 : overlayOpen === 'settings'
-                  ? '.settings-panel:not(.bug-report-panel)'
-                  : '.bug-report-panel';
+                  ? '.settings-panel:not(.bug-report-panel):not(.language-panel)'
+                  : overlayOpen === 'language'
+                    ? '.language-panel'
+                    : '.bug-report-panel';
 
         const updateStack = () => {
             const panel = root.querySelector(panelSelector);
@@ -2300,6 +2112,7 @@ function App() {
             const stack1 = panel.getBoundingClientRect().bottom + 10;
             root.style.setProperty('--overlay-stack-1', `${stack1}px`);
             root.style.setProperty('--overlay-stack-2', `${stack1 + 56}px`);
+            root.style.setProperty('--overlay-stack-3', `${stack1 + 112}px`);
         };
 
         updateStack();
@@ -2316,6 +2129,7 @@ function App() {
             window.removeEventListener('resize', updateStack);
             root.style.removeProperty('--overlay-stack-1');
             root.style.removeProperty('--overlay-stack-2');
+            root.style.removeProperty('--overlay-stack-3');
         };
     }, [overlayOpen]);
 
@@ -2329,29 +2143,27 @@ function App() {
             <h1
                 onDoubleClick={toggleAdminPanel}
                 className="main-logo-clickable"
-                title="Przytrzymaj 0,6 s (telefon) lub kliknij dwukrotnie — konsola admina"
+                title={t('app.logoHint')}
                 {...logoLongPress}
             >
-                Party Games
+                {t('app.title')}
             </h1>
-            <p className="app-version" aria-label={`Wersja ${versionData.version}`}>
+            <p className="app-version" aria-label={t('common.version', { version: versionData.version })}>
                 v{versionData.version}
             </p>
 
+            <OfflineBanner />
+            <PwaInstallPrompt />
             <IosWifiHelp />
 
             {firebaseConnection.mode === 'emulator' && (
                 <div className="party-ap-banner" role="alert">
                     {firebaseConnection.onPartyGateway ? (
-                        <>
-                            Jesteś na <strong>{PI_AP_GATEWAY}</strong> — dobrze. Goście: Wi‑Fi{' '}
-                            <strong>PartBox-Gry</strong>, ten sam adres w przeglądarce.
-                        </>
+                        <span>{t('app.partyBannerOnGateway', { gateway: PI_AP_GATEWAY, wifi: 'PartBox-Gry' })}</span>
                     ) : (
                         <>
-                            Impreza: Wi‑Fi <strong>PartBox-Gry</strong> i{' '}
-                            <a href={`http://${PI_AP_GATEWAY}`}>http://{PI_AP_GATEWAY}</a> u wszystkich
-                            (nie mieszaj z IP w LAN).
+                            {t('app.partyBannerOffGateway', { wifi: 'PartBox-Gry', link: '' })}{' '}
+                            <a href={`http://${PI_AP_GATEWAY}`}>http://{PI_AP_GATEWAY}</a>
                         </>
                     )}
                 </div>
@@ -2364,8 +2176,9 @@ function App() {
                     setShowAccountCenter((prev) => !prev);
                     setShowSettings(false);
                     setShowBugReport(false);
+                    setShowLanguagePicker(false);
                 }}
-                aria-label="Otwórz centrum konta"
+                aria-label={t('triggers.account')}
                 aria-hidden={showAccountCenter || undefined}
                 tabIndex={showAccountCenter ? -1 : undefined}
             >
@@ -2379,8 +2192,9 @@ function App() {
                     setShowSettings((prev) => !prev);
                     setShowAccountCenter(false);
                     setShowBugReport(false);
+                    setShowLanguagePicker(false);
                 }}
-                aria-label="Otwórz ustawienia"
+                aria-label={t('triggers.settings')}
                 aria-hidden={showSettings || undefined}
                 tabIndex={showSettings ? -1 : undefined}
             >
@@ -2390,12 +2204,15 @@ function App() {
             <button
                 type="button"
                 className="bug-report-trigger"
+                onPointerEnter={prefetchBugReportOnIntent}
+                onFocus={prefetchBugReportOnIntent}
                 onClick={() => {
                     setShowBugReport((prev) => !prev);
                     setShowSettings(false);
                     setShowAccountCenter(false);
+                    setShowLanguagePicker(false);
                 }}
-                aria-label="Zgłoś błąd"
+                aria-label={t('triggers.bugReport')}
                 aria-hidden={showBugReport || undefined}
                 tabIndex={showBugReport ? -1 : undefined}
             >
@@ -2403,674 +2220,167 @@ function App() {
             </button>
 
             {showBugReport && (
-                <Suspense fallback={null}>
-                    <BugReportPanel context={bugReportContext} onClose={closeBugReport} />
-                </Suspense>
+                <BugReportPanel context={bugReportContext} onClose={closeBugReport} />
             )}
 
+            <LanguagePicker
+                open={showLanguagePicker}
+                onToggle={() => {
+                    setShowLanguagePicker((prev) => !prev);
+                    setShowSettings(false);
+                    setShowAccountCenter(false);
+                    setShowBugReport(false);
+                }}
+                onClose={() => setShowLanguagePicker(false)}
+            />
+
             {showAccountCenter && (
-                <div className="account-panel" role="dialog" aria-label="Centrum konta">
-                    <div className="settings-panel__header">
-                        <h2>Centrum konta</h2>
-                        <button
-                            type="button"
-                            className="settings-close"
-                            onClick={() => setShowAccountCenter(false)}
-                            aria-label="Zamknij centrum konta"
-                        >
-                            ✕
-                        </button>
-                    </div>
-
-                    <p className="account-status-line">
-                        {authUser?.email ? `Zalogowany: ${authUser.email}` : 'Brak aktywnego konta'}
-                    </p>
-
-                    {!hasEmailProvider && (
-                        <button
-                            type="button"
-                            className="settings-toggle"
-                            onClick={handleGoogleAuth}
-                            disabled={authBusy}
-                        >
-                            <span>Utwórz / Zaloguj przez Google</span>
-                            <span className="settings-toggle__icon on">G</span>
-                        </button>
-                    )}
-
-                    <div className="settings-panel__group">
-                        <label className="settings-panel__label" htmlFor="account-nickname-input">
-                            Stały nick
-                        </label>
-                        <input
-                            id="account-nickname-input"
-                            type="text"
-                            value={accountNickname}
-                            onChange={(event) => setAccountNickname(event.target.value)}
-                            maxLength={24}
-                            placeholder="Twój stały nick"
-                            className="account-input"
-                        />
-                        <button
-                            type="button"
-                            className="btn-link"
-                            onClick={handleSaveNickname}
-                            disabled={authBusy}
-                        >
-                            Zapisz nick
-                        </button>
-                        {nicknameSavedAt > 0 && <p className="account-success">Nick zapisany.</p>}
-                    </div>
-
-                    {!hasGoogleProvider && (
-                        <div className="settings-panel__group">
-                            <label className="settings-panel__label" htmlFor="account-email-input">
-                                Email (link logowania)
-                            </label>
-                            <input
-                                id="account-email-input"
-                                type="email"
-                                value={accountEmail}
-                                onChange={(event) => setAccountEmail(event.target.value)}
-                                placeholder="twoj@email.com"
-                                className="account-input"
-                            />
-                            <div className="account-actions-row">
-                                <button type="button" className="btn-link" onClick={handleSendMagicLink} disabled={authBusy}>
-                                    Wyślij link
-                                </button>
-                                <button type="button" className="btn-link" onClick={handleCompleteMagicLink} disabled={authBusy}>
-                                    Dokończ link
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {!!lastKnownRoomId && !isJoined && (
-                        <button
-                            type="button"
-                            className="settings-toggle"
-                            onClick={handleJoinLastKnownGame}
-                            disabled={authBusy}
-                        >
-                            <span>Dołącz do gry ({lastKnownRoomId})</span>
-                            <span className="settings-toggle__icon on">▶</span>
-                        </button>
-                    )}
-
-                    <button
-                        type="button"
-                        className="settings-toggle"
-                        onClick={handleConnectGoogle}
-                        disabled={authBusy}
-                    >
-                        <span>Połącz konto z Google</span>
-                        <span className="settings-toggle__icon on">+</span>
-                    </button>
-
-                    {authUser && (
-                        <button
-                            type="button"
-                            className="settings-toggle"
-                            onClick={handleSignOut}
-                            disabled={authBusy}
-                        >
-                            <span>Wyloguj</span>
-                            <span className="settings-toggle__icon off">↩</span>
-                        </button>
-                    )}
-
-                    {authStatus && <p className="settings-hint settings-hint--tight">{authStatus}</p>}
-                </div>
+                <AccountCenterPanel
+                    authUser={authUser}
+                    authBusy={authBusy}
+                    authStatus={authStatus}
+                    accountNickname={accountNickname}
+                    accountEmail={accountEmail}
+                    nicknameSavedAt={nicknameSavedAt}
+                    lastKnownRoomId={lastKnownRoomId}
+                    isJoined={isJoined}
+                    hasGoogleProvider={hasGoogleProvider}
+                    hasEmailProvider={hasEmailProvider}
+                    onClose={() => setShowAccountCenter(false)}
+                    onNicknameChange={setAccountNickname}
+                    onEmailChange={setAccountEmail}
+                    onSaveNickname={handleSaveNickname}
+                    onGoogleAuth={handleGoogleAuth}
+                    onSendMagicLink={handleSendMagicLink}
+                    onCompleteMagicLink={handleCompleteMagicLink}
+                    onConnectGoogle={handleConnectGoogle}
+                    onSignOut={handleSignOut}
+                    onJoinLastKnownGame={handleJoinLastKnownGame}
+                />
             )}
 
             {showSettings && (
-                <div className="settings-panel" role="dialog" aria-label="Ustawienia aplikacji">
-                    <div className="settings-panel__header">
-                        <h2>Ustawienia</h2>
-                        <button
-                            type="button"
-                            className="settings-close"
-                            onClick={() => setShowSettings(false)}
-                            aria-label="Zamknij ustawienia"
-                        >
-                            ✕
-                        </button>
-                    </div>
-
-                    <div className="settings-panel__group">
-                        <div className="settings-panel__label">Gradient tła</div>
-                        <div className="settings-presets">
-                            {themePresets.map((preset) => (
-                                <button
-                                    key={preset.id}
-                                    type="button"
-                                    className={`settings-preset ${themePreset === preset.id ? 'active' : ''}`}
-                                    onClick={() => setThemePreset(preset.id)}
-                                    aria-label={preset.label}
-                                    aria-pressed={themePreset === preset.id}
-                                    style={{
-                                        background: `linear-gradient(135deg, ${preset.stops[0]} 0%, ${preset.stops[1]} 50%, ${preset.stops[2]} 100%)`
-                                    }}
-                                >
-                                    <span className="sr-only">{preset.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="settings-panel__group">
-                        <button
-                            type="button"
-                            className="settings-toggle"
-                            onClick={() => setSoundEnabled((prev) => !prev)}
-                            aria-pressed={soundEnabled}
-                        >
-                            <span>Dźwięk aplikacji</span>
-                            <span className={`settings-toggle__icon ${soundEnabled ? 'on' : 'off'}`}>
-                                {soundEnabled ? '✔' : '✕'}
-                            </span>
-                        </button>
-                    </div>
-
-                    <div className="settings-panel__group">
-                        <button
-                            type="button"
-                            className="settings-toggle"
-                            onClick={() => setVibrationEnabled((prev) => !prev)}
-                            aria-pressed={vibrationEnabled}
-                        >
-                            <span>Wibracje</span>
-                            <span className={`settings-toggle__icon ${vibrationEnabled ? 'on' : 'off'}`}>
-                                {vibrationEnabled ? '✔' : '✕'}
-                            </span>
-                        </button>
-                    </div>
-
-                    <div className="settings-panel__group">
-                        <button
-                            type="button"
-                            className="settings-toggle"
-                            onClick={() => setShowConnectionFooter((prev) => !prev)}
-                            aria-pressed={showConnectionFooter}
-                        >
-                            <span>Stopka statusu połączenia</span>
-                            <span className={`settings-toggle__icon ${showConnectionFooter ? 'on' : 'off'}`}>
-                                {showConnectionFooter ? '✔' : '✕'}
-                            </span>
-                        </button>
-                    </div>
-
-                    <div className="settings-panel__group">
-                        <button
-                            type="button"
-                            className="settings-toggle"
-                            onClick={() => {
-                                toggleAdminPanel();
-                                setShowSettings(false);
-                            }}
-                            aria-pressed={showAdminPanel}
-                        >
-                            <span>Konsola administratora</span>
-                            <span className={`settings-toggle__icon ${showAdminPanel ? 'on' : 'off'}`}>
-                                {showAdminPanel ? '✔' : '✕'}
-                            </span>
-                        </button>
-                        <p className="settings-hint settings-hint--tight">
-                            Konsola deweloperska. HELP, RESET, PURGE… Logo „Party Games” ~0,6 s.
-                        </p>
-                    </div>
-
-                    <p className="settings-hint">
-                        {isLowPowerDevice()
-                            ? 'Malinka: tryb oszczędny. Na iPhonie wyłącz prywatny adres Wi‑Fi dla PartBox-Gry.'
-                            : 'Internet: pełne animacje i efekty.'}
-                    </p>
-                </div>
+                <SettingsPanel
+                    themePreset={themePreset}
+                    soundEnabled={soundEnabled}
+                    vibrationEnabled={vibrationEnabled}
+                    showConnectionFooter={showConnectionFooter}
+                    continuousPingEnabled={continuousPingEnabled}
+                    powerSaveMode={powerSaveMode}
+                    showAdminPanel={showAdminPanel}
+                    onClose={() => setShowSettings(false)}
+                    onThemeChange={setThemePreset}
+                    onSoundToggle={() => setSoundEnabled((prev) => !prev)}
+                    onVibrationToggle={() => setVibrationEnabled((prev) => !prev)}
+                    onConnectionFooterToggle={() => setShowConnectionFooter((prev) => !prev)}
+                    onContinuousPingToggle={() => setContinuousPingEnabled((prev) => !prev)}
+                    onPowerSaveToggle={() => setPowerSaveMode((prev) => !prev)}
+                    onOpenAdminPanel={() => {
+                        toggleAdminPanel();
+                        setShowSettings(false);
+                    }}
+                />
             )}
 
             {lobbyMessage && <p className="error-message">{lobbyMessage}</p>}
 
             {/* PANEL DEWELOPERSKI */}
             {showAdminPanel && (
-                <div className="admin-panel-container">
-                    <input
-                        type="text"
-                        value={adminCommand}
-                        onChange={(e) => setAdminCommand(e.target.value)}
-                        placeholder="Konsola:"
-                        onKeyDown={(e) => e.key === 'Enter' && handleAdminCommand()}
-                        className="input-admin-console"
-                    />
-                </div>
+                <AdminConsole
+                    adminCommand={adminCommand}
+                    onCommandChange={setAdminCommand}
+                    onSubmit={handleAdminCommand}
+                />
             )}
 
             {!selectedGame ? (
                 <div>
                     {!entryRole && (
-                        <>
-                            <p>Jak chcesz wejść do platformy?</p>
-                            <div className="actions-stack">
-                                <button onClick={() => setEntryRole('host')} className="entry-role-btn entry-role-btn--host">
-                                    Jestem Hostem
-                                </button>
-                                <button onClick={() => setEntryRole('guest')} className="entry-role-btn entry-role-btn--guest">Jestem Gościem</button>
-                            </div>
-                        </>
-                    )}
-
-                    {entryRole === 'host' && (
-                        <>
-                            <p>Wybierz tryb gry. Utworzymy nowy pokój.</p>
-                            <div className="host-room-options">
-                                <p className="host-room-options__label">Tryb dostępu do pokoju</p>
-                                <div className="host-join-mode-grid">
-                                    {JOIN_MODE_OPTIONS.map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            type="button"
-                                            className={`host-join-mode-option ${hostJoinMode === opt.id ? 'active' : ''}`}
-                                            onClick={() => {
-                                                setHostJoinMode(opt.id);
-                                                if (opt.id !== 'password') setHostRoomPassword('');
-                                            }}
-                                            aria-pressed={hostJoinMode === opt.id}
-                                        >
-                                            <span className="host-join-mode-option__title">
-                                                {opt.icon} {opt.label}
-                                            </span>
-                                            <span className="host-join-mode-option__desc">{opt.desc}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                                {hostJoinMode === 'password' && (
-                                    <div className="host-room-private-fields">
-                                        <label className="host-room-private-fields__label" htmlFor="host-room-password">
-                                            Hasło pokoju
-                                        </label>
-                                        <input
-                                            id="host-room-password"
-                                            type="password"
-                                            value={hostRoomPassword}
-                                            onChange={(e) => setHostRoomPassword(e.target.value)}
-                                            placeholder={`${MIN_ROOM_PASSWORD_LENGTH}–${MAX_ROOM_PASSWORD_LENGTH} znaków`}
-                                            maxLength={MAX_ROOM_PASSWORD_LENGTH}
-                                            autoComplete="new-password"
-                                            className="host-room-private-fields__input"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="games-grid">
-                                {gameData.games.map((game) => {
-                                    const soon = game.comingSoon === true;
-                                    return (
-                                        <button
-                                            key={game.id}
-                                            type="button"
-                                            className={soon ? 'game-btn game-btn--soon' : 'game-btn'}
-                                            disabled={soon}
-                                            aria-disabled={soon}
-                                            onClick={() => {
-                                                if (soon) {
-                                                    setLobbyMessage(getComingSoonMessage(game));
-                                                    return;
-                                                }
-                                                createHostRoom(game.id, {
-                                                    joinMode: hostJoinMode,
-                                                    password: hostRoomPassword,
-                                                });
-                                            }}
-                                        >
-                                            <span className="game-title">
-                                                {game.name}
-                                                {soon && (
-                                                    <span className="game-badge-soon">Wkrótce</span>
-                                                )}
-                                            </span>
-                                            <span className="game-desc">
-                                                {soon
-                                                    ? 'Gra w trakcie tworzenia — niedostępna.'
-                                                    : game.description}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <button onClick={() => setEntryRole(null)} className="btn-link">Wróć</button>
-                        </>
-                    )}
-
-                    {entryRole === 'guest' && (
-                        <>
-                            <p>Wybierz aktywny pokój albo wpisz kod/link od Hosta.</p>
-                            <input
-                                type="text"
-                                value={manualRoomCode}
-                                onChange={(e) => setManualRoomCode(
-                                    e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-                                )}
-                                placeholder="Kod pokoju (roomId)"
-                                maxLength={ROOM_CODE_LENGTH}
-                            />
-                            <div className="actions-stack join-code-actions">
-                                <button
-                                    onClick={() => openRoomAsGuest(manualRoomCode.trim(), { joinViaInvite: true })}
-                                    disabled={manualRoomCode.trim() === ''}
-                                >
-                                    Dołącz po kodzie
-                                </button>
-                            </div>
-                            <div className="games-grid guest-rooms-grid">
-                                {activeRooms.map((room) => (
-                                    <div key={room.roomId} className="guest-room-card">
-                                        <button
-                                            type="button"
-                                            className="guest-room-btn"
-                                            onClick={() => openRoomAsGuest(room.roomId, { fromList: true })}
-                                        >
-                                            <span className="game-title">
-                                                {room.gameName}
-                                                {room.joinModeBadge}{room.admissionBadge}
-                                                {room.pendingCount > 0 ? ` · ${room.pendingCount} czeka` : ''}
-                                            </span>
-                                            <span className="guest-room-host">
-                                                {room.hostName
-                                                    ? `Pokój gracza „${room.hostName}"`
-                                                    : 'Pokój bez hosta'}
-                                            </span>
-                                            <span className="guest-room-meta">
-                                                Gracze online: {room.onlineCount}
-                                            </span>
-                                            {room.showCode ? (
-                                                <span className="guest-room-code">{room.roomId}</span>
-                                            ) : (
-                                                <span className="guest-room-invite-hint">
-                                                    Wejście tylko przez link lub kod od hosta
-                                                </span>
-                                            )}
-                                        </button>
-                                        {hasAdminPowers && (
-                                            <button
-                                                type="button"
-                                                className="btn-admin-kick"
-                                                onClick={() => adminDeleteRoom(room.roomId)}
-                                                title={`Admin: usuń pokój ${room.roomId}`}
-                                            >
-                                                🧹 Usuń pokój
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            {activeRooms.length === 0 && (
-                                <p className="join-progress">Brak aktywnych pokoi. Poproś Hosta o link lub kod QR.</p>
-                            )}
-                            <button onClick={() => setEntryRole(null)} className="btn-link">Wróć</button>
-                        </>
-                    )}
-                </div>
-            ) : (
-                <div>
-                    {!selectedGameType ? (
-                        <div className="content-panel content-panel--dark">
-                            <p>Ładowanie pokoju…</p>
-                            <div className="actions-stack">
-                                <button onClick={handleBackToMenu} className="btn-link">Wróć</button>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                    {effectiveIsHost && (
-                        <>
-                            <JoinRequestPanel
-                                requests={joinRequestList}
-                                onApprove={approveJoinRequest}
-                                onReject={rejectJoinRequest}
-                                onApproveAll={approveAllJoinRequests}
-                            />
-                            <div className="room-lock-container">
-                                <button
-                                    type="button"
-                                    onClick={cycleRoomAdmission}
-                                    className={`btn-lock-toggle ${getAdmissionOption(roomAdmission).buttonClass}`}
-                                >
-                                    {getAdmissionOption(roomAdmission).icon}{' '}
-                                    {getAdmissionOption(roomAdmission).label}
-                                    {joinRequestList.length > 0
-                                        ? ` (${joinRequestList.length} czeka)`
-                                        : ''}
-                                    {' '}(kliknij, aby zmienić)
-                                </button>
-                                <p className="room-admission-hint">
-                                    {getAdmissionOption(roomAdmission).desc}
-                                </p>
-                            </div>
-                        </>
-                    )}
-                    {!isJoined ? (
-                        waitingForApproval ? (
-                            <div>
-                                <h2>Pokój: {currentGameMeta?.name}</h2>
-                                <p className="join-progress join-waiting-host">
-                                    ⏳ Czekasz na akceptację hosta…
-                                </p>
-                                <p>Nie zamykaj tej strony. Gdy host Cię wpuści, gra wczyta się automatycznie.</p>
-                                <div className="actions-stack">
-                                    <button onClick={handleBackToMenu} className="btn-link">Anuluj prośbę</button>
-                                </div>
-                            </div>
-                        ) : !isHost && currentRoomJoinMode === 'password' && !guestPasswordGranted ? (
-                            <div>
-                                <h2>Pokój: {currentGameMeta?.name}</h2>
-                                <p>Ten pokój wymaga hasła (wejście z listy):</p>
-                                <input
-                                    type="password"
-                                    value={guestRoomPassword}
-                                    onChange={(e) => {
-                                        setGuestRoomPassword(e.target.value);
-                                        setGuestPasswordError('');
-                                    }}
-                                    placeholder={`Hasło (${MIN_ROOM_PASSWORD_LENGTH}–${MAX_ROOM_PASSWORD_LENGTH} znaków)`}
-                                    maxLength={MAX_ROOM_PASSWORD_LENGTH}
-                                    autoComplete="current-password"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleGuestRoomPassword()}
-                                    className={guestPasswordError ? 'input-error' : ''}
-                                />
-                                {guestPasswordError && <p className="error-message">{guestPasswordError}</p>}
-                                <div className="actions-stack">
-                                    <button
-                                        onClick={handleGuestRoomPassword}
-                                        disabled={guestRoomPassword.trim().length < MIN_ROOM_PASSWORD_LENGTH}
-                                    >
-                                        Dalej
-                                    </button>
-                                    <button onClick={handleBackToMenu} className="btn-link">Wróć</button>
-                                </div>
-                            </div>
-                        ) : (
-                        <div>
-                            <h2>Pokój: {currentGameMeta?.name}</h2>
-                            {isHost && (
-                                <p className="join-progress">
-                                    Tryb: {JOIN_MODE_OPTIONS.find((o) => o.id === currentRoomJoinMode)?.label || '—'}
-                                    {' · '}
-                                    Brama: {getAdmissionOption(roomAdmission).label}
-                                </p>
-                            )}
-                            {!isHost && guestJoinViaInvite && (
-                                <p className="join-progress">Wejście przez link lub kod — hasło i kolejka pominięte.</p>
-                            )}
-                            <p>Wpisz swoje imię, aby wejść:</p>
-                            <input
-                                type="text"
-                                value={playerName}
-                                onChange={(e) => {
-                                    setPlayerName(e.target.value);
-                                    setNameError('');
-                                }}
-                                placeholder="Twoje imię..."
-                                onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-                                className={nameError ? 'input-error' : ''}
-                                required
-                                aria-invalid={nameError ? 'true' : 'false'}
-                            />
-
-                            {nameError && <p className="error-message">{nameError}</p>}
-                            {joinStatus && <p className="join-progress">{joinStatus}</p>}
-                            {lastJoinResult && !nameError && <p className="join-progress">{lastJoinResult}</p>}
-
-                            {isHost && (
-                                <RoomInviteQR
-                                    inviteUrl={roomInviteUrl}
-                                    roomId={selectedGame}
-                                    showCodeInList={roomShowCodeInList}
-                                    onToggleShowCodeInList={toggleShowCodeInList}
-                                    className="room-invite--slot"
-                                />
-                            )}
-
-                            <div className="actions-stack">
-                                <button onClick={handleJoin} disabled={playerName.trim() === ''}>Wejdź do pokoju</button>
-                                <button onClick={handleBackToMenu} className="btn-link">Wróć</button>
-                            </div>
-                        </div>
-                        )
-                    ) : (
-                        <div>
-                            <h2>Grasz w: {currentGameMeta?.name}</h2>
-
-                            <Suspense fallback={<p className="game-loading">Ładowanie gry…</p>}>
-                                {selectedGameType === 'never-have-i-ever' && (
-                                    <NeverHaveIEver isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomId={selectedGame} shareOptions={hostShareOptions} />
-                                )}
-
-                                {selectedGameType === 'truth-or-dare' && (
-                                    <TruthOrDare
-                                        isHost={effectiveIsHost}
-                                        onLeave={handleLeaveRoom}
-                                        playerName={playerName}
-                                        myPlayerId={myPlayerId}
-                                        tablePlayers={playersList}
-                                        vibrationEnabled={vibrationEnabled}
-                                        roomId={selectedGame}
-                                        shareOptions={hostShareOptions}
-                                    />
-                                )}
-
-                                {selectedGameType === 'impostor' && (
-                                    <Impostor
-                                        isHost={effectiveIsHost}
-                                        onLeave={handleLeaveRoom}
-                                        onCloseRoom={handleCloseRoom}
-                                        myPlayerId={myPlayerId}
-                                        tablePlayers={playersList}
-                                        isRoomLocked={isRoomLocked}
-                                        roomId={selectedGame}
-                                        shareOptions={hostShareOptions}
-                                    />
-                                )}
-
-                                {selectedGameType === 'mafia' && (
-                                    <Mafia
-                                        isHost={effectiveIsHost}
-                                        onLeave={handleLeaveRoom}
-                                        myPlayerId={myPlayerId}
-                                        tablePlayers={playersList}
-                                        isRoomLocked={isRoomLocked}
-                                        roomId={selectedGame}
-                                        shareOptions={hostShareOptions}
-                                    />
-                                )}
-
-                                {selectedGameType === 'dark-stories' && (
-                                    <DarkStories isHost={effectiveIsHost} onLeave={handleLeaveRoom} roomId={selectedGame} shareOptions={hostShareOptions} />
-                                )}
-
-                                {selectedGameType === 'who-would-rather' && (
-                                    <WhoWouldRather
-                                        isHost={effectiveIsHost}
-                                        onLeave={handleLeaveRoom}
-                                        playerName={playerName}
-                                        myPlayerId={myPlayerId}
-                                        tablePlayers={playersList}
-                                        vibrationEnabled={vibrationEnabled}
-                                        roomId={selectedGame}
-                                        shareOptions={hostShareOptions}
-                                    />
-                                )}
-
-                                {selectedGameType === 'kto-najpredzej' && (
-                                    <KtoNajpredzej
-                                        isHost={effectiveIsHost}
-                                        onLeave={handleLeaveRoom}
-                                        roomId={selectedGame}
-                                        shareOptions={hostShareOptions}
-                                    />
-                                )}
-
-                                {selectedGameType &&
-                                    isGameComingSoon(selectedGameType) &&
-                                    currentGameMeta && (
-                                        <ComingSoonGame
-                                            title={currentGameMeta.name}
-                                            isHost={effectiveIsHost}
-                                            onLeave={handleLeaveRoom}
-                                        />
-                                    )}
-                            </Suspense>
-                        </div>
-                    )}
-
-                    {isJoined && effectiveIsHost && (
-                        <GuestPlayersPanel
-                            roomId={selectedGame}
-                            playersList={playersList}
-                            myPlayerId={myPlayerId}
-                            runWithBusy={runWithBusy}
+                        <EntryRolePicker
+                            onSelectHost={() => setEntryRole('host')}
+                            onSelectGuest={() => setEntryRole('guest')}
                         />
                     )}
 
-                    {/* SEKCJA LISTY GRACZY W POKOJU */}
-                    <div className="players-section">
-                        <h3>Gracze przy stole:</h3>
-                        <div className="players-list">
-                            {playersList.length > 0 ? playersList.map(p => (
-                                <span
-                                    key={p.id}
-                                    className={`player-tag ${p.isOnline === false && !isGuestPlayer(p) ? 'player-offline' : ''} ${isGuestPlayer(p) ? 'player-guest' : ''}`}
-                                >
-                                    {p.name}
-                                    {isGuestPlayer(p) && ' 📵'}
-                                    {p.isOnline === false && !isGuestPlayer(p) && ' 💤'}
+                    {entryRole === 'host' && (
+                        <HostLobby
+                            hostJoinMode={hostJoinMode}
+                            hostRoomPassword={hostRoomPassword}
+                            onJoinModeChange={(mode) => {
+                                setHostJoinMode(mode);
+                                if (mode !== 'password') setHostRoomPassword('');
+                            }}
+                            onPasswordChange={setHostRoomPassword}
+                            onCreateRoom={createHostRoom}
+                            onComingSoon={setLobbyMessage}
+                            onBack={() => setEntryRole(null)}
+                        />
+                    )}
 
-                                    {(isJoined && effectiveIsHost && p.id !== myPlayerId) && (
-                                        <button
-                                            type="button"
-                                            onClick={() => kickPlayer(p.id)}
-                                            className="btn-kick"
-                                            title={`Wyrzuć gracza ${p.name}`}
-                                        >
-                                            ✕
-                                        </button>
-                                    )}
-
-                                    {hasAdminPowers && p.id && (
-                                        <button
-                                            onClick={() => adminKick(selectedGame, p.id)}
-                                            className="btn-admin-kick"
-                                            title="Admin: wyrzuć gracza"
-                                        >
-                                            🛑
-                                        </button>
-                                    )}
-                                </span>
-                            )) : <span className="empty-room-text">Pusty pokój...</span>}
-                        </div>
-                    </div>
-                        </>
+                    {entryRole === 'guest' && (
+                        <GuestLobby
+                            manualRoomCode={manualRoomCode}
+                            onManualRoomCodeChange={setManualRoomCode}
+                            onJoinByCode={(code) => openRoomAsGuest(code, { joinViaInvite: true })}
+                            lobbyFilters={lobbyFilters}
+                            onLobbyFiltersChange={setLobbyFilters}
+                            activeRooms={activeRooms}
+                            roomsListReady={guestRoomsListReady}
+                            onRefreshRooms={refreshGuestRooms}
+                            roomsRefreshing={guestRoomsRefreshing}
+                            onOpenRoom={openRoomAsGuest}
+                            hasAdminPowers={hasAdminPowers}
+                            onAdminDeleteRoom={adminDeleteRoom}
+                            onBack={() => setEntryRole(null)}
+                        />
                     )}
                 </div>
+            ) : (
+                <RoomScreen
+                    selectedGame={selectedGame}
+                    selectedGameType={selectedGameType}
+                    currentGameMeta={currentGameMeta}
+                    effectiveIsHost={effectiveIsHost}
+                    isHost={isHost}
+                    isJoined={isJoined}
+                    roomAdmission={roomAdmission}
+                    joinRequestList={joinRequestList}
+                    cycleRoomAdmission={cycleRoomAdmission}
+                    approveJoinRequest={approveJoinRequest}
+                    rejectJoinRequest={rejectJoinRequest}
+                    approveAllJoinRequests={approveAllJoinRequests}
+                    waitingForApproval={waitingForApproval}
+                    currentRoomJoinMode={currentRoomJoinMode}
+                    guestPasswordGranted={guestPasswordGranted}
+                    guestRoomPassword={guestRoomPassword}
+                    setGuestRoomPassword={setGuestRoomPassword}
+                    guestPasswordError={guestPasswordError}
+                    setGuestPasswordError={setGuestPasswordError}
+                    handleGuestRoomPassword={handleGuestRoomPassword}
+                    guestJoinViaInvite={guestJoinViaInvite}
+                    playerName={playerName}
+                    setPlayerName={setPlayerName}
+                    nameError={nameError}
+                    setNameError={setNameError}
+                    joinStatus={joinStatus}
+                    lastJoinResult={lastJoinResult}
+                    handleJoin={handleJoin}
+                    handleBackToMenu={handleBackToMenu}
+                    roomInviteUrl={roomInviteUrl}
+                    roomShowCodeInList={roomShowCodeInList}
+                    toggleShowCodeInList={toggleShowCodeInList}
+                    handleLeaveRoom={handleLeaveRoom}
+                    handleCloseRoom={handleCloseRoom}
+                    myPlayerId={myPlayerId}
+                    vibrationEnabled={vibrationEnabled}
+                    isRoomLocked={isRoomLocked}
+                    hostShareOptions={hostShareOptions}
+                    playersList={playersList}
+                    runWithBusy={runWithBusy}
+                    kickPlayer={kickPlayer}
+                    hasAdminPowers={hasAdminPowers}
+                    adminKick={adminKick}
+                />
             )}
 
             {showConnectionFooter && <ConnectionStatus />}

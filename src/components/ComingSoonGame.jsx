@@ -1,15 +1,15 @@
 import ConfirmButton from './ConfirmButton';
 import GameRules from './GameRules';
+import { useLocale } from '../locales/LocaleContext';
 
-/**
- * Szablon gry w przygotowaniu — podłącz w App.jsx po implementacji logiki.
- */
 function ComingSoonGame({ title, onLeave, isHost }) {
+    const { t } = useLocale();
+
     return (
         <div className="coming-soon-game">
             <GameRules title={title}>
                 <p className="coming-soon-game__lead">
-                    Ta gra jest w trakcie tworzenia i na razie nie jest dostępna w rozgrywce.
+                    {t('comingSoon.inGameLead')}
                 </p>
             </GameRules>
 
@@ -17,16 +17,16 @@ function ComingSoonGame({ title, onLeave, isHost }) {
                 <p className="coming-soon-game__emoji" aria-hidden="true">
                     🚧
                 </p>
-                <h3 className="coming-soon-game__title">Wkrótce dostępne</h3>
+                <h3 className="coming-soon-game__title">{t('comingSoon.inGameTitle')}</h3>
                 <p className="coming-soon-game__text">
-                    Pracujemy nad pełną wersją. Tymczasem wybierz inną grę z menu głównego.
+                    {t('comingSoon.inGameText')}
                 </p>
             </div>
 
             <div className="bottom-controls">
                 <ConfirmButton
                     onClick={onLeave}
-                    text={isHost ? 'Wróć do menu' : 'Wyjdź z pokoju'}
+                    text={isHost ? t('comingSoon.backToMenu') : t('comingSoon.leaveRoom')}
                 />
             </div>
         </div>

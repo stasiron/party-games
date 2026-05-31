@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
+import { useLocale } from '../locales/LocaleContext';
 
 function formatWaitTime(requestedAt) {
     const seconds = Math.max(0, Math.floor((Date.now() - Number(requestedAt || 0)) / 1000));
@@ -13,6 +14,7 @@ const JoinRequestPanel = memo(({
     onApproveAll,
     playAlertSound,
 }) => {
+    const { t } = useLocale();
     const prevCountRef = useRef(requests.length);
     const panelRef = useRef(null);
 
@@ -33,11 +35,11 @@ const JoinRequestPanel = memo(({
             <div className="join-request-panel__header">
                 <div>
                     <h3 className="join-request-panel__title">
-                        Oczekują na wejście
+                        {t('joinRequest.title')}
                         <span className="join-request-panel__badge">{requests.length}</span>
                     </h3>
                     <p className="join-request-panel__lead">
-                        Nowi gracze czekają na Twoją decyzję. Wpuść lub odrzuć każdą prośbę.
+                        {t('joinRequest.lead')}
                     </p>
                 </div>
                 {requests.length > 1 && (
@@ -46,7 +48,7 @@ const JoinRequestPanel = memo(({
                         className="join-request-panel__approve-all"
                         onClick={onApproveAll}
                     >
-                        Wpuść wszystkich
+                        {t('joinRequest.approveAll')}
                     </button>
                 )}
             </div>
@@ -54,8 +56,8 @@ const JoinRequestPanel = memo(({
                 {requests.map((req) => (
                     <li key={req.id} className="join-request-panel__item">
                         <div className="join-request-panel__meta">
-                            <strong>{req.name || 'Gracz'}</strong>
-                            <span>Czeka {formatWaitTime(req.requestedAt)}</span>
+                            <strong>{req.name || t('common.player')}</strong>
+                            <span>{t('joinRequest.waiting', { time: formatWaitTime(req.requestedAt) })}</span>
                         </div>
                         <div className="join-request-panel__actions">
                             <button
@@ -63,14 +65,14 @@ const JoinRequestPanel = memo(({
                                 className="join-request-panel__btn join-request-panel__btn--approve"
                                 onClick={() => onApprove(req.id)}
                             >
-                                Wpuść
+                                {t('joinRequest.approve')}
                             </button>
                             <button
                                 type="button"
                                 className="join-request-panel__btn join-request-panel__btn--reject"
                                 onClick={() => onReject(req.id)}
                             >
-                                Odrzuć
+                                {t('joinRequest.reject')}
                             </button>
                         </div>
                     </li>
