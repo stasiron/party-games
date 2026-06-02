@@ -412,8 +412,17 @@ html.low-power .language-trigger {
     box-sizing: border-box;
 }
 
-.bug-report-submit {
+.bug-report-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     margin-top: 12px;
+}
+
+.bug-report-submit,
+.bug-report-copy {
+    margin-top: 0;
+    width: 100%;
 }
 
 .settings-panel {
@@ -2411,6 +2420,868 @@ button:active:not(:disabled):not(.btn-accent):not(.settings-preset) {
     margin: 0 0 0.75rem;
     font-size: 0.95rem;
     opacity: 0.85;
+}
+
+/* =========================================
+   TELEPATIA
+   ========================================= */
+.telepathy-round-text {
+    text-align: center;
+    font-weight: bold;
+    color: var(--color-accent);
+    margin: 0 0 0.75rem;
+}
+
+.telepathy-hint,
+.telepathy-status,
+.telepathy-wait-host,
+.telepathy-wait-others {
+    text-align: center;
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+    opacity: 0.9;
+}
+
+.telepathy-used-words {
+    margin-bottom: 1rem;
+}
+
+.telepathy-used-words__title {
+    margin: 0 0 0.35rem;
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+.telepathy-used-words__list {
+    margin: 0;
+    font-size: 0.95rem;
+    word-break: break-word;
+}
+
+.telepathy-player-form {
+    margin-bottom: 1rem;
+}
+
+.telepathy-player-form--submitted {
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.telepathy-submitted-msg {
+    margin: 0.35rem 0 0;
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.telepathy-player-form__label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.telepathy-player-form__row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.telepathy-input {
+    flex: 1 1 140px;
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.2));
+    background: rgba(0, 0, 0, 0.25);
+    color: inherit;
+    font-size: 1rem;
+}
+
+.telepathy-submit-btn {
+    flex: 0 0 auto;
+}
+
+.telepathy-error {
+    margin: 0.35rem 0 0;
+    color: #ff8a8a;
+    font-size: 0.85rem;
+}
+
+.telepathy-result-banner {
+    text-align: center;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.telepathy-result-banner--win {
+    background: rgba(80, 200, 120, 0.2);
+    border: 1px solid rgba(80, 200, 120, 0.5);
+}
+
+.telepathy-result-banner--miss {
+    background: rgba(255, 180, 80, 0.15);
+    border: 1px solid rgba(255, 180, 80, 0.45);
+}
+
+.telepathy-reveal-list {
+    list-style: none;
+    margin: 0 0 1.25rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.telepathy-reveal-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.telepathy-reveal-name {
+    flex: 0 0 auto;
+    max-width: 38%;
+    opacity: 0.85;
+    word-break: break-word;
+}
+
+.telepathy-reveal-words {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.telepathy-reveal-past {
+    font-size: 0.85rem;
+    opacity: 0.65;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    word-break: break-word;
+}
+
+.telepathy-reveal-word {
+    font-weight: 700;
+    text-align: right;
+    word-break: break-word;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.telepathy-reveal-word--hidden {
+    opacity: 0.55;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.telepathy-reveal-word--pending {
+    opacity: 0.45;
+    font-weight: 500;
+    background: transparent;
+}
+
+.telepathy-guess-history {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+}
+
+.telepathy-guess-history__chip {
+    font-size: 0.8rem;
+    opacity: 0.75;
+    padding: 0.1rem 0.4rem;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.telepathy-player-form__history {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 0.25rem;
+}
+
+.telepathy-history-panel {
+    margin-bottom: 1rem;
+}
+
+.telepathy-history-panel__title {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+.telepathy-history-panel__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.telepathy-history-panel__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.just-one-listener-clues,
+.just-one-clue-review {
+    margin: 1rem 0;
+    text-align: left;
+}
+
+.just-one-listener-clues__title,
+.just-one-clue-review__title {
+    margin: 0 0 0.75rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+    text-align: center;
+}
+
+.just-one-listener-clues .just-one-clues-table-wrap--bounded {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.just-one-listener-board__current-round {
+    margin: 0 0 0.75rem;
+    text-align: center;
+    font-weight: 700;
+    color: var(--color-accent);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.just-one-listener-board__players {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.just-one-listener-card {
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 10px;
+    padding: 0.6rem 0.65rem;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.just-one-listener-card__name {
+    margin: 0 0 0.45rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.96);
+}
+
+.just-one-listener-card__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.just-one-listener-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    padding: 0.28rem 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(19, 29, 66, 0.56);
+    max-width: 100%;
+}
+
+.just-one-listener-chip__round {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    white-space: nowrap;
+}
+
+.just-one-listener-chip__word {
+    font-size: 0.93rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    word-break: break-word;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+.just-one-listener-chip--dup .just-one-listener-chip__word {
+    color: rgba(255, 160, 160, 0.95);
+    text-decoration: line-through;
+}
+
+.just-one-listener-chip--latest {
+    border-color: rgba(255, 226, 155, 0.42);
+    background: rgba(255, 205, 92, 0.14);
+}
+
+.just-one-listener-chip--current {
+    border-color: rgba(120, 220, 255, 0.7);
+    background: rgba(80, 200, 255, 0.2);
+    box-shadow: 0 0 0 1px rgba(120, 220, 255, 0.3) inset;
+}
+
+.just-one-listener-clues__hint {
+    margin-top: 0.85rem;
+    text-align: center;
+}
+
+.just-one-clues-table-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.just-one-clues-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.just-one-clues-table thead th {
+    padding: 0.55rem 0.85rem;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 220, 140, 0.95);
+    background: rgba(255, 200, 80, 0.12);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.just-one-clues-table tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.just-one-clues-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.just-one-clues-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.just-one-clues-table__row--dup {
+    background: rgba(120, 40, 40, 0.18) !important;
+}
+
+.just-one-clues-table__player {
+    width: 42%;
+    max-width: 14rem;
+    padding: 0.65rem 0.85rem;
+    font-weight: 600;
+    vertical-align: middle;
+    word-break: break-word;
+}
+
+.just-one-clues-table__clue {
+    padding: 0.65rem 0.85rem;
+    vertical-align: middle;
+    font-size: 1.12rem;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.just-one-clues-table__clue--ok {
+    color: #ffe08a;
+}
+
+.just-one-clues-table__clue--dup {
+    color: rgba(255, 160, 160, 0.9);
+    text-decoration: line-through;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.just-one-clues-table__clue--empty {
+    opacity: 0.45;
+    font-weight: 400;
+}
+
+.just-one-guessed-btn {
+    margin: 1rem 0;
+    width: 100%;
+    max-width: 320px;
+}
+
+.just-one-listener-peek {
+    padding: 1.25rem;
+    border-radius: 12px;
+    text-align: center;
+}
+
+/* Just One — panel debug (dev / ?justOneDebug=1) */
+.just-one-debug {
+    margin: 1rem 0;
+    padding: 0;
+    border: 2px solid rgba(255, 180, 60, 0.45);
+    border-radius: 12px;
+    background: linear-gradient(160deg, rgba(30, 22, 8, 0.95), rgba(12, 10, 8, 0.98));
+    font-size: 0.78rem;
+    text-align: left;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.just-one-debug__toggle {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border: none;
+    border-bottom: 1px solid rgba(255, 200, 80, 0.2);
+    background: rgba(255, 180, 50, 0.15);
+    color: #ffdf80;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+    letter-spacing: 0.02em;
+}
+
+.just-one-debug__body {
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.just-one-debug__grid--stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+}
+
+@media (min-width: 520px) {
+    .just-one-debug__grid--stats {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.just-one-debug__stat-card {
+    padding: 0.5rem 0.55rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.just-one-debug__stat-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
+}
+
+.just-one-debug__stat-sub {
+    font-size: 0.65rem;
+    opacity: 0.75;
+}
+
+.just-one-debug__progress {
+    height: 6px;
+    border-radius: 99px;
+    background: rgba(0, 0, 0, 0.35);
+    margin-top: 0.25rem;
+    overflow: hidden;
+}
+
+.just-one-debug__progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #c9a227, #ffe08a);
+    border-radius: 99px;
+    transition: width 0.25s ease;
+}
+
+.just-one-debug__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.just-one-debug__chip {
+    display: inline-flex;
+    flex-direction: column;
+    padding: 0.25rem 0.45rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    min-width: 4.5rem;
+}
+
+.just-one-debug__chip--on {
+    background: rgba(80, 180, 100, 0.2);
+    border-color: rgba(120, 220, 140, 0.35);
+}
+
+.just-one-debug__chip--off {
+    background: rgba(120, 60, 60, 0.2);
+    border-color: rgba(200, 100, 100, 0.25);
+}
+
+.just-one-debug__chip--warn {
+    box-shadow: 0 0 0 1px #ff6b6b;
+}
+
+.just-one-debug__chip-label {
+    font-size: 0.6rem;
+    opacity: 0.8;
+}
+
+.just-one-debug__chip-value {
+    font-weight: 700;
+    font-size: 0.72rem;
+}
+
+.just-one-debug__section-title {
+    margin: 0 0 0.4rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #ffdf80;
+    opacity: 0.9;
+}
+
+.just-one-debug__listener-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: rgba(255, 200, 80, 0.08);
+    border: 1px solid rgba(255, 200, 80, 0.2);
+}
+
+.just-one-debug__listener-box code {
+    display: block;
+    font-size: 0.62rem;
+    word-break: break-all;
+}
+
+.just-one-debug__listener-box small {
+    display: block;
+    opacity: 0.65;
+    font-size: 0.6rem;
+}
+
+.just-one-debug__arrow {
+    opacity: 0.5;
+    font-size: 1.1rem;
+}
+
+.just-one-debug__listener-name {
+    flex: 1 1 100%;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #ffe9a8;
+}
+
+.just-one-debug__flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.just-one-debug__flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 6px;
+    opacity: 0.55;
+}
+
+.just-one-debug__flow-step--active {
+    opacity: 1;
+    background: rgba(255, 200, 80, 0.12);
+    border-left: 3px solid #ffc857;
+}
+
+.just-one-debug__flow-step--done {
+    opacity: 0.85;
+}
+
+.just-one-debug__flow-step--done .just-one-debug__flow-dot {
+    background: #6fcf97;
+}
+
+.just-one-debug__flow-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.just-one-debug__flow-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.just-one-debug__flow-text span {
+    font-size: 0.65rem;
+    opacity: 0.8;
+}
+
+.just-one-debug__alert {
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    font-size: 0.72rem;
+}
+
+.just-one-debug__alert--warn {
+    background: rgba(200, 80, 60, 0.2);
+    border: 1px solid rgba(255, 120, 80, 0.35);
+}
+
+.just-one-debug__alert--ok {
+    background: rgba(60, 140, 80, 0.2);
+    border: 1px solid rgba(100, 200, 120, 0.3);
+}
+
+.just-one-debug__alert ul {
+    margin: 0.35rem 0 0;
+    padding-left: 1.1rem;
+}
+
+.just-one-debug__alert li {
+    margin: 0.2rem 0;
+}
+
+.just-one-debug__player-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.45rem;
+}
+
+.just-one-debug__player-card {
+    padding: 0.45rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.just-one-debug__player-card--me {
+    outline: 2px solid rgba(255, 220, 100, 0.55);
+}
+
+.just-one-debug__player-card--listener {
+    border-color: rgba(255, 200, 80, 0.5);
+    background: rgba(255, 200, 80, 0.1);
+}
+
+.just-one-debug__player-card--pending {
+    border-color: rgba(255, 100, 80, 0.55);
+    background: rgba(200, 60, 40, 0.15);
+}
+
+.just-one-debug__player-card--done {
+    border-color: rgba(100, 200, 120, 0.4);
+    background: rgba(60, 140, 80, 0.12);
+}
+
+.just-one-debug__player-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.just-one-debug__player-name {
+    font-weight: 700;
+}
+
+.just-one-debug__badge {
+    font-size: 0.58rem;
+    padding: 0.1rem 0.25rem;
+    border-radius: 4px;
+    background: rgba(255, 200, 80, 0.25);
+}
+
+.just-one-debug__badge--off {
+    background: rgba(200, 80, 80, 0.35);
+}
+
+.just-one-debug__player-status {
+    margin: 0.25rem 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.just-one-debug__player-id {
+    display: block;
+    font-size: 0.58rem;
+    opacity: 0.75;
+    word-break: break-all;
+}
+
+.just-one-debug__player-owner {
+    display: block;
+    opacity: 0.65;
+    margin-top: 0.15rem;
+}
+
+.just-one-debug__lists {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.just-one-debug__lists code {
+    display: block;
+    font-size: 0.6rem;
+    word-break: break-all;
+    margin-top: 0.15rem;
+    opacity: 0.9;
+}
+
+.just-one-debug__lists small {
+    opacity: 0.7;
+}
+
+.just-one-debug__json-toggle {
+    align-self: flex-start;
+    padding: 0.3rem 0.55rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.7rem;
+}
+
+.just-one-debug__json {
+    margin: 0;
+    padding: 0.5rem;
+    max-height: 36vh;
+    overflow: auto;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.5);
+    font-family: ui-monospace, monospace;
+    font-size: 0.6rem;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.just-one-auto-settings--after-peek {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.telepathy-history-panel__name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.telepathy-lobby-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.telepathy-live-settings {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+    width: 100%;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.telepathy-auto-toggle {
+    width: 100%;
+    max-width: 400px;
+}
+
+.telepathy-auto-toggle__text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    text-align: left;
+}
+
+.telepathy-auto-toggle__hint {
+    font-size: 0.8rem;
+    font-weight: normal;
+    opacity: 0.8;
+}
+
+.telepathy-auto-countdown {
+    text-align: center;
+    margin: 0 0 1rem;
+    font-size: 0.95rem;
+    opacity: 0.85;
+}
+
+.telepathy-game-over {
+    text-align: center;
+    margin: 0 0 1rem;
+    font-size: 0.95rem;
+    opacity: 0.9;
+}
+
+.telepathy-round-review-wait {
+    text-align: center;
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.telepathy-round-review-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 -0.5rem 0.75rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 10px 10px 0 0;
+    background: rgba(20, 12, 40, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-bottom: none;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.telepathy-round-review-bar__hint {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    text-align: center;
+    opacity: 0.9;
+}
+
+.telepathy-round-review-bar__btn {
+    width: 100%;
+    max-width: 400px;
+    display: block;
+    margin: 0 auto;
+}
+
+.telepathy-host-settings {
+    margin-top: 0.5rem;
 }
 
 /* =========================================

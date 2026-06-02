@@ -108,6 +108,21 @@ export function useRoomSnapshot({
             showCode: '',
             joinRequests: '',
             gameId: '',
+            gameState: '',
+        };
+
+        const fingerprintGameState = (gs) => {
+            if (!gs || typeof gs !== 'object') return 'null';
+            const sub = gs.submitted && typeof gs.submitted === 'object' ? gs.submitted : {};
+            return [
+                gs.isGameStarted ? '1' : '0',
+                gs.phase ?? '',
+                gs.roundNumber ?? '',
+                Object.keys(sub).filter((k) => sub[k]).length,
+                gs.awaitingNextRound ? '1' : '0',
+                Array.isArray(gs.order) ? gs.order.length : '',
+                gs.currentQuestionIndex ?? '',
+            ].join('|');
         };
 
         const applyPlayersSnapshot = (data) => {
@@ -343,6 +358,16 @@ export function useRoomSnapshot({
                 cachedRoomRef.current.joinMode || normalizeJoinMode(room)
             );
             handleJoinRequests(room.joinRequests);
+
+            const gsFp = fingerprintGameState(room.gameState);
+            if (gsFp !== sectionFingerprints.gameState) {
+                sectionFingerprints.gameState = gsFp;
+                cachedRoomRef.current = {
+                    ...cachedRoomRef.current,
+                    gameState: room.gameState || null,
+                    updatedAt: Date.now(),
+                };
+            }
         });
 
         return () => {

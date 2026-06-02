@@ -211,6 +211,7 @@ function RoomScreen({
                         isRoomLocked={isRoomLocked}
                         roomId={selectedGame}
                         hostShareOptions={hostShareOptions}
+                        hasAdminPowers={hasAdminPowers}
                     />
                 </div>
             )}

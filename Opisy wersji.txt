@@ -67,3 +67,7 @@ Rozwuj wersji:
 1.5.7 Ui translated to En
 1.5.8 Hot Fix
 1.5.9 Mafia reveal button fix
+1.6.0 New Game Mod, telapathy
+1.6.1 Quick Fix
+1.7.0 New Gamemode, Just One
+1.7.1 Just One Quick Fix

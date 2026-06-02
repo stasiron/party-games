@@ -1,12 +1,18 @@
 import { memo, useCallback, useState } from 'react';
-import { BUG_REPORT_CATEGORIES, submitBugReport } from '../lib/bugReport';
+import {
+    BUG_REPORT_CATEGORIES,
+    copyBugReportToClipboard,
+    formatBugReportClipboardText,
+    submitBugReport,
+} from '../lib/bugReport';
 import { useLocale } from '../locales/LocaleContext';
 
-const BugReportPanel = memo(({ context, onClose }) => {
-    const { t } = useLocale();
+const BugReportPanel = memo(({ context, getDiagnostics, onClose }) => {
+    const { t, locale } = useLocale();
     const [category, setCategory] = useState('');
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
+    const [copyBusy, setCopyBusy] = useState(false);
     const [status, setStatus] = useState('');
 
     const handleSubmit = useCallback(async () => {
@@ -38,6 +44,31 @@ const BugReportPanel = memo(({ context, onClose }) => {
             setBusy(false);
         }
     }, [busy, category, message, context, t]);
+
+    const handleCopy = useCallback(async () => {
+        if (copyBusy) return;
+        setCopyBusy(true);
+        setStatus('');
+        try {
+            const categoryLabel = category
+                ? t(`bugReport.categories.${category}`)
+                : '';
+            const text = formatBugReportClipboardText({
+                category: category || null,
+                categoryLabel,
+                message,
+                context,
+                locale,
+                diagnostics: typeof getDiagnostics === 'function' ? getDiagnostics() : null,
+            });
+            await copyBugReportToClipboard(text);
+            setStatus(t('bugReport.copied'));
+        } catch {
+            setStatus(t('bugReport.copyFailed'));
+        } finally {
+            setCopyBusy(false);
+        }
+    }, [copyBusy, category, message, context, locale, getDiagnostics, t]);
 
     return (
         <div className="settings-panel bug-report-panel" role="dialog" aria-label={t('bugReport.title')}>
@@ -90,15 +121,28 @@ const BugReportPanel = memo(({ context, onClose }) => {
                 />
             </div>
 
-            <button
-                type="button"
-                className="settings-toggle bug-report-submit"
-                onClick={handleSubmit}
-                disabled={busy}
-            >
-                <span>{busy ? t('bugReport.submitting') : t('bugReport.submit')}</span>
-                <span className="settings-toggle__icon on">→</span>
-            </button>
+            <div className="bug-report-actions">
+                <button
+                    type="button"
+                    className="settings-toggle bug-report-submit"
+                    onClick={handleSubmit}
+                    disabled={busy || copyBusy}
+                >
+                    <span>{busy ? t('bugReport.submitting') : t('bugReport.submit')}</span>
+                    <span className="settings-toggle__icon on">→</span>
+                </button>
+                <button
+                    type="button"
+                    className="settings-toggle bug-report-copy"
+                    onClick={handleCopy}
+                    disabled={busy || copyBusy}
+                >
+                    <span>{copyBusy ? t('bugReport.copying') : t('bugReport.copy')}</span>
+                    <span className="settings-toggle__icon on" aria-hidden>
+                        ⧉
+                    </span>
+                </button>
+            </div>
 
             {status && <p className="settings-hint settings-hint--tight">{status}</p>}
             <p className="settings-hint settings-hint--tight">

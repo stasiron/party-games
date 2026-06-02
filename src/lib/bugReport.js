@@ -1,5 +1,6 @@
 import { push, ref, runTransaction } from 'firebase/database';
 import { db } from './firebase';
+import { appendDiagnosticsToReportLines } from './bugReportDiagnostics';
 import { isLowPowerDevice } from './lowPower';
 import { ADMISSION_MODES, JOIN_MODES, normalizeAdmission, normalizeJoinMode } from './roomAccess';
 
@@ -284,6 +285,174 @@ async function acquireBugReportLease(ipHash) {
 
     if (!result.committed) {
         throw new Error('RATE_LIMIT');
+    }
+}
+
+const CONTEXT_FIELD_LABELS = {
+    v: 'Wersja aplikacji',
+    roomId: 'Kod pokoju',
+    gameId: 'ID gry',
+    gameName: 'Nazwa gry',
+    theme: 'Motyw',
+    email: 'Konto (email)',
+    conn: 'Tryb Firebase',
+    path: 'Ścieżka (pathname + query)',
+    panel: 'Panel / ekran (opis)',
+    screen: 'ID ekranu',
+    role: 'Rola',
+    inGame: 'W trakcie gry',
+    playerCount: 'Aktywni gracze',
+    playersTotal: 'Gracze (łącznie)',
+    playersOnline: 'Gracze online',
+    pendingJoin: 'Prośby o dołączenie',
+    joinMode: 'Tryb dołączania do pokoju',
+    admission: 'Admission pokoju',
+    nick: 'Nick gracza',
+    playerId: 'ID gracza (RTDB)',
+    lowPower: 'Tryb oszczędny (low power)',
+};
+
+function formatValue(value) {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'boolean') return value ? 'tak' : 'nie';
+    return String(value);
+}
+
+function appendSection(lines, title, entries) {
+    lines.push('', `--- ${title} ---`);
+    for (const [label, value] of entries) {
+        if (value === null || value === undefined || value === '') continue;
+        lines.push(`${label}: ${value}`);
+    }
+}
+
+function collectBrowserEnvironment(locale) {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+        return [];
+    }
+
+    const { location } = window;
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const displayStandalone =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches;
+    const entries = [
+        ['Pełny URL', location.href],
+        ['Host', location.host],
+        ['Protokół', location.protocol],
+        ['Query', location.search || '—'],
+        ['Hash', location.hash || '—'],
+        ['Referrer', document.referrer || '—'],
+        ['Język UI', locale || '—'],
+        ['Języki przeglądarki', (navigator.languages || [navigator.language]).join(', ')],
+        ['Strefa czasowa', Intl.DateTimeFormat().resolvedOptions().timeZone],
+        ['User-Agent', navigator.userAgent],
+        ['Platforma', navigator.platform || '—'],
+        ['Online', navigator.onLine ? 'tak' : 'nie'],
+        ['Widoczność karty', document.visibilityState],
+        ['Secure context', window.isSecureContext ? 'tak' : 'nie'],
+        ['PWA (standalone)', displayStandalone ? 'tak' : 'nie'],
+        [
+            'Viewport',
+            `${window.innerWidth}×${window.innerHeight} (outer ${window.outerWidth}×${window.outerHeight})`,
+        ],
+        ['Ekran', `${window.screen.width}×${window.screen.height}`],
+        ['devicePixelRatio', String(window.devicePixelRatio ?? '—')],
+        ['colorScheme', window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'],
+    ];
+
+    if (connection) {
+        entries.push(
+            ['Sieć (effectiveType)', connection.effectiveType || '—'],
+            ['Sieć (downlink Mbps)', connection.downlink != null ? String(connection.downlink) : '—'],
+            ['Sieć (rtt ms)', connection.rtt != null ? String(connection.rtt) : '—']
+        );
+    }
+    if (navigator.hardwareConcurrency != null) {
+        entries.push(['CPU (logiczne rdzenie)', String(navigator.hardwareConcurrency)]);
+    }
+    if (navigator.deviceMemory != null) {
+        entries.push(['RAM urządzenia (GB, przybliż.)', String(navigator.deviceMemory)]);
+    }
+
+    return entries;
+}
+
+/**
+ * Tekst do wklejenia w maila — pełny kontekst bez haseł i bez surowego IP.
+ */
+export function formatBugReportClipboardText({
+    category,
+    categoryLabel,
+    message,
+    context,
+    locale,
+    diagnostics,
+}) {
+    const lines = ['=== Paty Games — raport błędu ==='];
+    const now = new Date();
+    lines.push(`Wygenerowano: ${now.toISOString()} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`);
+
+    const userEntries = [];
+    if (category) {
+        userEntries.push(['Kategoria (id)', category]);
+    }
+    if (categoryLabel) {
+        userEntries.push(['Kategoria', categoryLabel]);
+    }
+    const trimmedMessage = (message || '').trim();
+    userEntries.push(['Wiadomość użytkownika', trimmedMessage || '—']);
+    appendSection(lines, 'Opis od użytkownika', userEntries);
+
+    const contextEntries = Object.keys(CONTEXT_FIELD_LABELS).map((key) => [
+        CONTEXT_FIELD_LABELS[key],
+        formatValue(context?.[key]),
+    ]);
+    if (context?.ua) {
+        contextEntries.push(['User-Agent (z kontekstu)', context.ua]);
+    }
+    appendSection(lines, 'Kontekst aplikacji', contextEntries);
+
+    appendSection(lines, 'Środowisko przeglądarki', collectBrowserEnvironment(locale));
+
+    appendDiagnosticsToReportLines(lines, diagnostics);
+
+    lines.push(
+        '',
+        '--- Uwagi ---',
+        'Nie zawiera haseł pokoju ani tokenów.',
+        'Jeśli wysyłanie przez aplikację nie działa, wklej ten tekst w wiadomość e-mail.'
+    );
+
+    return lines.join('\n');
+}
+
+export async function copyBugReportToClipboard(text) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return;
+        } catch {
+            // HTTP / brak uprawnień — fallback poniżej
+        }
+    }
+
+    if (typeof document === 'undefined') {
+        throw new Error('CLIPBOARD_UNAVAILABLE');
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        const ok = document.execCommand('copy');
+        if (!ok) throw new Error('CLIPBOARD_UNAVAILABLE');
+    } finally {
+        document.body.removeChild(textarea);
     }
 }
 

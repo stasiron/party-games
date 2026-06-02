@@ -57,7 +57,18 @@ import { getRoomsPublicDebounceMs, loadLobbyFilters, saveLobbyFilters } from '..
 import { applyThemeSurface } from '../lib/themeSurface';
 import { findThemePreset } from '../lib/themePresets';
 import { buildBugReportContext, prefetchReporterIpHash } from '../lib/bugReport';
+import { buildBugReportDiagnostics } from '../lib/bugReportDiagnostics';
 import { prefetchGameChunk } from '../lib/prefetchGameChunk';
+import {
+    buildTelepathyAdvanceRoundUpdatesFromRoom,
+    buildTelepathySyncUpdates,
+    canAdvanceTelepathyRound,
+} from '../lib/telepathyState';
+import {
+    buildJustOneAdvanceRoundUpdatesFromRoom,
+    buildJustOneSyncUpdates,
+    canAdvanceJustOneRound,
+} from '../lib/justOneState';
 import { loadUiSettings, notifyUiSettingsChanged, UI_SETTINGS_KEY } from '../lib/uiSettings';
 import { useRoomSnapshot } from '../lib/useRoomSnapshot';
 import { usePlayerHeartbeat } from '../lib/usePlayerHeartbeat';
@@ -90,7 +101,7 @@ import versionData from '../../version.json';
 import '../styles/app.css';
 
 function App() {
-    const { runWithBusy } = useServerBusy();
+    const { runWithBusy, pingMs, pingError, piQueueDepth, busyCount } = useServerBusy();
     const { t, gameContent } = useLocale();
     const [selectedGame, setSelectedGame] = useState(null); // roomId
     const [selectedGameType, setSelectedGameType] = useState(null);
@@ -192,6 +203,7 @@ function App() {
     const authUserRef = useRef(null);
     const cachedRoomRef = useRef({
         players: null,
+        gameState: null,
         joinMode: 'public',
         admission: 'open',
         updatedAt: 0,
@@ -579,6 +591,41 @@ function App() {
         ]
     );
 
+    const getBugReportDiagnostics = useCallback(
+        () =>
+            buildBugReportDiagnostics({
+                gameId: selectedGameType,
+                gameState: cachedRoomRef.current.gameState,
+                playersList,
+                myPlayerId,
+                isHost,
+                effectiveIsHost,
+                isJoined,
+                playerName,
+                accountNickname,
+                roomId: selectedGame,
+                pingMs,
+                pingError,
+                piQueueDepth,
+                busyCount,
+            }),
+        [
+            selectedGameType,
+            playersList,
+            myPlayerId,
+            isHost,
+            effectiveIsHost,
+            isJoined,
+            playerName,
+            accountNickname,
+            selectedGame,
+            pingMs,
+            pingError,
+            piQueueDepth,
+            busyCount,
+        ]
+    );
+
     useEffect(() => {
         if (typeof document === 'undefined') return undefined;
         const pending = joinRequestList.length;
@@ -944,6 +991,9 @@ function App() {
             }
             if (
                 cleanedCmd === 'REVEAL' ||
+                cleanedCmd === 'NEXT' ||
+                cleanedCmd === 'NEXT ROUND' ||
+                cleanedCmd === 'SYNC' ||
                 cleanedCmd === 'HOST' ||
                 cleanedCmd.startsWith('HOST ') ||
                 cleanedCmd.startsWith('ADMIN ')
@@ -1131,6 +1181,95 @@ function App() {
 
             if (cleanedCmd === 'HELP') {
                 setLobbyMessage(t('admin.helpText'));
+                finishAdminCommand();
+                return;
+            }
+
+            if (cleanedCmd === 'SYNC') {
+                if (!selectedGame) {
+                    alert(t('admin.gameSyncNeedsRoom'));
+                    return;
+                }
+                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
+                const roomVal = roomSnap.val() || {};
+                const roomGameId = roomVal.gameId;
+
+                if (roomGameId === 'telepathy') {
+                    const { updates, result } = await buildTelepathySyncUpdates(selectedGame);
+                    if (Object.keys(updates).length > 0) {
+                        await update(ref(db), updates);
+                    }
+                    const syncMessages = {
+                        revealed: 'admin.telepathySyncRevealed',
+                        cleaned: 'admin.telepathySyncCleaned',
+                        noop: 'admin.telepathySyncNoop',
+                        not_started: 'admin.telepathySyncNotStarted',
+                    };
+                    setLobbyMessage(t(syncMessages[result] || 'admin.telepathySyncNoop', {
+                        roomId: selectedGame,
+                    }));
+                } else if (roomGameId === 'just-one') {
+                    const { updates, result } = await buildJustOneSyncUpdates(selectedGame);
+                    if (Object.keys(updates).length > 0) {
+                        await update(ref(db), updates);
+                    }
+                    const syncMessages = {
+                        revealed: 'admin.justOneSyncRevealed',
+                        cleaned: 'admin.justOneSyncCleaned',
+                        noop: 'admin.justOneSyncNoop',
+                        not_started: 'admin.justOneSyncNotStarted',
+                    };
+                    setLobbyMessage(t(syncMessages[result] || 'admin.justOneSyncNoop', {
+                        roomId: selectedGame,
+                    }));
+                } else {
+                    alert(t('admin.gameSyncWrongGame'));
+                    return;
+                }
+                finishAdminCommand();
+                return;
+            }
+
+            if (cleanedCmd === 'NEXT' || cleanedCmd === 'NEXT ROUND') {
+                if (!selectedGame) {
+                    alert(t('admin.gameNextNeedsRoom'));
+                    return;
+                }
+                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
+                const roomVal = roomSnap.val() || {};
+                const roomGameId = roomVal.gameId;
+                const gameState = roomVal.gameState || {};
+
+                if (roomGameId === 'telepathy') {
+                    if (!canAdvanceTelepathyRound(gameState)) {
+                        alert(t('admin.telepathyNextWrongPhase'));
+                        return;
+                    }
+                    const playerIds = Object.keys(roomVal.players || {}).filter(
+                        (id) => roomVal.players[id] && roomVal.players[id].isKicked !== true
+                    );
+                    const updates = await buildTelepathyAdvanceRoundUpdatesFromRoom(
+                        selectedGame,
+                        playerIds
+                    );
+                    await update(ref(db), updates);
+                    setLobbyMessage(t('admin.telepathyNextDone', { roomId: selectedGame }));
+                } else if (roomGameId === 'just-one') {
+                    if (!canAdvanceJustOneRound(gameState)) {
+                        alert(t('admin.justOneNextWrongPhase'));
+                        return;
+                    }
+                    const updates = await buildJustOneAdvanceRoundUpdatesFromRoom(selectedGame);
+                    if (!updates || Object.keys(updates).length === 0) {
+                        alert(t('admin.justOneNextWrongPhase'));
+                        return;
+                    }
+                    await update(ref(db), updates);
+                    setLobbyMessage(t('admin.justOneNextDone', { roomId: selectedGame }));
+                } else {
+                    alert(t('admin.gameNextWrongGame'));
+                    return;
+                }
                 finishAdminCommand();
                 return;
             }
@@ -1842,12 +1981,27 @@ function App() {
                 setLobbyMessage(t('notifications.hostKicked', {
                     name: target.name || t('common.player'),
                 }));
+
+                if (selectedGameType === 'telepathy' || selectedGameType === 'just-one') {
+                    try {
+                        const buildSync =
+                            selectedGameType === 'just-one'
+                                ? buildJustOneSyncUpdates
+                                : buildTelepathySyncUpdates;
+                        const { updates } = await buildSync(selectedGame);
+                        if (Object.keys(updates).length > 0) {
+                            await update(ref(db), updates);
+                        }
+                    } catch (syncErr) {
+                        console.warn(`[${selectedGameType}] sync after kick:`, syncErr);
+                    }
+                }
             } catch (err) {
                 console.error(err);
                 alert(t('notifications.kickErrorConnection'));
             }
         });
-    }, [selectedGame, myPlayerId, runWithBusy, clearPresenceIndex, isRateLimited, t]);
+    }, [selectedGame, selectedGameType, myPlayerId, runWithBusy, clearPresenceIndex, isRateLimited, t]);
 
     const adminKick = useCallback(async (gameId, playerKey) => {
         if (isAdminRateLimited(`admin-kick:${gameId}`, RATE_LIMITS_MS.adminMutation)) {
@@ -1870,6 +2024,23 @@ function App() {
                 name: p.name || playerKey,
                 roomId: gameId,
             }));
+
+            const roomSnap = await get(ref(db, `rooms/${gameId}`));
+            const kickedGameId = roomSnap.val()?.gameId;
+            if (kickedGameId === 'telepathy' || kickedGameId === 'just-one') {
+                try {
+                    const buildSync =
+                        kickedGameId === 'just-one'
+                            ? buildJustOneSyncUpdates
+                            : buildTelepathySyncUpdates;
+                    const { updates } = await buildSync(gameId);
+                    if (Object.keys(updates).length > 0) {
+                        await update(ref(db), updates);
+                    }
+                } catch (syncErr) {
+                    console.warn(`[${kickedGameId}] sync after admin kick:`, syncErr);
+                }
+            }
         } catch (e) {
             console.error(e);
             alert(t('admin.kickError'));
@@ -2220,7 +2391,11 @@ function App() {
             </button>
 
             {showBugReport && (
-                <BugReportPanel context={bugReportContext} onClose={closeBugReport} />
+                <BugReportPanel
+                    context={bugReportContext}
+                    getDiagnostics={getBugReportDiagnostics}
+                    onClose={closeBugReport}
+                />
             )}
 
             <LanguagePicker

@@ -7,6 +7,8 @@ const GAME_CHUNK_LOADERS = {
     'dark-stories': () => import('../games/dark-stories/DarkStories'),
     'who-would-rather': () => import('../games/who-would-rather/WhoWouldRather'),
     'kto-najpredzej': () => import('../games/kto-najpredzej/KtoNajpredzej'),
+    telepathy: () => import('../games/telepathy/Telepathy'),
+    'just-one': () => import('../games/just-one/JustOne'),
 };
 
 const prefetched = new Set();

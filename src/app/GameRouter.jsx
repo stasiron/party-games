@@ -10,6 +10,8 @@ const Mafia = lazy(() => import('../games/mafia/Mafia'));
 const DarkStories = lazy(() => import('../games/dark-stories/DarkStories'));
 const WhoWouldRather = lazy(() => import('../games/who-would-rather/WhoWouldRather'));
 const KtoNajpredzej = lazy(() => import('../games/kto-najpredzej/KtoNajpredzej'));
+const Telepathy = lazy(() => import('../games/telepathy/Telepathy'));
+const JustOne = lazy(() => import('../games/just-one/JustOne'));
 const ComingSoonGame = lazy(() => import('../components/ComingSoonGame'));
 
 function GameRouter({
@@ -24,6 +26,7 @@ function GameRouter({
     isRoomLocked,
     roomId,
     hostShareOptions,
+    hasAdminPowers = false,
 }) {
     const tablePlayers = useRoomPlayers();
     const { t } = useLocale();
@@ -103,6 +106,30 @@ function GameRouter({
                 <KtoNajpredzej
                     isHost={effectiveIsHost}
                     onLeave={handleLeaveRoom}
+                    roomId={roomId}
+                    shareOptions={hostShareOptions}
+                />
+            )}
+
+            {selectedGameType === 'telepathy' && (
+                <Telepathy
+                    isHost={effectiveIsHost}
+                    hasAdminPowers={hasAdminPowers}
+                    onLeave={handleLeaveRoom}
+                    myPlayerId={myPlayerId}
+                    tablePlayers={tablePlayers}
+                    roomId={roomId}
+                    shareOptions={hostShareOptions}
+                />
+            )}
+
+            {selectedGameType === 'just-one' && (
+                <JustOne
+                    isHost={effectiveIsHost}
+                    hasAdminPowers={hasAdminPowers}
+                    onLeave={handleLeaveRoom}
+                    myPlayerId={myPlayerId}
+                    tablePlayers={tablePlayers}
                     roomId={roomId}
                     shareOptions={hostShareOptions}
                 />

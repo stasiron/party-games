@@ -35,6 +35,11 @@
     "description": "Wskaż palcem, kto najbardziej pasuje do pytania."
   },
   {
+    "id": "telepathy",
+    "name": "🧠 Telepatia",
+    "description": "Wszyscy wpisują to samo słowo — bez rozmowy. Odsłonięcie na koniec tury."
+  },
+  {
     "id": "secret-hitler",
     "name": "🎩 Secret Hitler",
     "description": "Polityczna gra dedukcyjna — faszyści vs liberałowie.",
@@ -60,9 +65,8 @@
   },
   {
     "id": "just-one",
-    "name": "💡 Just One",
-    "description": "Wspólne odgadywanie hasła — ale każde słowo może być tylko raz.",
-    "comingSoon": true
+    "name": "💡 Tylko jedno",
+    "description": "Nasłuchiwacz zgaduje hasło — powtórzone podpowiedzi znikają."
   },
   {
     "id": "miners",
@@ -74,12 +78,6 @@
     "id": "say-anything",
     "name": "💬 Say Anything",
     "description": "Pytanie na stole — obstawiacie, co odpowie wybrany gracz.",
-    "comingSoon": true
-  },
-  {
-    "id": "telepathy",
-    "name": "🧠 Telepathy",
-    "description": "Drużyny synchronizują wybory na siatce — bez zbędnych słów.",
     "comingSoon": true
   },
   {
