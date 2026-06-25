@@ -6,6 +6,7 @@ import { set, update } from '../../lib/rtdb';
 
 import { db } from '../../lib/firebase';
 
+import { recordGameStarted } from '../../lib/appMetrics.js';
 import { useLocale } from '../../locales/LocaleContext';
 
 import { useRoomGameState } from '../../lib/useRoomGameState';
@@ -192,6 +193,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
             revealAllRoles: false,
 
         });
+        recordGameStarted(roomId, 'mafia');
 
     }, [lobbyPlayers, totalRolesAssigned, roleCounts, roomId, t]);
 

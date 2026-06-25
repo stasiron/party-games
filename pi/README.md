@@ -92,3 +92,6 @@ Najczęstsze źródło problemów:
 - Cleanup starych pokoi działa przez pojedynczy lease executor (`/_maintenance/roomsCleanupLease`), co ogranicza równoległe skany.
 - Po refaktorze więcej logiki rund i losowań działa lokalnie po stronie klienta (`games/*/engine.js`), a RTDB dostaje głównie wynikowe update'y stanu.
 - Funkcje konta (Google/email-link, nick, historia sesji) powinny degradować się łagodnie: brak internetu nie może blokować grania lokalnego.
+- Panel operatorski `/cms` ma być osobną stroną i nie może dokładać stałych ciężkich subskrypcji do flow gry; preferowane są lekkie odczyty on-demand.
+- `appConfig` w RTDB może sterować dostępnością gier runtime, ale nie zastępuje `comingSoon` z katalogu build-time.
+- `appMetrics` zbiera dzienne liczniki zdarzeń (UTC); na Pi też działa, ale nie jest krytyczne dla synchronizacji pokoju.

@@ -104,6 +104,14 @@ export function getKtoNajpredzejCategories(section) {
     );
 }
 
+export function getSingItCategories(section) {
+    return mergeCategories(
+        section?.categories,
+        section?.words,
+        (id, map) => Array.isArray(map?.[id]) && map[id].length > 0
+    );
+}
+
 export function getCategoryLabel(categories, id) {
     const found = categories.find((c) => c.id === id);
     return found?.name ?? labelFromId(id);

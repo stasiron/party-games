@@ -6,13 +6,14 @@ import { set, get, update, runTransaction } from '../lib/rtdb';
 import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
 import { auth as firebaseAuth, firestore } from '../lib/firebase/client';
 import { buildCatalogIndex, getComingSoonMessage, isGameComingSoon } from '../lib/gameCatalog.js';
-import { getLocalizedGameMeta } from '../lib/gameMeta.js';
+import { getLocalizedGameMeta, localizeCatalogGames } from '../lib/gameMeta.js';
 import { useLocale } from '../locales/LocaleContext.jsx';
 import { resolveGameId, isPlayableGameId } from '../data/gameIds.js';
 import BugReportPanel from '../components/BugReportPanel';
 import ConnectionStatus from '../components/ConnectionStatus';
 import IosWifiHelp from '../components/IosWifiHelp';
 import PwaInstallPrompt from '../components/PwaInstallPrompt';
+import GlobalAppBanner from '../components/GlobalAppBanner';
 import OfflineBanner from '../components/OfflineBanner';
 import { useServerBusy } from '../context/useServerBusy';
 import { useLongPress } from '../hooks/useLongPress';
@@ -99,6 +100,15 @@ import {
 import { loadLocalNickname, loadLastRoomId, generateRoomCode } from './utils/localPrefs';
 import versionData from '../../version.json';
 import '../styles/app.css';
+import { recordRoomCreated, recordNewPlayerJoin } from '../lib/appMetrics.js';
+import {
+    APP_CONFIG_PATH,
+    isAdminCommandEnabled,
+    isGameCreationEnabled,
+    isGameJoinEnabled,
+    normalizeCmsConfig,
+    sortLobbyGames,
+} from '../lib/cmsConfig.js';
 
 function App() {
     const { runWithBusy, pingMs, pingError, piQueueDepth, busyCount } = useServerBusy();
@@ -150,6 +160,7 @@ function App() {
     const [authUser, setAuthUser] = useState(null);
     const [authBusy, setAuthBusy] = useState(false);
     const [authStatus, setAuthStatus] = useState('');
+    const [cmsConfig, setCmsConfig] = useState(() => normalizeCmsConfig(null, gameContent.games));
     const [nicknameSavedAt, setNicknameSavedAt] = useState(0);
     const [themePreset, setThemePreset] = useState(() => loadUiSettings()?.themePreset || 'default');
     const [soundEnabled, setSoundEnabled] = useState(() => {
@@ -257,6 +268,14 @@ function App() {
         });
         return () => unsubscribe();
     }, []);
+
+    useEffect(() => {
+        const cfgRef = ref(db, APP_CONFIG_PATH);
+        const unsubscribe = onValue(cfgRef, (snapshot) => {
+            setCmsConfig(normalizeCmsConfig(snapshot.val(), gameContent.games));
+        });
+        return () => unsubscribe();
+    }, [gameContent.games]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -397,6 +416,14 @@ function App() {
         }
     }, [playJoinSound]);
 
+    const localizedCatalogGames = useMemo(
+        () => localizeCatalogGames(gameContent.games, t),
+        [gameContent.games, t]
+    );
+    const sortedLobbyGames = useMemo(
+        () => sortLobbyGames(localizedCatalogGames, cmsConfig),
+        [localizedCatalogGames, cmsConfig]
+    );
     const gameById = useMemo(() => buildCatalogIndex(gameContent.games), [gameContent.games]);
     const createHostRoomRef = useRef(null);
     const currentGameMeta = useMemo(
@@ -980,6 +1007,11 @@ function App() {
             setAdminCommand('');
             return;
         }
+        if (!isBypassToggle && !isHelp && !isAdminCommandEnabled(cmsConfig, rawCmd)) {
+            setLobbyMessage(t('cms.commandBlocked'));
+            setAdminCommand('');
+            return;
+        }
 
         await runWithBusy(async () => {
         try {
@@ -1432,6 +1464,9 @@ function App() {
                     playerId: playerRef.key,
                 },
             });
+            recordNewPlayerJoin({
+                dedupeKey: `${selectedGame}:${playerRef.key}`,
+            });
             setLobbyMessage(t('errors.approvedPlayer', { name: req.name || t('common.player') }));
         });
     }, [selectedGame, myPlayerId, runWithBusy]);
@@ -1600,6 +1635,11 @@ function App() {
             passwordHash: roomMeta.passwordHash,
         };
 
+        if (!isReconnect && !isGameJoinEnabled(cmsConfig, roomMeta.gameId, gameContent.games)) {
+            setNameError(t('cms.gameDisabledMessage'));
+            return;
+        }
+
         if (isRoomClosedForNewPlayers(roomForAccess, guestJoinViaInvite, isReconnect)) {
             setNameError(t('errors.roomLocked'));
             return;
@@ -1690,6 +1730,9 @@ function App() {
                 if (currentAuthUid) {
                     await updatePresenceIndex(currentAuthUid, selectedGame, newPlayerRef.key);
                 }
+                recordNewPlayerJoin({
+                    dedupeKey: `${selectedGame}:${newPlayerRef.key}`,
+                });
                 isJoiningRef.current = false;
                 return;
             }
@@ -1735,6 +1778,11 @@ function App() {
                 currentAuthUid,
                 joinStartedAt
             );
+            if (!existingPlayerKey) {
+                recordNewPlayerJoin({
+                    dedupeKey: `${selectedGame}:${targetPlayerRef.key || ''}`,
+                });
+            }
         } catch (err) {
             console.error(err);
             joinGraceUntilRef.current = 0;
@@ -1850,6 +1898,10 @@ function App() {
             setLobbyMessage(getComingSoonMessage(gameId, t));
             return;
         }
+        if (!isGameCreationEnabled(cmsConfig, gameId, gameContent.games)) {
+            setLobbyMessage(t('cms.gameDisabledMessage'));
+            return;
+        }
         prefetchGameChunk(gameId);
         if (joinMode === 'password' && !isValidRoomPassword(password)) {
             setLobbyMessage(
@@ -1922,6 +1974,7 @@ function App() {
                 setSelectedGameType(gameId);
                 setIsHost(true);
                 setLobbyMessage('');
+                recordRoomCreated(gameId);
             } catch (err) {
                 console.error('[createHostRoom]', err);
                 const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : '';
@@ -1932,7 +1985,7 @@ function App() {
                 }
             }
         });
-    }, [runWithBusy, isRateLimited, t, getComingSoonMessage]);
+    }, [cmsConfig, gameContent.games, runWithBusy, isRateLimited, t]);
 
     useEffect(() => {
         createHostRoomRef.current = createHostRoom;
@@ -2324,6 +2377,7 @@ function App() {
             </p>
 
             <OfflineBanner />
+            <GlobalAppBanner banner={cmsConfig.banner} />
             <PwaInstallPrompt />
             <IosWifiHelp />
 
@@ -2479,6 +2533,7 @@ function App() {
 
                     {entryRole === 'host' && (
                         <HostLobby
+                            games={sortedLobbyGames}
                             hostJoinMode={hostJoinMode}
                             hostRoomPassword={hostRoomPassword}
                             onJoinModeChange={(mode) => {

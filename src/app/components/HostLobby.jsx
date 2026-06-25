@@ -10,6 +10,7 @@ import { useLocale } from '../../locales/LocaleContext.jsx';
 import { prefetchGameChunk } from '../../lib/prefetchGameChunk';
 
 function HostLobby({
+    games,
     hostJoinMode,
     hostRoomPassword,
     onJoinModeChange,
@@ -24,6 +25,7 @@ function HostLobby({
         () => localizeCatalogGames(gameContent.games, t),
         [gameContent.games, t]
     );
+    const visibleGames = games || localizedGames;
 
     return (
         <>
@@ -68,20 +70,25 @@ function HostLobby({
                 )}
             </div>
             <div className="games-grid">
-                {localizedGames.map((game) => {
+                {visibleGames.map((game) => {
                     const soon = game.comingSoon === true;
+                    const disabledByCms = !soon && game.cmsState?.roomCreationEnabled === false;
                     return (
                         <button
                             key={game.id}
                             type="button"
-                            className={soon ? 'game-btn game-btn--soon' : 'game-btn'}
-                            disabled={soon}
-                            aria-disabled={soon}
+                            className={soon || disabledByCms ? 'game-btn game-btn--soon' : 'game-btn'}
+                            disabled={soon || disabledByCms}
+                            aria-disabled={soon || disabledByCms}
                             onPointerEnter={() => prefetchGameChunk(game.id)}
                             onFocus={() => prefetchGameChunk(game.id)}
                             onClick={() => {
                                 if (soon) {
                                     onComingSoon(getComingSoonMessage(game, t));
+                                    return;
+                                }
+                                if (disabledByCms) {
+                                    onComingSoon(t('cms.gameDisabledMessage'));
                                     return;
                                 }
                                 prefetchGameChunk(game.id);
@@ -96,11 +103,16 @@ function HostLobby({
                                 {soon && (
                                     <span className="game-badge-soon">{t('common.soon')}</span>
                                 )}
+                                {disabledByCms && (
+                                    <span className="game-badge-soon">{t('cms.gameDisabledBadge')}</span>
+                                )}
                             </span>
                             <span className="game-desc">
                                 {soon
-                                    ? t('lobby.host.comingSoonDesc')
-                                    : game.description}
+                                    ? game.description || t('lobby.host.comingSoonDesc')
+                                    : disabledByCms
+                                        ? t('cms.gameDisabledMessage')
+                                        : game.description}
                             </span>
                         </button>
                     );

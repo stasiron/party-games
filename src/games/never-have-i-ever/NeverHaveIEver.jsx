@@ -44,6 +44,7 @@ function NeverHaveIEver({ isHost, onLeave, roomId, shareOptions }) {
         buildDeckFromCategoryIds,
         getCategoryIds,
         onResetCategories: resetCategoriesToAll,
+        metricsGameId: 'never-have-i-ever',
     });
 
     const handleEndGame = useCallback(() => {

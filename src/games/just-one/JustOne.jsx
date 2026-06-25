@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ref } from 'firebase/database';
 import { get, set, update, isRtdbPermissionDenied } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
+import { recordGameStarted } from '../../lib/appMetrics.js';
 import impostorFallback from '../../data/games/impostor.json';
 import { getCategoryLabel, getImpostorCategories } from '../../lib/gameContentUtils';
 import { useRoomGameState } from '../../lib/useRoomGameState';
@@ -484,6 +485,7 @@ function JustOne({
                 ),
                 syncOpts
             );
+            recordGameStarted(roomId, 'just-one');
         } catch (err) {
             console.error('[just-one] startGame', err);
             setStartErrorKey(

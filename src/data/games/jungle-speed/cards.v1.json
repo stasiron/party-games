@@ -1,0 +1,49 @@
+[
+  { "id": "circle-red", "shape": "circle", "color": "red" },
+  { "id": "circle-blue", "shape": "circle", "color": "blue" },
+  { "id": "circle-green", "shape": "circle", "color": "green" },
+  { "id": "circle-yellow", "shape": "circle", "color": "yellow" },
+  { "id": "circle-purple", "shape": "circle", "color": "purple" },
+
+  { "id": "triangle-red", "shape": "triangle", "color": "red" },
+  { "id": "triangle-blue", "shape": "triangle", "color": "blue" },
+  { "id": "triangle-green", "shape": "triangle", "color": "green" },
+  { "id": "triangle-yellow", "shape": "triangle", "color": "yellow" },
+  { "id": "triangle-purple", "shape": "triangle", "color": "purple" },
+
+  { "id": "square-red", "shape": "square", "color": "red" },
+  { "id": "square-blue", "shape": "square", "color": "blue" },
+  { "id": "square-green", "shape": "square", "color": "green" },
+  { "id": "square-yellow", "shape": "square", "color": "yellow" },
+  { "id": "square-purple", "shape": "square", "color": "purple" },
+
+  { "id": "star-red", "shape": "star", "color": "red" },
+  { "id": "star-blue", "shape": "star", "color": "blue" },
+  { "id": "star-green", "shape": "star", "color": "green" },
+  { "id": "star-yellow", "shape": "star", "color": "yellow" },
+  { "id": "star-purple", "shape": "star", "color": "purple" },
+
+  { "id": "diamond-red", "shape": "diamond", "color": "red" },
+  { "id": "diamond-blue", "shape": "diamond", "color": "blue" },
+  { "id": "diamond-green", "shape": "diamond", "color": "green" },
+  { "id": "diamond-yellow", "shape": "diamond", "color": "yellow" },
+  { "id": "diamond-purple", "shape": "diamond", "color": "purple" },
+
+  { "id": "wave-red", "shape": "wave", "color": "red" },
+  { "id": "wave-blue", "shape": "wave", "color": "blue" },
+  { "id": "wave-green", "shape": "wave", "color": "green" },
+  { "id": "wave-yellow", "shape": "wave", "color": "yellow" },
+  { "id": "wave-purple", "shape": "wave", "color": "purple" },
+
+  { "id": "cross-red", "shape": "cross", "color": "red" },
+  { "id": "cross-blue", "shape": "cross", "color": "blue" },
+  { "id": "cross-green", "shape": "cross", "color": "green" },
+  { "id": "cross-yellow", "shape": "cross", "color": "yellow" },
+  { "id": "cross-purple", "shape": "cross", "color": "purple" },
+
+  { "id": "spiral-red", "shape": "spiral", "color": "red" },
+  { "id": "spiral-blue", "shape": "spiral", "color": "blue" },
+  { "id": "spiral-green", "shape": "spiral", "color": "green" },
+  { "id": "spiral-yellow", "shape": "spiral", "color": "yellow" },
+  { "id": "spiral-purple", "shape": "spiral", "color": "purple" }
+]

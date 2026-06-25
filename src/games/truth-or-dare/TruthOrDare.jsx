@@ -6,6 +6,7 @@ import { useRtdbSync } from '../../lib/useRtdbSync';
 import { useTurnVibration } from '../../lib/useTurnVibration';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { getTruthOrDareCategories } from '../../lib/gameContentUtils';
+import { recordGameStarted } from '../../lib/appMetrics.js';
 import { useLocale } from '../../locales/LocaleContext';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import {
@@ -139,6 +140,7 @@ function TruthOrDare({
             currentPlayerName: firstPlayer,
             playerStats: initialStats,
         }, syncOpts);
+        recordGameStarted(roomId, 'truth-or-dare');
     }, [selectedCategories, syncOpts, roomId, tablePlayers, contentByCategory]);
 
     const drawContent = useCallback(async (type) => {

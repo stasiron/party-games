@@ -14,6 +14,36 @@
       "id": "bez-hamulcow",
       "name": "🚀 Bez hamulców",
       "desc": "Trudniejsze wybory — 18+."
+    },
+    {
+      "id": "szkola",
+      "name": "📚 Ostatni dzwonek",
+      "desc": "Szkolna rzeczywistość, oceny i stres."
+    },
+    {
+      "id": "fotografia",
+      "name": "📸 W kadrze",
+      "desc": "Dylematy po obu stronach obiektywu."
+    },
+    {
+      "id": "technologia",
+      "name": "💻 Cyfrowy świat",
+      "desc": "Systemy, sprzęt i internetowe wpadki."
+    },
+    {
+      "id": "muzyka",
+      "name": "🎵 Na słuchawkach",
+      "desc": "Koncerty, playlisty i dźwięki."
+    },
+    {
+      "id": "podroze",
+      "name": "🌍 W drodze",
+      "desc": "Wyjazdy, przesiadki i przygody."
+    },
+    {
+      "id": "absurdy",
+      "name": "🤯 Kompletne absurdy",
+      "desc": "Sytuacje, które łamią prawa logiki."
     }
   ],
   "dilemmas": {
@@ -25,6 +55,158 @@
       {
         "a": "Zawsze mieć 10% baterii na telefonie",
         "b": "Zawsze łapać Wi-Fi, które działa tylko przez 5 minut"
+      },
+      {
+        "a": "Jeść pizzę, która jest zawsze lekko zimna",
+        "b": "Jeść frytki, które są zawsze odrobinę niedosmażone"
+      },
+      {
+        "a": "Mieć zdolność czytania w myślach, ale tylko u zwierząt",
+        "b": "Znać na pamięć wszystkie teksty piosenek, ale nie umieć śpiewać"
+      },
+      {
+        "a": "Codziennie budzić się o 5:00 rano bez budzika",
+        "b": "Zawsze zasypiać 10 minut po tym, jak planowałeś"
+      },
+      {
+        "a": "Wiedzieć, kiedy ktoś kłamie, ale nie móc mu o tym powiedzieć",
+        "b": "Zawsze mówić prawdę i nie móc tego kontrolować"
+      },
+      {
+        "a": "Mieć ubrania, które zawsze pachną wilgocią",
+        "b": "Nosić buty, które są zawsze o jeden rozmiar za małe"
+      },
+      {
+        "a": "Zawsze wygrywać w gry planszowe",
+        "b": "Nigdy nie stać w żadnej kolejce"
+      },
+      {
+        "a": "Mieć głośny śmiech, nad którym nie potrafisz zapanować",
+        "b": "Kichać za każdym razem, gdy słyszysz swoje imię"
+      },
+      {
+        "a": "Wygrać darmowe posiłki do końca życia, ale tylko w jednej restauracji",
+        "b": "Otrzymać jednorazowo dużą sumę pieniędzy na jedzenie"
+      },
+      {
+        "a": "Posiadać auto, które jeździ tylko 40 km/h",
+        "b": "Korzystać z komunikacji miejskiej, która zawsze się spóźnia"
+      },
+      {
+        "a": "Zawsze czuć zapach czosnku",
+        "b": "Zawsze czuć zapach mokrego psa"
+      },
+      {
+        "a": "Zawsze musieć pić napoje przez papierową, rozmakającą słomkę",
+        "b": "Pić wszystko bezpośrednio z ciężkiej, glinianej misy"
+      },
+      {
+        "a": "Mieć na sobie zawsze za ciepłą kurtkę w słoneczny dzień",
+        "b": "Chodzić w koszulce podczas lekkiej mżawki i chłodu"
+      },
+      {
+        "a": "Zgubić się w obcym mieście bez telefonu na godzinę",
+        "b": "Czekać na spóźnionego znajomego przez dwie godziny w kawiarni"
+      },
+      {
+        "a": "Nigdy nie móc używać przypraw oprócz soli",
+        "b": "Używać tylko ekstremalnie ostrych przypraw do każdego dania"
+      },
+      {
+        "a": "Mieć włosy, które idealnie układają się dopiero tuż przed pójściem spać",
+        "b": "Mieć idealną fryzurę, ale musieć nosić niemodną czapkę"
+      },
+      {
+        "a": "Posiadać nieograniczony zapas ulubionych słodyczy, które nigdy się nie kończą",
+        "b": "Mieć zawsze idealnie dojrzałe owoce w kuchni"
+      },
+      {
+        "a": "Zawsze wiedzieć, jaka będzie pogoda za tydzień",
+        "b": "Zawsze wiedzieć, co dostaniesz na prezent urodzinowy"
+      },
+      {
+        "a": "Oglądać tylko filmy animowane do końca życia",
+        "b": "Oglądać tylko czarno-białe filmy dokumentalne"
+      },
+      {
+        "a": "Mieć kran, z którego zawsze leci albo wrzątek, albo lodowata woda",
+        "b": "Mieć światło w pokoju, które zapala się z 5-sekundowym opóźnieniem"
+      },
+      {
+        "a": "Każda książka, którą czytasz, ma wyrwaną ostatnią stronę",
+        "b": "Każdy film, który oglądasz, zacina się na ostatnich 2 minutach"
+      },
+      {
+        "a": "Mieć nieograniczony dostęp do kina za darmo",
+        "b": "Mieć darmowy wstęp na wszystkie baseny i aquaparki"
+      },
+      {
+        "a": "Zawsze mówić rymami, gdy jesteś zdenerwowany",
+        "b": "Zawsze mówić szeptem, gdy chcesz przekazać coś ważnego"
+      },
+      {
+        "a": "Mieć stale wrażenie, że masz kamyk w bucie",
+        "b": "Mieć stale wrażenie, że swędzi cię nos, gdy masz zajęte ręce"
+      },
+      {
+        "a": "Przeczytać całą encyklopedię w jeden weekend",
+        "b": "Przebiec półmaraton bez żadnego przygotowania"
+      },
+      {
+        "a": "Zawsze trafiać na zielone światło jako pieszy",
+        "b": "Zawsze znajdować zgubione drobne monety w kieszeniach kurtki"
+      },
+      {
+        "a": "Twój telefon ładuje się maksymalnie do 50%",
+        "b": "Twój telefon potrzebuje 8 godzin, aby naładować się do pełna"
+      },
+      {
+        "a": "Jeść śniadanie na kolację przez cały rok",
+        "b": "Jeść obiad na śniadanie przez cały rok"
+      },
+      {
+        "a": "Mieć wyjątkowo miękki materac, z którego trudno wstać",
+        "b": "Spać na twardej karimacie, ale budzić się idealnie wypoczętym"
+      },
+      {
+        "a": "Każdy pies, którego mijasz, chce się na ciebie rzucić do zabawy",
+        "b": "Każdy kot w okolicy ignoruje cię z pogardą"
+      },
+      {
+        "a": "Zawsze pamiętać sny ze szczegółami, nawet te koszmary",
+        "b": "Nigdy nie pamiętać żadnego snu, nawet tego najpiękniejszego"
+      },
+      {
+        "a": "Posiadać zegarek, który spieszy się o 15 minut",
+        "b": "Posiadać zegarek, który spóźnia się o 5 minut, a ty o tym zapominasz"
+      },
+      {
+        "a": "Mieć na stałe włączone napisy w prawdziwym życiu przed oczami",
+        "b": "Słyszeć narratora opisującego twoje codzienne, zwyczajne czynności"
+      },
+      {
+        "a": "Zjeść całą cytrynę bez mrugnięcia okiem",
+        "b": "Zjeść łyżkę ostrej musztardy w jedną sekundę"
+      },
+      {
+        "a": "Posiadać supermoc latania, ale tylko na wysokości 20 centymetrów nad ziemią",
+        "b": "Posiadać supermoc niewidzialności, ale tylko wtedy, gdy nikogo nie ma w pobliżu"
+      },
+      {
+        "a": "Zawsze nosić skarpetki nie do pary",
+        "b": "Zawsze nosić ubrania tył na przód, tak aby metka cię drapała"
+      },
+      {
+        "a": "Zgubić klucze do domu raz w miesiącu i szukać ich pół godziny",
+        "b": "Zgubić bezprzewodowe słuchawki w pokoju codziennie rano na 5 minut"
+      },
+      {
+        "a": "Pić tylko gazowaną wodę do końca życia",
+        "b": "Pić tylko całkowicie wygazowaną, letnią colę"
+      },
+      {
+        "a": "Mieć biurko zawsze idealnie posprzątane, ale bałagan w szafie",
+        "b": "Mieć idealny porządek w ubraniach, ale tonę papierów i kubków na biurku"
       }
     ],
     "impreza": [
@@ -35,6 +217,158 @@
       {
         "a": "Mieć idealnego DJ-a, ale tłum tak gęsty, że nie da się ruszyć",
         "b": "Pusty parkiet, ale playlistę z radia z marketu"
+      },
+      {
+        "a": "Przyjść na imprezę w perfekcyjnym stroju, ale rozlać na niego drinka w pierwszych 5 minutach",
+        "b": "Przyjść w dresie na elegancki bankiet"
+      },
+      {
+        "a": "Zostać na domówce do samego rana, sprzątając ze wszystkimi",
+        "b": "Zmyć się po angielsku o 22:00"
+      },
+      {
+        "a": "Przez całą noc zgubić i odnaleźć swój telefon trzy razy",
+        "b": "Raz zgubić portfel bez szans na odzyskanie"
+      },
+      {
+        "a": "Wypić shot, w którym nie wiesz, co jest wymieszane",
+        "b": "Przez resztę wieczoru pić tylko ciepłą wodę"
+      },
+      {
+        "a": "Być osobą, która zamawia jedzenie dla wszystkich na imprezie i musi zbierać od nich pieniądze",
+        "b": "Czekać 2 godziny na dostawę w milczeniu"
+      },
+      {
+        "a": "Tańczyć przez 10 minut samotnie na środku parkietu",
+        "b": "Przewrócić się z tacą napojów na oczach całego klubu"
+      },
+      {
+        "a": "Niechcący wysłać nagranie głosowe z imprezy na grupowy czat rodzinny",
+        "b": "Napisać przypadkiem do swojego nauczyciela"
+      },
+      {
+        "a": "Spędzić całą imprezę w bardzo niewygodnej, ale świetnie wyglądającej masce",
+        "b": "Mieć rozmazany makijaż, o którym nikt ci nie powie"
+      },
+      {
+        "a": "Być wyznaczonym DJ-em i puszczać muzykę, której nikt nie lubi",
+        "b": "Słuchać w kółko jednej piosenki przez 3 godziny"
+      },
+      {
+        "a": "Poznać świetną osobę na imprezie, ale zapomnieć wziąć od niej kontakt",
+        "b": "Rozmawiać przez pół godziny z kimś bardzo nudnym z grzeczności"
+      },
+      {
+        "a": "Impreza kończy się nagłym przyjazdem policji o północy",
+        "b": "Impreza trwa do południa następnego dnia, a ty nie możesz wyjść, bo zablokowano drzwi"
+      },
+      {
+        "a": "Słuchać basu, który jest tak głośny, że wibrują ci zęby",
+        "b": "Siedzieć w strefie chillout, gdzie muzyka leci z telefonu ze słabym głośnikiem"
+      },
+      {
+        "a": "Przypadkowo zniszczyć drogi element dekoracji na domówce u znajomego",
+        "b": "Zostać oskarżonym o zniszczenie czegoś, czego nawet nie dotknąłeś"
+      },
+      {
+        "a": "Pić drinka, w którym rozpuściła się cała papierowa słomka",
+        "b": "Pić ciepłe piwo z plastikowego kubka, który pękł na dole"
+      },
+      {
+        "a": "Być jedynym fotoreporterem na imprezie i musieć robić zdjęcia wszystkim zamiast się bawić",
+        "b": "Być na wszystkich zdjęciach z imprezy z zamkniętymi oczami"
+      },
+      {
+        "a": "Spędzić wieczór w klubie z ludźmi, którzy rozmawiają wyłącznie o kryptowalutach i pracy",
+        "b": "Spędzić wieczór z ludźmi, którzy kłócą się o politykę"
+      },
+      {
+        "a": "Zapłacić za wejście do klubu potężną sumę, po czym wyjść po 15 minutach, bo klimat jest fatalny",
+        "b": "Stać w kolejce do wejścia przez 2 godziny na mrozie, by wejść na ostatnie pół godziny"
+      },
+      {
+        "a": "Twoja ulubiona piosenka leci w momencie, gdy stoisz w najdłuższej kolejce do toalety",
+        "b": "Twoja ulubiona piosenka leci, gdy właśnie wychodzisz z klubu do taksówki"
+      },
+      {
+        "a": "Zjeść potwornie ostry kebab po imprezie i cierpieć przez całą noc",
+        "b": "Nie znaleźć żadnego otwartego jedzenia i iść spać całkowicie głodnym"
+      },
+      {
+        "a": "Cała ekipa decyduje się zmienić lokal co 40 minut",
+        "b": "Siedzieć w jednym, nudnym miejscu przez 7 godzin bez możliwości zmiany"
+      },
+      {
+        "a": "Spotkać swojego byłego partnera ze swoją nową sympatią na parkiecie",
+        "b": "Spotkać swojego profesora z liceum, który bawi się lepiej niż ty"
+      },
+      {
+        "a": "Zaprosić na domówce 5 osób, a przychodzi 35 nieznajomych",
+        "b": "Zaprosić 30 osób, a przychodzisz tylko ty i gospodarz"
+      },
+      {
+        "a": "Stracić głos od śpiewania i krzyczenia na koncercie klubowym",
+        "b": "Mieć zakwasy w nogach przez kolejne 4 dni, uniemożliwiające chodzenie"
+      },
+      {
+        "a": "Ktoś przez przypadek zabiera twój identyczny markowy płaszcz z wieszaka",
+        "b": "Musieć wracać do domu w cudzych, za dużych butach, bo twoje zniknęły"
+      },
+      {
+        "a": "Rozmawiać przez godzinę z obcokrajowcem, udając, że idealnie rozumiesz jego akcent",
+        "b": "Próbować przetłumaczyć koledze coś na migi przy potwornym hałasie basu"
+      },
+      {
+        "a": "Zasnąć na siedząco w loży na środku pełnego klubu",
+        "b": "Zostać wyproszonym przez ochroniarza za to, że potknąłeś się o krawężnik i uznano cię za zbyt nietrzeźwego"
+      },
+      {
+        "a": "Przejąć mikrofon do karaoke i zapomnieć słów w połowie refrenu",
+        "b": "Śpiewać idealnie czysto, ale zepsuł się system nagłośnienia i nikt cię nie słyszy"
+      },
+      {
+        "a": "Zamówić taksówkę, która anuluje kurs 3 razy z rzędu pod koniec imprezy",
+        "b": "Wracać nocnym autobusem pełnym śpiewających kibiców"
+      },
+      {
+        "a": "Być odpowiedzialnym za pilnowanie kurtek i toreb całej ekipy przez całą noc",
+        "b": "Być osobą, która co chwilę coś gubi i zmusza innych do szukania"
+      },
+      {
+        "a": "Dostać darmową wejściówkę do najlepszego klubu, ale musieć iść tam całkowicie samemu",
+        "b": "Iść ze świetną ekipą do najgorszej, najtańszej tancbudy w mieście"
+      },
+      {
+        "a": "Przypadkowo wylać lepki sok na konsolę DJ-a",
+        "b": "Upuścić cały talerz z przekąskami prosto na biały dywan gospodarza domówki"
+      },
+      {
+        "a": "Puszczać muzykę z YouTube i co chwila trafiać na głośne reklamy, bo zapomniałeś premium",
+        "b": "Używać playlisty, w której co druga piosenka to smutna ballada o rozstaniu"
+      },
+      {
+        "a": "Spędzić całą imprezę rozmawiając z psem lub kotem gospodarza w osobnym pokoju",
+        "b": "Rozmawiać na balkonie z kimś, kto płacze z powodu złamanego serca"
+      },
+      {
+        "a": "Zaprosić kogoś do tańca i dostać natychmiastowego, głośnego kosza na oczach znajomych",
+        "b": "Tańczyć z kimś, kto depcze ci po palcach przy każdym kroku"
+      },
+      {
+        "a": "Zorganizować domówkę, na której sąsiedzi pukają do drzwi co 15 minut",
+        "b": "Być na imprezie, na której po godzinie kończą się całkowicie wszelkie napoje i lód"
+      },
+      {
+        "a": "Mieć na sobie ubranie, w którym w trakcie tańca pękają szwy na spodniach",
+        "b": "Nasić buty, w których całkowicie odkleja się podeszwa na środku parkietu"
+      },
+      {
+        "a": "Twoi znajomi robią ci niespodziankę i organizują imprezę w stylu, którego nienawidzisz",
+        "b": "Musieć iść na urodziny osoby, której praktycznie nie znasz i kupić jej drogi prezent"
+      },
+      {
+        "a": "Rozlać napój na ważne dokumenty gospodarza",
+        "b": "Upuścić telefon prosto do wiadra z wodą podczas sprzątania po imprezie"
       }
     ],
     "bez-hamulcow": [
@@ -45,6 +379,158 @@
       {
         "a": "Przez tydzień nosić koszulkę z najgorszym żartem, jaki kiedykolwiek powiedziałeś",
         "b": "Przez tydzień używać pseudonimu, który wymyśli grupa"
+      },
+      {
+        "a": "Oddać swój odblokowany telefon na 15 minut w ręce grupy",
+        "b": "Pokazać wszystkim swoją historię wyszukiwania z ostatniego miesiąca"
+      },
+      {
+        "a": "Opisać ze szczegółami swój najdziwniejszy sen erotyczny",
+        "b": "Wyznać komu z obecnych podobałeś się najbardziej w przeszłości"
+      },
+      {
+        "a": "Nosić przez tydzień t-shirt z wydrukowanym swoim najgorszym zdjęciem",
+        "b": "Opublikować to samo zdjęcie na wszystkich swoich mediach społecznościowych z poważnym podpisem"
+      },
+      {
+        "a": "Musieć zawsze głośno komentować czyjś wygląd prosto w twarz",
+        "b": "Zawsze słyszeć szczere do bólu opinie o sobie od obcych"
+      },
+      {
+        "a": "Zostać przyłapanym na kłamstwie przed osobą, na której najbardziej ci zależy",
+        "b": "Dowiedzieć się, że najlepszy przyjaciel okłamywał cię od roku w ważnej sprawie"
+      },
+      {
+        "a": "Otrzymać przypadkowo nagą fotkę od szefa",
+        "b": "Wysłać przypadkowo nagą fotkę do dalekiej rodziny"
+      },
+      {
+        "a": "Zawsze musieć mówić to, co pomyślisz w pierwszej sekundzie",
+        "b": "Zawsze musieć czekać minutę, zanim cokolwiek powiesz"
+      },
+      {
+        "a": "Ujawnić sekret, który ktoś powierzył tylko tobie",
+        "b": "Dowiedzieć się, że twój największy sekret wszyscy już znają"
+      },
+      {
+        "a": "Zostać zbanowanym we wszystkich lokalach w twoim mieście",
+        "b": "Musieć chodzić codziennie na obiad z byłą partnerką/byłym partnerem"
+      },
+      {
+        "a": "Przegrać publiczny zakład i musieć przefarbować włosy na jaskrawozielono",
+        "b": "Wytatuować sobie imię osoby po twojej lewej stronie na ramieniu"
+      },
+      {
+        "a": "Przeczytać na głos swoje pamiętniki lub stare wiadomości z czasów gimnazjum przed całą ekipą",
+        "b": "Pozwolić grupie wysłać jedną dowolną wiadomość tekstową do twojego szefa lub nauczyciela"
+      },
+      {
+        "a": "Wybrać osobę z pokoju, z którą natychmiast musisz zerwać całkowicie kontakt na rok",
+        "b": "Wybrać osobę, która od teraz decyduje o wszystkich tuoiich wydatkach przez miesiąc"
+      },
+      {
+        "a": "Spędzić 24 godziny w zamkniętym pokoju z osobą, której najbardziej nie znosisz z całej szkoły/pracy",
+        "b": "Spędzić tydzień całkowicie bez kontaktu z kimkolwiek"
+      },
+      {
+        "a": "Oddać wszystkie swoje oszczędności na cel charytatywny wybrany przez wroga",
+        "b": "Przez rok pracować za najniższą krajową bez możliwości zmiany pracy"
+      },
+      {
+        "a": "Wyznać grupie najgorszą rzecz, jaką kiedykolwiek zrobiłeś za czyimiś plecami",
+        "b": "Pozwolić osobie po twojej prawej stronie opowiedzieć twoją najbardziej żenującą historię medyczną lub intymną"
+      },
+      {
+        "a": "Przez miesiąc nie móc korzystać z żadnych filtrów i prywatności w sieci — wszystko co robisz jest publiczne",
+        "b": "Przez rok nie mieć dostępu do smartfona, korzystając tylko ze starej Nokii z klawiaturą"
+      },
+      {
+        "a": "Zostać oskarżonym o romans z kimś o 30 lat starszym",
+        "b": "Zostać przyłapanym na podglądaniu kogoś w przymierzalni przez przypadek"
+      },
+      {
+        "a": "Musieć zjeść coś obrzydliwego wybranego przez grupę (np. żywego robaka)",
+        "b": "Musieć pocałować losowo wybraną przez butelkę osobę w tym pokoju przez równe 30 sekund"
+      },
+      {
+        "a": "Twoja mama dowiaduje się o każdym twoim kłamstwie poprzez SMS-y wysyłane automatycznie przez system",
+        "b": "Twój najlepszy przyjaciel słyszy każdą twoją negatywną myśl na swój temat"
+      },
+      {
+        "a": "Stracić reputację w internecie i stać się memem na krajową skalę",
+        "b": "Stracić zaufanie całej swojej najbliższej rodziny z powodu głupiego nieporozumienia"
+      },
+      {
+        "a": "Spędzić noc w areszcie za zakłócanie porządku publicznego",
+        "b": "Musieć przeprosić publicznie na kolanach osobę, której szczerze nienawidzisz"
+      },
+      {
+        "a": "Pokazać grupie stan swojego konta bankowego i wszystkie ostatnie paragony",
+        "b": "Pozwolić grupie przejrzeć foldery „Ukryte” i „Ostatnio usunięte” w twojej galerii zdjęć"
+      },
+      {
+        "a": "Pocałować stopy osoby siedzącej naprzeciwko ciebie",
+        "b": "Dać się uderzyć w twarz z liścia przez osobę, którą wskaże grupa"
+      },
+      {
+        "a": "Zatańczyć zmysłowy taniec na stole przed wszystkimi zebranymi",
+        "b": "Przez całą resztę gry siedzieć w samej bieliźnie"
+      },
+      {
+        "a": "Wyznać, kto z obecnych w pokoju irytuje cię najbardziej i dlaczego",
+        "b": "Wyznać, z kim z obecnych nigdy w życiu nie chciałbyś pójść na kawę"
+      },
+      {
+        "a": "Zamienić się ubraniami z osobą przeciwnej płci i chodzić tak do końca imprezy",
+        "b": "Pozwolić grupie zrobić ci całkowicie zmywalny, ale koszmarny makijaż na twarzy"
+      },
+      {
+        "a": "Zadzwonić do swojej pierwszej miłości i wyznać, że tęsknisz, mając włączony tryb głośnomówiący",
+        "b": "Zadzwonić do losowego numeru i próbować sprzedać im używane skarpetki przez 5 minut"
+      },
+      {
+        "a": "Przez całą noc pić podwójne dawki wszystkiego, co piją inni",
+        "b": "Zostać całkowicie odciętym od napojów i jedzenia do końca gry"
+      },
+      {
+        "a": "Zdradzić, ile zarabiasz lub ile kieszonkowego dostajesz i na co wydajesz najgorsze sumy",
+        "b": "Opowiedzieć o swojej największej finansowej wpadce lub długu"
+      },
+      {
+        "a": "Pozwolić grupie opublikować dowolny status na twoim profilu społecznościowym",
+        "b": "Pozwolić grupie usunąć jedną wybraną aplikację z twojego telefonu wraz ze wszystkimi danymi"
+      },
+      {
+        "a": "Spędzić godzinę w szafie z osobą, z którą miałeś kiedyś ostre spięcie",
+        "b": "Musieć masować plecy osobie po twojej lewej stronie przez 15 minut bez przerwy"
+      },
+      {
+        "a": "Przeczytać na głos ostatnią kłótnię z rodzicami lub partnerem z komunikatora",
+        "b": "Pokazać grupie swoje notatki w telefonie, gdzie zapisujesz osobiste przemyślenia"
+      },
+      {
+        "a": "Zostać nagranym podczas robienia czegoś wyjątkowo głupiego i pozwolić na wrzucenie tego do sieci",
+        "b": "Zostać sfotografowanym w bardzo niekorzystnej sytuacji, wiedząc, że zdjęcie zostanie w telefonie kolegi"
+      },
+      {
+        "a": "Wybrać osobę z pokoju, która ma prawo dać ci mocnego klapsa",
+        "b": "Musieć lizać ekran swojego telefonu po obu stronach"
+      },
+      {
+        "a": "Zjeść łyżeczkę ostrego sosu chilli bezpośrednio z butelki",
+        "b": "Wypić szklankę wody z solą i pieprzem na raz"
+      },
+      {
+        "a": "Zrobić 50 pompek w ubraniu wyjściowym na środku pokoju",
+        "b": "Przez godzinę nie móc się odezwać ani słowem pod groźbą wyeliminowania z gry"
+      },
+      {
+        "a": "Wyjawić prawdę o tym, czy kiedykolwiek ukradłeś coś ze sklepu lub od znajomego",
+        "b": "Przyznać się, czy kiedykolwiek przeszukiwałeś cudze rzeczy bez pozwolenia"
+      },
+      {
+        "a": "Pozwolić osobie po twojej prawej stronie na napisanie jednego losowego posta z twojego konta",
+        "b": "Powiedzieć prosto w oczy przyjacielowi, co najbardziej przeszkadza ci w jego zachowaniu"
       }
     ]
   }

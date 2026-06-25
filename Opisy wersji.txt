@@ -71,3 +71,4 @@ Rozwuj wersji:
 1.6.1 Quick Fix
 1.7.0 New Gamemode, Just One
 1.7.1 Just One Quick Fix
+1.8.0 CMS Update

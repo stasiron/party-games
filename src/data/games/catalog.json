@@ -40,6 +40,16 @@
     "description": "Wszyscy wpisują to samo słowo — bez rozmowy. Odsłonięcie na koniec tury."
   },
   {
+    "id": "just-one",
+    "name": "💡 Tylko jedno",
+    "description": "Nasłuchiwacz zgaduje hasło — powtórzone podpowiedzi znikają."
+  },
+  {
+    "id": "sing-it",
+    "name": "🎤 Sing it",
+    "description": "Zaspiewaj piosenkę z hasłem — kto pierwszy podniesie mikrofon, wygrywa."
+  },
+  {
     "id": "secret-hitler",
     "name": "🎩 Secret Hitler",
     "description": "Polityczna gra dedukcyjna — faszyści vs liberałowie.",
@@ -62,11 +72,6 @@
     "name": "🎨 Fake Artist",
     "description": "Wszyscy rysują — jeden nie wie, co jest na karcie.",
     "comingSoon": true
-  },
-  {
-    "id": "just-one",
-    "name": "💡 Tylko jedno",
-    "description": "Nasłuchiwacz zgaduje hasło — powtórzone podpowiedzi znikają."
   },
   {
     "id": "miners",
@@ -95,7 +100,8 @@
   {
     "id": "jungle-speed",
     "name": "🌴 Jungle Speed",
-    "description": "Refleks i symbole — rzućcie rękę na stos, gdy pasuje.",
-    "comingSoon": true
+    "description": "WORK IN PROGRESS — refleks i symbole, totem i dopasowanie po kształcie.",
+    "comingSoon": true,
+    "comingSoonMessage": "🚧 Jungle Speed — WORK IN PROGRESS. Gra jest w trakcie tworzenia."
   }
 ]

@@ -12,6 +12,7 @@ const WhoWouldRather = lazy(() => import('../games/who-would-rather/WhoWouldRath
 const KtoNajpredzej = lazy(() => import('../games/kto-najpredzej/KtoNajpredzej'));
 const Telepathy = lazy(() => import('../games/telepathy/Telepathy'));
 const JustOne = lazy(() => import('../games/just-one/JustOne'));
+const SingIt = lazy(() => import('../games/sing-it/SingIt'));
 const ComingSoonGame = lazy(() => import('../components/ComingSoonGame'));
 
 function GameRouter({
@@ -127,6 +128,17 @@ function GameRouter({
                 <JustOne
                     isHost={effectiveIsHost}
                     hasAdminPowers={hasAdminPowers}
+                    onLeave={handleLeaveRoom}
+                    myPlayerId={myPlayerId}
+                    tablePlayers={tablePlayers}
+                    roomId={roomId}
+                    shareOptions={hostShareOptions}
+                />
+            )}
+
+            {selectedGameType === 'sing-it' && (
+                <SingIt
+                    isHost={effectiveIsHost}
                     onLeave={handleLeaveRoom}
                     myPlayerId={myPlayerId}
                     tablePlayers={tablePlayers}

@@ -75,6 +75,7 @@ function WhoWouldRather({
         additionalState: { currentPlayerName: '' },
         getExtraStartFields,
         fingerprintExtra,
+        metricsGameId: 'who-would-rather',
     });
 
     const { rtdbBusy, syncOpts } = useRtdbSync();

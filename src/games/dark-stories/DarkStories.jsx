@@ -56,6 +56,7 @@ function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
         legacyDeckKey: 'shuffledStories',
         extraStartFields: { solutionRevealed: false },
         fingerprintExtra,
+        metricsGameId: 'dark-stories',
     });
 
     const toggleSolutionRevealed = useCallback(() => {

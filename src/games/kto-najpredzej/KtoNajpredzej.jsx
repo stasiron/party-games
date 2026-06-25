@@ -46,6 +46,7 @@ function KtoNajpredzej({ isHost, onLeave, roomId, shareOptions }) {
         buildDeckFromCategoryIds,
         getCategoryIds,
         onResetCategories: resetCategoriesToAll,
+        metricsGameId: 'kto-najpredzej',
     });
 
     const handleEndGame = useCallback(() => {

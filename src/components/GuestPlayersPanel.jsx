@@ -9,6 +9,7 @@ import {
     pickDefaultPhoneOwner,
 } from '../lib/guestPlayers';
 import CollapsibleSection from './CollapsibleSection';
+import { recordNewPlayerJoin } from '../lib/appMetrics.js';
 import { useLocale } from '../locales/LocaleContext';
 
 function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
@@ -59,6 +60,10 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                     isKicked: false,
                     linkedToPlayerId: defaultOwnerId,
                     joinedAt: Date.now(),
+                });
+                recordNewPlayerJoin({
+                    isGuest: true,
+                    dedupeKey: `${roomId}:${newRef.key}`,
                 });
                 setGuestName('');
                 setGuestError('');

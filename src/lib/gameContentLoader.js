@@ -10,6 +10,7 @@ const gameModules = import.meta.glob(
         '../data/games/dark-stories.json',
         '../data/games/who-would-rather.json',
         '../data/games/kto-najpredzej.json',
+        '../data/games/sing-it.json',
     ],
     { eager: true },
 );
@@ -23,6 +24,7 @@ const GAME_FILE_IDS = {
     darkStories: 'dark-stories',
     whoWouldRather: 'who-would-rather',
     ktoNajpredzej: 'kto-najpredzej',
+    singIt: 'sing-it',
 };
 
 function normalizeModulePath(path) {

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { ref } from 'firebase/database';
 import { set, get, update, isRtdbPermissionDenied } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
-import impostorFallback from '../../data/games/impostor.json';
+import { recordGameStarted } from '../../lib/appMetrics.js';
 import { getImpostorCategories, getCategoryLabel } from '../../lib/gameContentUtils';
 import { useLocale } from '../../locales/LocaleContext';
 import { useRoomGameState } from '../../lib/useRoomGameState';
@@ -237,6 +237,7 @@ function Impostor({
                     ...buildImpostorLegacyStartUpdates(roomId, nextRound, publicFields),
                 });
             }
+            recordGameStarted(roomId, 'impostor');
         } catch (err) {
             console.error('[impostor] startGame', err);
             if (isRtdbPermissionDenied(err)) {

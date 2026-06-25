@@ -5,6 +5,7 @@ import { applyLowPowerClass } from './lib/lowPower.js'
 import { PWA_ENABLED } from './lib/pwa.js'
 import './styles/index.css'
 import App from './app/App.jsx'
+import CmsApp from './cms/CmsApp.jsx'
 import { ServerBusyProvider } from './context/ServerBusyContext.jsx'
 import { LocaleProvider } from './locales/LocaleContext.jsx'
 
@@ -31,12 +32,20 @@ function setAppIcons(href) {
 setAppIcons('/pwa-icon.svg')
 applyLowPowerClass()
 
+function resolveRootComponent() {
+    if (typeof window === 'undefined') return App
+    const path = window.location.pathname.replace(/\/+$/, '') || '/'
+    return path === '/cms' ? CmsApp : App
+}
+
+const RootComponent = resolveRootComponent()
+
 if (!maybeRedirectToApGateway()) {
     createRoot(document.getElementById('root')).render(
         <StrictMode>
             <ServerBusyProvider>
                 <LocaleProvider>
-                    <App />
+                    <RootComponent />
                 </LocaleProvider>
             </ServerBusyProvider>
         </StrictMode>,

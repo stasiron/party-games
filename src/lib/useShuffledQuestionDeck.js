@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { ref } from 'firebase/database';
-import { set } from './rtdb';
+import { set } from '../lib/rtdb';
 import { db } from './firebase';
+import { recordGameStarted } from './appMetrics';
 import { useRoomGameState } from './useRoomGameState';
 import { usePiGameSession } from './usePiGameSession';
 import { shuffleArray } from './shuffle';
@@ -27,6 +28,7 @@ const DEFAULT_DECK_STATE = {
  *   getExtraStartFields?: () => Record<string, unknown>,
  *   additionalState?: Record<string, unknown>,
  *   fingerprintExtra?: (data: object) => string,
+ *   metricsGameId?: string,
  * }} options
  */
 export function useShuffledQuestionDeck(roomId, {
@@ -39,6 +41,7 @@ export function useShuffledQuestionDeck(roomId, {
     getExtraStartFields,
     additionalState = {},
     fingerprintExtra,
+    metricsGameId,
 }) {
     const defaultRoomState = useMemo(
         () => ({ ...DEFAULT_DECK_STATE, [indexKey]: 0, ...additionalState, ...extraStartFields }),
@@ -79,7 +82,10 @@ export function useShuffledQuestionDeck(roomId, {
             ...extraStartFields,
             ...getExtraStartFields?.(),
         });
-    }, [buildDeckFromCategoryIds, getCategoryIds, roomId, indexKey, extraStartFields, getExtraStartFields]);
+        if (metricsGameId) {
+            recordGameStarted(roomId, metricsGameId);
+        }
+    }, [buildDeckFromCategoryIds, getCategoryIds, roomId, indexKey, extraStartFields, getExtraStartFields, metricsGameId]);
 
     const forceResetTable = useCallback(() => {
         set(ref(db, `rooms/${roomId}/gameState`), null);

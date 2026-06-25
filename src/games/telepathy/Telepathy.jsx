@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ref } from 'firebase/database';
 import { get, set, update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
+import { recordGameStarted } from '../../lib/appMetrics.js';
 import { useRoomGameState } from '../../lib/useRoomGameState';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { useRtdbSync } from '../../lib/useRtdbSync';
@@ -293,6 +294,7 @@ function Telepathy({
             buildTelepathyStartUpdates(roomId, { autoRound: lobbyAutoRound }),
             syncOpts
         );
+        recordGameStarted(roomId, 'telepathy');
     }, [roomId, syncOpts, lobbyAutoRound]);
 
     const toggleAutoRound = useCallback(() => {

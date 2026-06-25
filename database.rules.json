@@ -8,7 +8,7 @@
         ".read": true,
         ".write": true,
         "gameId": {
-          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one)$/)"
+          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one|sing-it|jungle-speed)$/)"
         },
         "joinMode": {
           ".validate": "newData.val() === null || (newData.isString() && newData.val().matches(/^(public|password|invite)$/))"
@@ -163,7 +163,7 @@
         ".write": true,
         ".validate": "newData.val() === null || newData.hasChildren(['gameId', 'onlineCount', 'updatedAt'])",
         "gameId": {
-          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one)$/)"
+          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one|sing-it|jungle-speed)$/)"
         },
         "joinMode": {
           ".validate": "newData.val() === null || (newData.isString() && newData.val().matches(/^(public|password|invite)$/))"
@@ -194,6 +194,74 @@
         },
         "$other": {
           ".validate": false
+        }
+      }
+    },
+    "appConfig": {
+      ".read": true,
+      ".write": "auth != null && auth.uid === 'TD5kdOtZ6bPwTJNfcDtyOCPKmfG2'",
+      "games": {
+        "$gameId": {
+          ".validate": "newData.val() === null || (newData.hasChildren(['roomCreationEnabled', 'roomJoinEnabled']) && newData.child('roomCreationEnabled').isBoolean() && newData.child('roomJoinEnabled').isBoolean())",
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "commands": {
+        "$commandId": {
+          ".validate": "newData.isBoolean()"
+        }
+      },
+      "updatedAt": {
+        ".validate": "newData.isNumber()"
+      },
+      "banner": {
+        ".validate": "newData.val() === null || (newData.hasChildren(['enabled', 'title', 'body', 'updatedAt']) && newData.child('enabled').isBoolean() && newData.child('updatedAt').isNumber() && newData.child('title').hasChildren(['pl', 'en']) && newData.child('title').child('pl').isString() && newData.child('title').child('pl').val().length <= 120 && newData.child('title').child('en').isString() && newData.child('title').child('en').val().length <= 120 && newData.child('body').hasChildren(['pl', 'en']) && newData.child('body').child('pl').isString() && newData.child('body').child('pl').val().length <= 500 && newData.child('body').child('en').isString() && newData.child('body').child('en').val().length <= 500)",
+        "$other": {
+          ".validate": false
+        }
+      },
+      "$other": {
+        ".validate": false
+      }
+    },
+    "appMetrics": {
+      "daily": {
+        "$dayId": {
+          ".read": true,
+          ".write": "$dayId.matches(/^20[0-9]{6}$/)",
+          "deviceJoins": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500000"
+          },
+          "playerJoins": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500000"
+          },
+          "gamesStarted": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500000"
+          },
+          "roomsCreated": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500000"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "byGame": {
+            "$gameId": {
+              "gamesStarted": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+              },
+              "roomsCreated": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
         }
       }
     },
