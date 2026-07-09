@@ -72,3 +72,7 @@ Rozwuj wersji:
 1.7.0 New Gamemode, Just One
 1.7.1 Just One Quick Fix
 1.8.0 CMS Update
+1.8.1 cms features
+1.9.0 Top Ten update
+1.9.1 Top Ten 5 roznych funkcji ustawienia
+1.9.2 debug fix

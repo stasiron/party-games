@@ -1,21 +1,24 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { ref, push, remove, onValue, onDisconnect } from 'firebase/database';
 import { GoogleAuthProvider, linkWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { set, get, update, runTransaction } from '../lib/rtdb';
+import { set, get, update } from '../lib/rtdb';
 import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
 import { auth as firebaseAuth, firestore } from '../lib/firebase/client';
 import { buildCatalogIndex, getComingSoonMessage, isGameComingSoon } from '../lib/gameCatalog.js';
 import { getLocalizedGameMeta, localizeCatalogGames } from '../lib/gameMeta.js';
 import { useLocale } from '../locales/LocaleContext.jsx';
 import { resolveGameId, isPlayableGameId } from '../data/gameIds.js';
-import BugReportPanel from '../components/BugReportPanel';
+const BugReportPanel = lazy(() => import('../components/BugReportPanel'));
+const AccountCenterPanel = lazy(() => import('./components/AccountCenterPanel'));
+const SettingsPanel = lazy(() => import('./components/SettingsPanel'));
+const AdminConsole = lazy(() => import('./components/AdminConsole'));
 import ConnectionStatus from '../components/ConnectionStatus';
 import IosWifiHelp from '../components/IosWifiHelp';
 import PwaInstallPrompt from '../components/PwaInstallPrompt';
 import GlobalAppBanner from '../components/GlobalAppBanner';
 import OfflineBanner from '../components/OfflineBanner';
-import { useServerBusy } from '../context/useServerBusy';
+import { useRunWithBusy } from '../context/useRunWithBusy';
 import { useLongPress } from '../hooks/useLongPress';
 import {
     isLowPowerDevice,
@@ -52,41 +55,18 @@ import {
     defaultShowCodeInList,
     showRoomCodeInList,
 } from '../lib/roomAccess';
-import { buildActiveRoomsFromPublic, fingerprintActiveRoomsList } from './utils/activeRooms';
-import { fingerprintRoomPublicEntry, applyLobbyFilters } from '../lib/roomPublicSync';
-import { getRoomsPublicDebounceMs, loadLobbyFilters, saveLobbyFilters } from '../lib/lobbyFilters';
+import { fingerprintRoomPublicEntry } from '../lib/roomPublicSync';
+import { loadLobbyFilters } from '../lib/lobbyFilters';
 import { applyThemeSurface } from '../lib/themeSurface';
 import { findThemePreset } from '../lib/themePresets';
 import { buildBugReportContext, prefetchReporterIpHash } from '../lib/bugReport';
 import { buildBugReportDiagnostics } from '../lib/bugReportDiagnostics';
 import { prefetchGameChunk } from '../lib/prefetchGameChunk';
-import {
-    buildTelepathyAdvanceRoundUpdatesFromRoom,
-    buildTelepathySyncUpdates,
-    canAdvanceTelepathyRound,
-} from '../lib/telepathyState';
-import {
-    buildJustOneAdvanceRoundUpdatesFromRoom,
-    buildJustOneSyncUpdates,
-    canAdvanceJustOneRound,
-} from '../lib/justOneState';
 import { loadUiSettings, notifyUiSettingsChanged, UI_SETTINGS_KEY } from '../lib/uiSettings';
 import { useRoomSnapshot } from '../lib/useRoomSnapshot';
 import { usePlayerHeartbeat } from '../lib/usePlayerHeartbeat';
-import {
-    BACKGROUND_CLEANUP_INTERVAL_MS,
-    CLEANUP_LEASE_PATH,
-    CLEANUP_LEASE_TTL_MS,
-    ROOM_CLEANUP_COOLDOWN_MS,
-    runRoomsCleanupFromSnapshots,
-    cleanupOrphanRoomsPublicFromSnapshots,
-    shouldRunClientRoomsCleanup,
-} from '../lib/roomCleanup';
 import RoomScreen from './RoomScreen';
-import AccountCenterPanel from './components/AccountCenterPanel';
-import SettingsPanel from './components/SettingsPanel';
 import LanguagePicker from './components/LanguagePicker';
-import AdminConsole from './components/AdminConsole';
 import EntryRolePicker from './components/EntryRolePicker';
 import HostLobby from './components/HostLobby';
 import GuestLobby from './components/GuestLobby';
@@ -98,12 +78,14 @@ import {
     LAST_ROOM_KEY,
 } from './constants';
 import { loadLocalNickname, loadLastRoomId, generateRoomCode } from './utils/localPrefs';
+import { useAppAuth } from './hooks/useAppAuth';
+import { useGuestRoomsList } from './hooks/useGuestRoomsList';
+import { useRoomCleanupScheduler } from './hooks/useRoomCleanupScheduler';
+import { useAdminCommands } from './hooks/useAdminCommands';
 import versionData from '../../version.json';
 import '../styles/app.css';
 import { recordRoomCreated, recordNewPlayerJoin } from '../lib/appMetrics.js';
 import {
-    APP_CONFIG_PATH,
-    isAdminCommandEnabled,
     isGameCreationEnabled,
     isGameJoinEnabled,
     normalizeCmsConfig,
@@ -111,7 +93,7 @@ import {
 } from '../lib/cmsConfig.js';
 
 function App() {
-    const { runWithBusy, pingMs, pingError, piQueueDepth, busyCount } = useServerBusy();
+    const { runWithBusy, getPingSnapshot, busyCount, piQueueDepth } = useRunWithBusy();
     const { t, gameContent } = useLocale();
     const [selectedGame, setSelectedGame] = useState(null); // roomId
     const [selectedGameType, setSelectedGameType] = useState(null);
@@ -204,17 +186,14 @@ function App() {
     const isOnlineHealSentRef = useRef(false);
     const lastOnlineHealAtRef = useRef(0);
     const lastZombieCleanupAtRef = useRef(0);
-    const lastRoomsCleanupAtRef = useRef(0);
     const lastRoomPublicSyncAtRef = useRef(0);
     const lastPublicSyncFingerprintRef = useRef('');
-    const lastPublicSnapshotRef = useRef(null);
-    const lastActiveRoomsFingerprintRef = useRef('');
-    const guestRoomsRefreshInFlightRef = useRef(false);
     const lastPlayersListFingerprintRef = useRef('');
     const authUserRef = useRef(null);
     const cachedRoomRef = useRef({
         players: null,
         gameState: null,
+        gameId: null,
         joinMode: 'public',
         admission: 'open',
         updatedAt: 0,
@@ -261,46 +240,14 @@ function App() {
         });
     }, []);
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
-            authUserRef.current = user;
-            setAuthUser(user);
-        });
-        return () => unsubscribe();
-    }, []);
-
-    useEffect(() => {
-        const cfgRef = ref(db, APP_CONFIG_PATH);
-        const unsubscribe = onValue(cfgRef, (snapshot) => {
-            setCmsConfig(normalizeCmsConfig(snapshot.val(), gameContent.games));
-        });
-        return () => unsubscribe();
-    }, [gameContent.games]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        if (!authUser?.uid) return;
-        let active = true;
-
-        const loadNickname = async () => {
-            try {
-                const snap = await getDoc(doc(firestore, 'users', authUser.uid));
-                if (!active || !snap.exists()) return;
-                const nick = String(snap.data()?.nickname || '').trim();
-                if (nick) {
-                    setAccountNickname(nick);
-                    window.localStorage.setItem(NICKNAME_KEY, nick);
-                }
-            } catch {
-                // Nickname loading is best-effort only.
-            }
-        };
-
-        void loadNickname();
-        return () => {
-            active = false;
-        };
-    }, [authUser]);
+    useAppAuth({
+        authUser,
+        authUserRef,
+        gameContentGames: gameContent.games,
+        setAuthUser,
+        setCmsConfig,
+        setAccountNickname,
+    });
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -454,7 +401,7 @@ function App() {
         joinGraceUntilRef.current = 0;
         missingPlayerSinceRef.current = 0;
         isJoiningRef.current = false;
-        cachedRoomRef.current = { players: null, joinMode: 'public', admission: 'open', updatedAt: 0 };
+        cachedRoomRef.current = { players: null, gameId: null, joinMode: 'public', admission: 'open', updatedAt: 0 };
         pendingJoinCountRef.current = 0;
         showCodeInListRef.current = true;
         lastPlayersListFingerprintRef.current = '';
@@ -619,10 +566,11 @@ function App() {
     );
 
     const getBugReportDiagnostics = useCallback(
-        () =>
-            buildBugReportDiagnostics({
+        () => {
+            const ping = getPingSnapshot?.() || {};
+            return buildBugReportDiagnostics({
                 gameId: selectedGameType,
-                gameState: cachedRoomRef.current.gameState,
+                gameState: null,
                 playersList,
                 myPlayerId,
                 isHost,
@@ -631,12 +579,14 @@ function App() {
                 playerName,
                 accountNickname,
                 roomId: selectedGame,
-                pingMs,
-                pingError,
+                pingMs: ping.pingMs ?? null,
+                pingError: ping.pingError ?? false,
                 piQueueDepth,
                 busyCount,
-            }),
+            });
+        },
         [
+            getPingSnapshot,
             selectedGameType,
             playersList,
             myPlayerId,
@@ -646,8 +596,6 @@ function App() {
             playerName,
             accountNickname,
             selectedGame,
-            pingMs,
-            pingError,
             piQueueDepth,
             busyCount,
         ]
@@ -772,6 +720,7 @@ function App() {
                     ...cachedRoomRef.current,
                     joinMode,
                     admission,
+                    gameId: roomData.gameId,
                     updatedAt: Date.now(),
                 };
             } catch {
@@ -842,574 +791,54 @@ function App() {
         myPlayerId,
     });
 
-    const processPublicRoomsSnapshot = useCallback((raw) => {
-        let rooms = buildActiveRoomsFromPublic(raw || {}, gameById);
-        rooms = rooms.map((room) => ({
-            ...room,
-            gameName: t(`games.${room.gameId}.name`, {}, room.gameName),
-        }));
-        rooms = applyLobbyFilters(rooms, lobbyFilters);
-        const fingerprint = fingerprintActiveRoomsList(rooms);
-        if (fingerprint !== lastActiveRoomsFingerprintRef.current) {
-            lastActiveRoomsFingerprintRef.current = fingerprint;
-            setActiveRooms(rooms);
-        }
-        setGuestRoomsListReady(true);
-    }, [gameById, lobbyFilters, t]);
+    const { refreshGuestRooms } = useGuestRoomsList({
+        selectedGame,
+        entryRole,
+        gameById,
+        lobbyFilters,
+        t,
+        setActiveRooms,
+        setGuestRoomsListReady,
+        setGuestRoomsRefreshing,
+    });
 
-    const refreshGuestRooms = useCallback(async () => {
-        if (guestRoomsRefreshInFlightRef.current) return;
-        guestRoomsRefreshInFlightRef.current = true;
-        setGuestRoomsRefreshing(true);
-        try {
-            const snapshot = await get(ref(db, ROOMS_PUBLIC_ROOT));
-            const raw = snapshot.val();
-            lastPublicSnapshotRef.current = raw;
-            processPublicRoomsSnapshot(raw);
-        } finally {
-            guestRoomsRefreshInFlightRef.current = false;
-            setGuestRoomsRefreshing(false);
-        }
-    }, [processPublicRoomsSnapshot]);
+    useRoomCleanupScheduler({
+        isJoined,
+        effectiveIsHost,
+        hasAdminPowers,
+        selectedGame,
+    });
 
-    useEffect(() => {
-        saveLobbyFilters(lobbyFilters);
-        if (lastPublicSnapshotRef.current != null) {
-            processPublicRoomsSnapshot(lastPublicSnapshotRef.current);
-        }
-    }, [lobbyFilters, processPublicRoomsSnapshot]);
-
-    // Menu gościa: lekki indeks roomsPublic — pierwsza lista od razu, kolejne z debounce.
-    useEffect(() => {
-        if (selectedGame || entryRole !== 'guest') return undefined;
-        let cancelled = false;
-        let timeoutId;
-        let hasListed = false;
-        const debounceMs = getRoomsPublicDebounceMs();
-
-        const applySnapshot = (raw, { immediate = false } = {}) => {
-            if (cancelled) return;
-            lastPublicSnapshotRef.current = raw;
-            clearTimeout(timeoutId);
-            if (immediate || !hasListed) {
-                hasListed = true;
-                processPublicRoomsSnapshot(raw);
-                return;
-            }
-            timeoutId = window.setTimeout(() => {
-                if (!cancelled) processPublicRoomsSnapshot(lastPublicSnapshotRef.current);
-            }, debounceMs);
-        };
-
-        const unsubPublic = onValue(ref(db, ROOMS_PUBLIC_ROOT), (snapshot) => {
-            applySnapshot(snapshot.val(), { immediate: !hasListed });
-        });
-
-        void get(ref(db, ROOMS_PUBLIC_ROOT))
-            .then((snapshot) => {
-                if (!cancelled) applySnapshot(snapshot.val(), { immediate: true });
-            })
-            .catch(() => {
-                if (!cancelled) setGuestRoomsListReady(true);
-            });
-
-        return () => {
-            cancelled = true;
-            clearTimeout(timeoutId);
-            unsubPublic();
-            setActiveRooms([]);
-            setGuestRoomsListReady(false);
-            lastPublicSnapshotRef.current = null;
-            lastActiveRoomsFingerprintRef.current = '';
-        };
-    }, [selectedGame, entryRole, processPublicRoomsSnapshot]);
-
-    useEffect(() => {
-        let cancelled = false;
-        const tabId = `${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-        const leaseOwner = `tab:${tabId}`;
-
-        const tryCleanupNow = async () => {
-            if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-            if (
-                !shouldRunClientRoomsCleanup({
-                    isJoined,
-                    effectiveIsHost,
-                    hasAdminPowers,
-                })
-            ) {
-                return;
-            }
-
-            const leaseRef = ref(db, CLEANUP_LEASE_PATH);
-            const now = Date.now();
-            const leaseResult = await runTransaction(leaseRef, (current) => {
-                const currentOwner = String(current?.owner || '');
-                const expiresAt = Number(current?.expiresAt || 0);
-                const leaseExpired = expiresAt <= now;
-                const sameOwner = currentOwner === leaseOwner;
-                if (!current || leaseExpired || sameOwner) {
-                    return {
-                        owner: leaseOwner,
-                        expiresAt: now + CLEANUP_LEASE_TTL_MS,
-                        updatedAt: now,
-                    };
-                }
-                return undefined;
-            }, { applyLocally: false });
-            if (!leaseResult.committed || leaseResult.snapshot.val()?.owner !== leaseOwner) return;
-            if (now - lastRoomsCleanupAtRef.current < ROOM_CLEANUP_COOLDOWN_MS) return;
-            try {
-                const [roomsSnap, publicSnap] = await Promise.all([
-                    get(ref(db, 'rooms')),
-                    get(ref(db, ROOMS_PUBLIC_ROOT)),
-                ]);
-                if (cancelled) return;
-                const raw = roomsSnap.val() || {};
-                const publicRaw = publicSnap.val() || {};
-                const cleaned = await runRoomsCleanupFromSnapshots(raw, publicRaw, now);
-                if (cleaned) lastRoomsCleanupAtRef.current = now;
-                await cleanupOrphanRoomsPublicFromSnapshots(publicRaw, raw);
-            } catch {
-                /* best effort background cleanup */
-            }
-        };
-
-        const onVisibility = () => {
-            if (document.visibilityState === 'visible') {
-                void tryCleanupNow();
-            }
-        };
-
-        void tryCleanupNow();
-        const intervalId = window.setInterval(() => {
-            void tryCleanupNow();
-        }, BACKGROUND_CLEANUP_INTERVAL_MS);
-        document.addEventListener('visibilitychange', onVisibility);
-
-        return () => {
-            cancelled = true;
-            window.clearInterval(intervalId);
-            document.removeEventListener('visibilitychange', onVisibility);
-        };
-    }, [isJoined, effectiveIsHost, hasAdminPowers]);
-
-    // 4. OBSŁUGA TAJNYCH KOMEND ADMINISTRATORA pod logo
-    const handleAdminCommand = useCallback(async () => {
-        const rawCmd = adminCommand.trim();
-        const cleanedCmd = rawCmd.toUpperCase();
-
-        if (cleanedCmd === '') return;
-
-        const isBypassToggle = cleanedCmd === 'BYPASS';
-        const isHelp = cleanedCmd === 'HELP';
-        if (!isBypassToggle && !isHelp && !adminBypassRef.current) {
-            setAdminCommand('');
-            return;
-        }
-        if (!isBypassToggle && !isHelp && !isAdminCommandEnabled(cmsConfig, rawCmd)) {
-            setLobbyMessage(t('cms.commandBlocked'));
-            setAdminCommand('');
-            return;
-        }
-
-        await runWithBusy(async () => {
-        try {
-            if (['RESET', 'PURGE', 'PURGE PLAYERS', 'PURGE ROOMS', 'CLEAR'].includes(cleanedCmd)) {
-                if (isAdminRateLimited('admin:destructive', RATE_LIMITS_MS.adminDestructive)) {
-                    setLobbyMessage(t('admin.rateLimitDestructive'));
-                    return;
-                }
-            }
-            if (
-                cleanedCmd === 'REVEAL' ||
-                cleanedCmd === 'NEXT' ||
-                cleanedCmd === 'NEXT ROUND' ||
-                cleanedCmd === 'SYNC' ||
-                cleanedCmd === 'HOST' ||
-                cleanedCmd.startsWith('HOST ') ||
-                cleanedCmd.startsWith('ADMIN ')
-            ) {
-                if (isAdminRateLimited('admin:mutation', RATE_LIMITS_MS.adminMutation)) {
-                    setLobbyMessage(t('admin.rateLimitMutation'));
-                    return;
-                }
-            }
-
-            if (cleanedCmd === 'CLEAR') {
-                if (!selectedGame) {
-                    alert(t('admin.clearNeedsRoom'));
-                    return;
-                }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomData = roomSnap.val() || {};
-                if (!roomData.gameId) {
-                    alert(t('admin.clearRoomNotFound'));
-                    return;
-                }
-                const now = Date.now();
-                const joinMode = normalizeJoinMode(roomData);
-                const admission = normalizeAdmission(roomData);
-                const showCodeInList = showRoomCodeInList(roomData);
-                await update(ref(db), {
-                    [`rooms/${selectedGame}`]: {
-                        gameId: roomData.gameId,
-                        joinMode,
-                        admission,
-                        showCodeInList,
-                        ...(roomData.passwordHash ? { passwordHash: roomData.passwordHash } : {}),
-                        createdAt: roomData.createdAt || now,
-                        gameState: null,
-                        settings: null,
-                        roleHistory: null,
-                        players: null,
-                        joinRequests: null,
-                    },
-                    [roomPublicPath(selectedGame)]: buildRoomPublicEntry({
-                        gameId: roomData.gameId,
-                        joinMode,
-                        admission,
-                        onlineCount: 0,
-                        pendingCount: 0,
-                        showCodeInList,
-                        updatedAt: now,
-                    }),
-                });
-                setLobbyMessage(t('admin.clearDone', { roomId: selectedGame }));
-                finishAdminCommand();
-                return;
-            }
-
-            if (cleanedCmd === 'RESET') {
-                if (window.confirm(t('admin.confirmReset'))) {
-                    await update(ref(db), roomsPurgeAllUpdates());
-                    setSelectedGame(null);
-                    setSelectedGameType(null);
-                    setEntryRole(null);
-                    setManualRoomCode('');
-                    setActiveRooms([]);
-                    setPlayersList([]);
-                    setIsJoined(false);
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setNameError('');
-                    setJoinStatus('');
-                    setLastJoinResult('');
-                    setLobbyMessage(t('admin.resetDone'));
-                    finishAdminCommand();
-                }
-                return;
-            }
-
-            if (cleanedCmd === 'PURGE') {
-                if (window.confirm(t('admin.confirmPurge'))) {
-                    await update(ref(db), roomsPurgeAllUpdates());
-                    setSelectedGame(null);
-                    setSelectedGameType(null);
-                    setEntryRole(null);
-                    setManualRoomCode('');
-                    setActiveRooms([]);
-                    setPlayersList([]);
-                    setIsJoined(false);
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setNameError('');
-                    setJoinStatus('');
-                    setLastJoinResult('');
-                    setLobbyMessage(t('admin.purgeDone'));
-                    finishAdminCommand();
-                }
-                return;
-            }
-
-            if (cleanedCmd === 'PURGE PLAYERS') {
-                if (window.confirm(t('admin.confirmPurgePlayers'))) {
-                    const roomsSnap = await get(ref(db, 'rooms'));
-                    const roomsData = roomsSnap.val() || {};
-                    const purgePlayersUpdates = {};
-
-                    Object.keys(roomsData).forEach((roomId) => {
-                        purgePlayersUpdates[`rooms/${roomId}/players`] = null;
-                    });
-
-                    if (Object.keys(purgePlayersUpdates).length > 0) {
-                        await update(ref(db), purgePlayersUpdates);
-                    }
-
-                    setPlayersList([]);
-                    setIsJoined(false);
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setNameError('');
-                    setJoinStatus('');
-                    setLastJoinResult('');
-                    setLobbyMessage(t('admin.purgePlayersDone'));
-                    finishAdminCommand();
-                }
-                return;
-            }
-
-            if (cleanedCmd === 'PURGE ROOMS') {
-                if (window.confirm(t('admin.confirmPurgeRooms'))) {
-                    await update(ref(db), roomsPurgeAllUpdates());
-                    setSelectedGame(null);
-                    setSelectedGameType(null);
-                    setEntryRole(null);
-                    setManualRoomCode('');
-                    setActiveRooms([]);
-                    setPlayersList([]);
-                    setIsJoined(false);
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setNameError('');
-                    setJoinStatus('');
-                    setLastJoinResult('');
-                    setLobbyMessage(t('admin.purgeRoomsDone'));
-                    finishAdminCommand();
-                }
-                return;
-            }
-
-            // ADMIN shortcuts: 'ADMIN' toggles admin mode, or 'ADMIN KICK <name>' to target
-            if (cleanedCmd === 'ADMIN') {
-                const newState = !isAdminMode;
-                setIsAdminMode(newState);
-                setLobbyMessage(newState ? t('admin.adminModeOn') : t('admin.adminModeOff'));
-                finishAdminCommand();
-                return;
-            }
-
-            if (cleanedCmd === 'BYPASS') {
-                const next = !adminBypassEnabled;
-                setAdminBypassEnabled(next);
-                adminBypassRef.current = next;
-                if (next) {
-                    setShowAdminPanel(true);
-                } else {
-                    setIsAdminMode(false);
-                }
-                setAdminCommand('');
-                return;
-            }
-
-            if (cleanedCmd === 'REVEAL') {
-                if (!selectedGame) {
-                    alert(t('admin.revealNeedsRoom'));
-                    return;
-                }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomData = roomSnap.val() || {};
-                if (!['impostor', 'mafia'].includes(roomData.gameId)) {
-                    alert(t('admin.revealWrongGame'));
-                    return;
-                }
-                await update(ref(db, `rooms/${selectedGame}/gameState`), {
-                    revealAllRoles: true,
-                });
-                setLobbyMessage(t('admin.revealDone'));
-                finishAdminCommand();
-                return;
-            }
-
-            if (cleanedCmd === 'HELP') {
-                setLobbyMessage(t('admin.helpText'));
-                finishAdminCommand();
-                return;
-            }
-
-            if (cleanedCmd === 'SYNC') {
-                if (!selectedGame) {
-                    alert(t('admin.gameSyncNeedsRoom'));
-                    return;
-                }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomVal = roomSnap.val() || {};
-                const roomGameId = roomVal.gameId;
-
-                if (roomGameId === 'telepathy') {
-                    const { updates, result } = await buildTelepathySyncUpdates(selectedGame);
-                    if (Object.keys(updates).length > 0) {
-                        await update(ref(db), updates);
-                    }
-                    const syncMessages = {
-                        revealed: 'admin.telepathySyncRevealed',
-                        cleaned: 'admin.telepathySyncCleaned',
-                        noop: 'admin.telepathySyncNoop',
-                        not_started: 'admin.telepathySyncNotStarted',
-                    };
-                    setLobbyMessage(t(syncMessages[result] || 'admin.telepathySyncNoop', {
-                        roomId: selectedGame,
-                    }));
-                } else if (roomGameId === 'just-one') {
-                    const { updates, result } = await buildJustOneSyncUpdates(selectedGame);
-                    if (Object.keys(updates).length > 0) {
-                        await update(ref(db), updates);
-                    }
-                    const syncMessages = {
-                        revealed: 'admin.justOneSyncRevealed',
-                        cleaned: 'admin.justOneSyncCleaned',
-                        noop: 'admin.justOneSyncNoop',
-                        not_started: 'admin.justOneSyncNotStarted',
-                    };
-                    setLobbyMessage(t(syncMessages[result] || 'admin.justOneSyncNoop', {
-                        roomId: selectedGame,
-                    }));
-                } else {
-                    alert(t('admin.gameSyncWrongGame'));
-                    return;
-                }
-                finishAdminCommand();
-                return;
-            }
-
-            if (cleanedCmd === 'NEXT' || cleanedCmd === 'NEXT ROUND') {
-                if (!selectedGame) {
-                    alert(t('admin.gameNextNeedsRoom'));
-                    return;
-                }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomVal = roomSnap.val() || {};
-                const roomGameId = roomVal.gameId;
-                const gameState = roomVal.gameState || {};
-
-                if (roomGameId === 'telepathy') {
-                    if (!canAdvanceTelepathyRound(gameState)) {
-                        alert(t('admin.telepathyNextWrongPhase'));
-                        return;
-                    }
-                    const playerIds = Object.keys(roomVal.players || {}).filter(
-                        (id) => roomVal.players[id] && roomVal.players[id].isKicked !== true
-                    );
-                    const updates = await buildTelepathyAdvanceRoundUpdatesFromRoom(
-                        selectedGame,
-                        playerIds
-                    );
-                    await update(ref(db), updates);
-                    setLobbyMessage(t('admin.telepathyNextDone', { roomId: selectedGame }));
-                } else if (roomGameId === 'just-one') {
-                    if (!canAdvanceJustOneRound(gameState)) {
-                        alert(t('admin.justOneNextWrongPhase'));
-                        return;
-                    }
-                    const updates = await buildJustOneAdvanceRoundUpdatesFromRoom(selectedGame);
-                    if (!updates || Object.keys(updates).length === 0) {
-                        alert(t('admin.justOneNextWrongPhase'));
-                        return;
-                    }
-                    await update(ref(db), updates);
-                    setLobbyMessage(t('admin.justOneNextDone', { roomId: selectedGame }));
-                } else {
-                    alert(t('admin.gameNextWrongGame'));
-                    return;
-                }
-                finishAdminCommand();
-                return;
-            }
-
-            if (cleanedCmd.startsWith('ADMIN ')) {
-                if (!selectedGame) {
-                    alert(t('admin.adminNeedsRoom'));
-                    return;
-                }
-                const sub = rawCmd.slice(6).trim(); // keep case for names
-                if (sub.toUpperCase().startsWith('KICK ')) {
-                    const targetName = sub.slice(5).trim();
-                    if (!targetName) {
-                        alert(t('admin.kickNameRequired'));
-                        return;
-                    }
-                    const snap = await get(ref(db, `rooms/${selectedGame}/players`));
-                    const data = snap.val() || {};
-                    const targetKey = Object.keys(data).find(k => String(data[k]?.name || '').toLowerCase() === targetName.toLowerCase());
-                    if (!targetKey) {
-                        alert(t('admin.playerNotFoundInRoom'));
-                        return;
-                    }
-                    const target = data[targetKey];
-                    // Admin wyrzuca natychmiast, niezależnie od stanu isOnline
-                    await remove(ref(db, `rooms/${selectedGame}/players/${targetKey}`));
-                    setLobbyMessage(t('admin.kickedPlayer', { name: target.name || targetKey }));
-                    finishAdminCommand();
-                    return;
-                }
-                alert(t('admin.unknownAdminSubcommand'));
-                return;
-            }
-
-            // HOST transfer: HOST <name> or HOST ME or simple HOST -> make caller host
-            if (cleanedCmd === 'HOST') {
-                if (!selectedGame) {
-                    alert(t('admin.hostNeedsRoom'));
-                    return;
-                }
-                if (!myPlayerId) {
-                    alert(t('admin.hostMustJoin'));
-                    return;
-                }
-                const snap = await get(ref(db, `rooms/${selectedGame}/players`));
-                const data = snap.val() || {};
-                if (!data[myPlayerId]) {
-                    alert(t('admin.hostPlayerMissing'));
-                    return;
-                }
-                const updates = {};
-                Object.keys(data).forEach(k => {
-                    updates[`rooms/${selectedGame}/players/${k}/isHost`] = false;
-                });
-                updates[`rooms/${selectedGame}/players/${myPlayerId}/isHost`] = true;
-                await update(ref(db), updates);
-                setLobbyMessage(t('admin.hostTransferredSelf', { name: data[myPlayerId]?.name || myPlayerId }));
-                finishAdminCommand();
-                return;
-            }
-
-            // HOST transfer: HOST <name> or HOST ME
-            if (cleanedCmd.startsWith('HOST')) {
-                if (!selectedGame) {
-                    alert(t('admin.hostNeedsRoom'));
-                    return;
-                }
-                const arg = rawCmd.split(/\s+/).slice(1).join(' ').trim();
-                if (!arg) {
-                    alert(t('admin.hostUsage'));
-                    return;
-                }
-                const snap = await get(ref(db, `rooms/${selectedGame}/players`));
-                const data = snap.val() || {};
-
-                let targetKey = null;
-                if (arg.toUpperCase() === 'ME') {
-                    if (!myPlayerId) {
-                        alert(t('admin.hostMeNotInRoom'));
-                        return;
-                    }
-                    targetKey = myPlayerId;
-                } else {
-                    targetKey = Object.keys(data).find(k => String(data[k]?.name || '').toLowerCase() === arg.toLowerCase());
-                    if (!targetKey) {
-                        alert(t('admin.playerNotFoundInRoom'));
-                        return;
-                    }
-                }
-
-                const updates = {};
-                Object.keys(data).forEach(k => {
-                    updates[`rooms/${selectedGame}/players/${k}/isHost`] = false;
-                });
-                updates[`rooms/${selectedGame}/players/${targetKey}/isHost`] = true;
-                await update(ref(db), updates);
-                setLobbyMessage(t('admin.hostTransferred', { name: data[targetKey]?.name || targetKey }));
-                finishAdminCommand();
-                return;
-            }
-
-            alert(t('admin.unknownCommand'));
-        } catch (e) {
-            console.error(e);
-            alert(t('admin.commandError'));
-        }
-        });
-    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, runWithBusy, isAdminRateLimited, finishAdminCommand, t]);
+    const { handleAdminCommand } = useAdminCommands({
+        adminCommand,
+        selectedGame,
+        myPlayerId,
+        isAdminMode,
+        adminBypassEnabled,
+        adminBypassRef,
+        cmsConfig,
+        runWithBusy,
+        isAdminRateLimited,
+        finishAdminCommand,
+        t,
+        setAdminCommand,
+        setLobbyMessage,
+        setSelectedGame,
+        setSelectedGameType,
+        setEntryRole,
+        setManualRoomCode,
+        setActiveRooms,
+        setPlayersList,
+        setIsJoined,
+        setIsHost,
+        setMyPlayerId,
+        setNameError,
+        setJoinStatus,
+        setLastJoinResult,
+        setIsAdminMode,
+        setAdminBypassEnabled,
+        setShowAdminPanel,
+    });
 
     const completeGuestJoin = useCallback(async (playerId, targetPlayerRef, currentAuthUid, joinStartedAt) => {
         try {
@@ -1585,13 +1014,15 @@ function App() {
             if (previousRoomId && previousPlayerId) {
                 await set(ref(db, `rooms/${previousRoomId}/players/${previousPlayerId}`), null);
                 data = null;
-                cachedRoomRef.current = { players: null, joinMode: 'public', admission: 'open', updatedAt: 0 };
+                cachedRoomRef.current = { players: null, gameId: null, joinMode: 'public', admission: 'open', updatedAt: 0 };
             }
         }
 
         let roomMeta = {
             joinMode: cachedRoomRef.current.joinMode,
             admission: cachedRoomRef.current.admission,
+            gameId: cachedRoomRef.current.gameId || selectedGameType,
+            passwordHash: cachedRoomRef.current.passwordHash,
         };
         if (!data || Date.now() - cachedRoomRef.current.updatedAt > 1500) {
             setJoinStatus(t('errors.joinFetching'));
@@ -1607,6 +1038,8 @@ function App() {
                 players: data,
                 joinMode,
                 admission,
+                gameId: roomMeta.gameId || selectedGameType,
+                passwordHash: roomMeta.passwordHash,
                 updatedAt: Date.now(),
             };
             setCurrentRoomJoinMode(joinMode);
@@ -1635,7 +1068,7 @@ function App() {
             passwordHash: roomMeta.passwordHash,
         };
 
-        if (!isReconnect && !isGameJoinEnabled(cmsConfig, roomMeta.gameId, gameContent.games)) {
+        if (!isReconnect && !isGameJoinEnabled(cmsConfig, roomMeta.gameId || selectedGameType, gameContent.games)) {
             setNameError(t('cms.gameDisabledMessage'));
             return;
         }
@@ -1837,6 +1270,7 @@ function App() {
             ...cachedRoomRef.current,
             joinMode,
             admission: normalizeAdmission(roomData),
+            gameId: roomData.gameId,
         };
     }, []);
 
@@ -1957,6 +1391,7 @@ function App() {
                 });
                 cachedRoomRef.current = {
                     players: null,
+                    gameId,
                     joinMode,
                     admission: 'open',
                     updatedAt: now,
@@ -2445,11 +1880,13 @@ function App() {
             </button>
 
             {showBugReport && (
-                <BugReportPanel
-                    context={bugReportContext}
-                    getDiagnostics={getBugReportDiagnostics}
-                    onClose={closeBugReport}
-                />
+                <Suspense fallback={null}>
+                    <BugReportPanel
+                        context={bugReportContext}
+                        getDiagnostics={getBugReportDiagnostics}
+                        onClose={closeBugReport}
+                    />
+                </Suspense>
             )}
 
             <LanguagePicker
@@ -2464,62 +1901,68 @@ function App() {
             />
 
             {showAccountCenter && (
-                <AccountCenterPanel
-                    authUser={authUser}
-                    authBusy={authBusy}
-                    authStatus={authStatus}
-                    accountNickname={accountNickname}
-                    accountEmail={accountEmail}
-                    nicknameSavedAt={nicknameSavedAt}
-                    lastKnownRoomId={lastKnownRoomId}
-                    isJoined={isJoined}
-                    hasGoogleProvider={hasGoogleProvider}
-                    hasEmailProvider={hasEmailProvider}
-                    onClose={() => setShowAccountCenter(false)}
-                    onNicknameChange={setAccountNickname}
-                    onEmailChange={setAccountEmail}
-                    onSaveNickname={handleSaveNickname}
-                    onGoogleAuth={handleGoogleAuth}
-                    onSendMagicLink={handleSendMagicLink}
-                    onCompleteMagicLink={handleCompleteMagicLink}
-                    onConnectGoogle={handleConnectGoogle}
-                    onSignOut={handleSignOut}
-                    onJoinLastKnownGame={handleJoinLastKnownGame}
-                />
+                <Suspense fallback={null}>
+                    <AccountCenterPanel
+                        authUser={authUser}
+                        authBusy={authBusy}
+                        authStatus={authStatus}
+                        accountNickname={accountNickname}
+                        accountEmail={accountEmail}
+                        nicknameSavedAt={nicknameSavedAt}
+                        lastKnownRoomId={lastKnownRoomId}
+                        isJoined={isJoined}
+                        hasGoogleProvider={hasGoogleProvider}
+                        hasEmailProvider={hasEmailProvider}
+                        onClose={() => setShowAccountCenter(false)}
+                        onNicknameChange={setAccountNickname}
+                        onEmailChange={setAccountEmail}
+                        onSaveNickname={handleSaveNickname}
+                        onGoogleAuth={handleGoogleAuth}
+                        onSendMagicLink={handleSendMagicLink}
+                        onCompleteMagicLink={handleCompleteMagicLink}
+                        onConnectGoogle={handleConnectGoogle}
+                        onSignOut={handleSignOut}
+                        onJoinLastKnownGame={handleJoinLastKnownGame}
+                    />
+                </Suspense>
             )}
 
             {showSettings && (
-                <SettingsPanel
-                    themePreset={themePreset}
-                    soundEnabled={soundEnabled}
-                    vibrationEnabled={vibrationEnabled}
-                    showConnectionFooter={showConnectionFooter}
-                    continuousPingEnabled={continuousPingEnabled}
-                    powerSaveMode={powerSaveMode}
-                    showAdminPanel={showAdminPanel}
-                    onClose={() => setShowSettings(false)}
-                    onThemeChange={setThemePreset}
-                    onSoundToggle={() => setSoundEnabled((prev) => !prev)}
-                    onVibrationToggle={() => setVibrationEnabled((prev) => !prev)}
-                    onConnectionFooterToggle={() => setShowConnectionFooter((prev) => !prev)}
-                    onContinuousPingToggle={() => setContinuousPingEnabled((prev) => !prev)}
-                    onPowerSaveToggle={() => setPowerSaveMode((prev) => !prev)}
-                    onOpenAdminPanel={() => {
-                        toggleAdminPanel();
-                        setShowSettings(false);
-                    }}
-                />
+                <Suspense fallback={null}>
+                    <SettingsPanel
+                        themePreset={themePreset}
+                        soundEnabled={soundEnabled}
+                        vibrationEnabled={vibrationEnabled}
+                        showConnectionFooter={showConnectionFooter}
+                        continuousPingEnabled={continuousPingEnabled}
+                        powerSaveMode={powerSaveMode}
+                        showAdminPanel={showAdminPanel}
+                        onClose={() => setShowSettings(false)}
+                        onThemeChange={setThemePreset}
+                        onSoundToggle={() => setSoundEnabled((prev) => !prev)}
+                        onVibrationToggle={() => setVibrationEnabled((prev) => !prev)}
+                        onConnectionFooterToggle={() => setShowConnectionFooter((prev) => !prev)}
+                        onContinuousPingToggle={() => setContinuousPingEnabled((prev) => !prev)}
+                        onPowerSaveToggle={() => setPowerSaveMode((prev) => !prev)}
+                        onOpenAdminPanel={() => {
+                            toggleAdminPanel();
+                            setShowSettings(false);
+                        }}
+                    />
+                </Suspense>
             )}
 
             {lobbyMessage && <p className="error-message">{lobbyMessage}</p>}
 
             {/* PANEL DEWELOPERSKI */}
             {showAdminPanel && (
-                <AdminConsole
-                    adminCommand={adminCommand}
-                    onCommandChange={setAdminCommand}
-                    onSubmit={handleAdminCommand}
-                />
+                <Suspense fallback={null}>
+                    <AdminConsole
+                        adminCommand={adminCommand}
+                        onCommandChange={setAdminCommand}
+                        onSubmit={handleAdminCommand}
+                    />
+                </Suspense>
             )}
 
             {!selectedGame ? (

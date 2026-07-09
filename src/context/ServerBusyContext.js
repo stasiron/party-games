@@ -1,3 +1,5 @@
 import { createContext } from 'react';
 
-export const ServerBusyContext = createContext(null);
+export const RunWithBusyContext = createContext(null);
+
+export const ConnectionPingContext = createContext(null);

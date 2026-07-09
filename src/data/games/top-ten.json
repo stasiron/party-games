@@ -1,0 +1,116 @@
+{
+  "categories": [
+    {
+      "id": "codzienne",
+      "name": "🏠 Codzienne",
+      "desc": "Rutyny i nawyki z życia codziennego."
+    },
+    {
+      "id": "jedzenie",
+      "name": "🍕 Jedzenie i gotowanie",
+      "desc": "Jedzenie, picie, gotowanie — na ile jesteś w tym dobry?"
+    },
+    {
+      "id": "sport",
+      "name": "⚽ Sport i ruch",
+      "desc": "Aktywność fizyczna i sportowe umiejętności."
+    },
+    {
+      "id": "impreza",
+      "name": "🎉 Impreza",
+      "desc": "Zachowania na imprezie i w towarzystwie."
+    },
+    {
+      "id": "praca",
+      "name": "💼 Praca i szkoła",
+      "desc": "Umiejętności zawodowe i szkolne."
+    }
+  ],
+  "words": {
+    "codzienne": [
+      "Wstawanie rano",
+      "Myć zęby",
+      "Sprzątanie pokoju",
+      "Gotowanie śniadania",
+      "Robienie łóżka",
+      "Prowadzenie samochodu",
+      "Budzenie się bez kofeiny",
+      "Organizacja czasu",
+      "Oszczędzanie pieniędzy",
+      "Nawigacja bez GPS",
+      "Pakowanie walizki",
+      "Naprawianie rzeczy w domu",
+      "Gotowanie obiadu",
+      "Robienie zakupów",
+      "Wstawanie z kanapy"
+    ],
+    "jedzenie": [
+      "Jedzenie pikantnego",
+      "Gotowanie makaronu",
+      "Pieczę makaronu",
+      "Jedzenie warzyw",
+      "Picie wody",
+      "Jedzenie na mieście",
+      "Robienie kanapek",
+      "Jedzenie ostro",
+      "Picie kawy",
+      "Jedzenie deseru",
+      "Gotowanie zupy",
+      "Jedzenie z widelca",
+      "Próbowanie nowych potraw",
+      "Jedzenie zdrowo",
+      "Robienie śniadania na bogato"
+    ],
+    "sport": [
+      "Bieganie",
+      "Pływanie",
+      "Gra w piłkę nożną",
+      "Siłownia",
+      "Joga",
+      "Rower",
+      "Taneczne ruchy",
+      "Skakanie przez linę",
+      "Gra w tenisa",
+      "Wspinaczka",
+      "Rozciąganie się",
+      "Gra w koszykówkę",
+      "Narty",
+      "Pompki",
+      "Gra w siatkówkę"
+    ],
+    "impreza": [
+      "Taniec",
+      "Śpiewanie karaoke",
+      "Opowiadanie dowcipów",
+      "Flirtowanie",
+      "Robienie selfie",
+      "Gra w gry planszowe",
+      "Improwizacja",
+      "Robienie toastów",
+      "Gra w beer pong",
+      "Zostawanie do rana",
+      "Prowadzenie rozmowy",
+      "Robienie wrażenia",
+      "Gra w kalambury",
+      "Zostawanie trzeźwym",
+      "Robienie zdjęć grupowych"
+    ],
+    "praca": [
+      "Prezentacja przed grupą",
+      "Pisanie maili",
+      "Organizacja spotkań",
+      "Uczenie się na pamięć",
+      "Robienie notatek",
+      "Praca zespołowa",
+      "Terminowość",
+      "Kreatywne myślenie",
+      "Negocjacje",
+      "Publiczne wystąpienia",
+      "Excel",
+      "Pisanie raportów",
+      "Multitasking",
+      "Prowadzenie spotkania",
+      "Rozwiązywanie problemów"
+    ]
+  }
+}

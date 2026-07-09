@@ -17,6 +17,8 @@ import { HostShareOptions } from '../../components/RoomInviteQR';
 import { isTurnForPhoneOwner, isCurrentPlayerGuest } from '../../lib/guestPlayers';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 
+const WHO_WOULD_RATHER_ADDITIONAL_STATE = { currentPlayerName: '' };
+
 function WhoWouldRather({
     isHost,
     onLeave,
@@ -72,7 +74,7 @@ function WhoWouldRather({
         onResetCategories: resetCategoriesToAll,
         indexKey: 'currentDilemmaIndex',
         legacyDeckKey: 'shuffledDilemmas',
-        additionalState: { currentPlayerName: '' },
+        additionalState: WHO_WOULD_RATHER_ADDITIONAL_STATE,
         getExtraStartFields,
         fingerprintExtra,
         metricsGameId: 'who-would-rather',

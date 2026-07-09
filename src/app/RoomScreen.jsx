@@ -203,8 +203,10 @@ function RoomScreen({
                         selectedGameType={selectedGameType}
                         currentGameMeta={currentGameMeta}
                         effectiveIsHost={effectiveIsHost}
+                        isLobbyHost={isHost}
                         handleLeaveRoom={handleLeaveRoom}
                         handleCloseRoom={handleCloseRoom}
+                        handleBackToMenu={handleBackToMenu}
                         playerName={playerName}
                         myPlayerId={myPlayerId}
                         vibrationEnabled={vibrationEnabled}

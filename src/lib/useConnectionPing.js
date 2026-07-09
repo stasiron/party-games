@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ref } from 'firebase/database';
 import { db } from './firebase';
 import { get } from './rtdb';
@@ -103,14 +103,18 @@ export function useConnectionPing() {
     }, [gameSessionActive, prefsVersion]);
 
     const isSlow = pingError || (pingMs !== null && pingMs >= SLOW_PING_MS);
+    const continuousPingActive = isContinuousPingEnabled() && !shouldConserveNetwork();
 
-    return {
-        pingMs,
-        pingError,
-        isPinging,
-        isSlow,
-        slowThresholdMs: SLOW_PING_MS,
-        measureOnce,
-        continuousPingActive: isContinuousPingEnabled() && !shouldConserveNetwork(),
-    };
+    return useMemo(
+        () => ({
+            pingMs,
+            pingError,
+            isPinging,
+            isSlow,
+            slowThresholdMs: SLOW_PING_MS,
+            measureOnce,
+            continuousPingActive,
+        }),
+        [pingMs, pingError, isPinging, isSlow, measureOnce, continuousPingActive]
+    );
 }

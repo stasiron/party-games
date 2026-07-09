@@ -1,7 +1,7 @@
 import { useEffect, memo } from 'react';
 import { firebaseConnection } from '../lib/firebase';
 import { applyLowPowerClass, isLowPowerDevice, shouldConserveNetwork } from '../lib/lowPower';
-import { useServerBusy } from '../context/useServerBusy';
+import { useConnectionPingContext } from '../context/useConnectionPingContext';
 import { useLocale } from '../locales/LocaleContext';
 import versionData from '../../version.json';
 
@@ -26,7 +26,7 @@ function ConnectionStatus() {
         isSlow,
         measureOnce,
         continuousPingActive,
-    } = useServerBusy();
+    } = useConnectionPingContext();
 
     useEffect(() => {
         applyLowPowerClass();

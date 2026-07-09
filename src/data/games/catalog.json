@@ -50,6 +50,11 @@
     "description": "Zaspiewaj piosenkę z hasłem — kto pierwszy podniesie mikrofon, wygrywa."
   },
   {
+    "id": "top-ten",
+    "name": "🔟 Top Ten",
+    "description": "Pokaż hasło na swoją skalę 1–10 — potem ułóżcie się w kolejności."
+  },
+  {
     "id": "secret-hitler",
     "name": "🎩 Secret Hitler",
     "description": "Polityczna gra dedukcyjna — faszyści vs liberałowie.",

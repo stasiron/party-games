@@ -4,6 +4,8 @@
     "close": "Close",
     "loading": "Loading…",
     "loadingGame": "Loading game…",
+    "gameLoadFailed": "Game failed to load (build or network error). Refresh the page.",
+    "reloadPage": "Refresh page",
     "loadingRoom": "Loading room…",
     "soon": "Coming soon",
     "player": "Player",
@@ -50,7 +52,9 @@
     "guest": {
       "hint": "Pick an active room or enter a code/link from the Host.",
       "roomCodePlaceholder": "Room code (roomId)",
-      "joinByCode": "Join by code",
+      "joinByCode": "▼ Join by code",
+      "hideJoinByCode": "▲ Hide code entry",
+      "joinConfirm": "Join",
       "hideFilters": "▲ Hide filters",
       "showFilters": "▼ Room list filters",
       "filtersDisabled": "off",
@@ -162,6 +166,7 @@
     "waitForHostTelepathy": "Waiting for the Host to start the game…",
     "waitForHostJustOne": "Waiting for the Host to pick categories and start the game…",
     "waitForHostSingIt": "Waiting for the Host to pick categories and start the game…",
+    "waitForHostTopTen": "Waiting for the Host to pick categories and draw a word…",
     "categoriesShow": "▼ Categories ({{selected}}/{{total}})",
     "categoriesHide": "▲ Hide categories",
     "categoriesLead": "All categories are selected by default — uncheck any you don't want in this round."
@@ -229,6 +234,61 @@
       "startButton": "Draw a word and start singing",
       "wordsBoxTitle": "Words",
       "artistsBoxTitle": "Artists"
+    },
+    "topTen": {
+      "startButton": "Draw a word and start Top Ten",
+      "needCategory": "Select at least one category.",
+      "needPlayers": "You need at least 2 players at the table.",
+      "startFailed": "Could not start the round. Check categories and players.",
+      "startError": "Round start failed — check your connection.",
+      "startErrorPermission": "Database rejected the write (Firebase rules). Deploy database.rules.json.",
+      "settingsShow": "▼ Ordering settings",
+      "settingsHide": "▲ Hide ordering settings",
+      "orderingModeTitle": "Player ordering mode",
+      "backToRoom": "← Back to room",
+      "yourTurn": "Your turn — make a move or confirm the order.",
+      "waitTurn": "Turn: {{name}}",
+      "agreeOrder": "Looks good — pass turn",
+      "finishPickMove": "Pass turn",
+      "agreedProgress": "Agreed on order: {{done}} / {{total}}",
+      "allAgreed": "Everyone agreed — host can reveal the numbers.",
+      "submitOrder": "Submit my board",
+      "submittedProgress": "Submitted boards: {{done}} / {{total}}",
+      "scoresTitle": "Who was closest to the truth?",
+      "scoresHint": "Lower position error score is better.",
+      "scorePoints": "{{score}} error pts",
+      "compareShared": "Compare the shared board with the real numbers!",
+      "orderingHints": {
+        "individual": "Arrange players on your board — weakest (1) to strongest (10). Submit when done.",
+        "individualDone": "Your board is submitted. Wait for others and the reveal.",
+        "turnStep": "Turn queue — only the active player uses ▲▼. Next person after each move. Or tap “Looks good”.",
+        "turnPickMove": "Your turn — pick a player, move them with ▲▼ as many times as you want (only them). Then “Pass turn”.",
+        "turnSwap": "Your turn — pick two players to swap. Then the next person in the queue.",
+        "turnPickTarget": "Your turn — pick a player, then tap a highlighted neighbor to swap.",
+        "watchOnly": "Watch the board — another player’s turn now."
+      },
+      "orderingModes": {
+        "individual": {
+          "title": "Individual boards",
+          "hint": "Everyone arranges their own board — lowest error score wins."
+        },
+        "shared-turn-step": {
+          "title": "Turn queue — step by step",
+          "hint": "One person at a time: ▲▼, then next in the circle. “Looks good” when the order is fine."
+        },
+        "shared-turn-pick-move": {
+          "title": "Turn queue — pick player",
+          "hint": "One person at a time: pick a player, move them with ▲▼ as much as needed, then pass turn."
+        },
+        "shared-turn-swap": {
+          "title": "Turn queue — swap two",
+          "hint": "One person at a time: pick two players and swap them."
+        },
+        "shared-turn-pick-target": {
+          "title": "Turn queue — pick & swap",
+          "hint": "One person at a time: pick a player, tap a highlighted neighbor (no ⇅ buttons)."
+        }
+      }
     }
   },
   "comingSoon": {
@@ -585,6 +645,16 @@
         "All in: every phone shows the word. Selected phones: only chosen devices show it — in all orientations so you can place one in the center of the table.",
         "After the word is revealed, the first person to pick up the physical microphone and sing a song containing that word wins the round.",
         "The Host moves to the next word after the round is settled. It's about reflex and song knowledge — no vocal judging in the app."
+      ]
+    },
+    "top-ten": {
+      "name": "🔟 Top Ten",
+      "description": "Act out the word on your 1–10 scale — then line up in order.",
+      "rules": [
+        "The Host draws one shared word and unique numbers 1–10 for each player (hold the screen to peek).",
+        "Everyone acts out how they'd do the activity at their level — without saying the number.",
+        "A random player arranges everyone from weakest (1) to strongest (10) based only on the performances.",
+        "The Host reveals the real numbers — compare with the guesser's order and draw the next word."
       ]
     },
     "miners": {

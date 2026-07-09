@@ -8,7 +8,7 @@
         ".read": true,
         ".write": true,
         "gameId": {
-          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one|sing-it|jungle-speed)$/)"
+          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one|sing-it|top-ten|jungle-speed)$/)"
         },
         "joinMode": {
           ".validate": "newData.val() === null || (newData.isString() && newData.val().matches(/^(public|password|invite)$/))"
@@ -45,7 +45,7 @@
         },
         "private": {
           "$playerId": {
-            ".validate": "newData.val() === null || (newData.hasChildren(['isImpostor']) && newData.child('isImpostor').isBoolean() && (!newData.hasChild('word') || newData.child('word').val() === null || (newData.child('word').isString() && newData.child('word').val().length <= 64)) && (!newData.hasChild('telepathyWord') || (newData.child('telepathyWord').isString() && newData.child('telepathyWord').val().length >= 1 && newData.child('telepathyWord').val().length <= 48)) && (!newData.hasChild('justOneClue') || (newData.child('justOneClue').isString() && newData.child('justOneClue').val().length >= 1 && newData.child('justOneClue').val().length <= 48))) || (!newData.hasChild('isImpostor') && !newData.hasChild('word') && !newData.hasChild('role') && !newData.hasChild('revealed') && !newData.hasChild('justOneClue') && newData.hasChild('telepathyWord') && newData.child('telepathyWord').isString() && newData.child('telepathyWord').val().length >= 1 && newData.child('telepathyWord').val().length <= 48) || (!newData.hasChild('isImpostor') && !newData.hasChild('word') && !newData.hasChild('role') && !newData.hasChild('revealed') && !newData.hasChild('telepathyWord') && newData.hasChild('justOneClue') && newData.child('justOneClue').isString() && newData.child('justOneClue').val().length >= 1 && newData.child('justOneClue').val().length <= 48)",
+            ".validate": "newData.val() === null || (newData.hasChildren(['isImpostor']) && newData.child('isImpostor').isBoolean() && (!newData.hasChild('word') || newData.child('word').val() === null || (newData.child('word').isString() && newData.child('word').val().length <= 64)) && (!newData.hasChild('telepathyWord') || (newData.child('telepathyWord').isString() && newData.child('telepathyWord').val().length >= 1 && newData.child('telepathyWord').val().length <= 48)) && (!newData.hasChild('justOneClue') || (newData.child('justOneClue').isString() && newData.child('justOneClue').val().length >= 1 && newData.child('justOneClue').val().length <= 48))) || (!newData.hasChild('isImpostor') && !newData.hasChild('word') && !newData.hasChild('role') && !newData.hasChild('revealed') && !newData.hasChild('justOneClue') && newData.hasChild('telepathyWord') && newData.child('telepathyWord').isString() && newData.child('telepathyWord').val().length >= 1 && newData.child('telepathyWord').val().length <= 48) || (!newData.hasChild('isImpostor') && !newData.hasChild('word') && !newData.hasChild('role') && !newData.hasChild('revealed') && !newData.hasChild('telepathyWord') && newData.hasChild('justOneClue') && newData.child('justOneClue').isString() && newData.child('justOneClue').val().length >= 1 && newData.child('justOneClue').val().length <= 48) || (!newData.hasChild('isImpostor') && !newData.hasChild('telepathyWord') && !newData.hasChild('justOneClue') && !newData.hasChild('role') && newData.hasChild('word') && newData.child('word').isString() && newData.child('word').val().length <= 64 && newData.hasChild('rating') && newData.child('rating').isNumber() && newData.child('rating').val() >= 1 && newData.child('rating').val() <= 10 && (!newData.hasChild('topTenOrder') || newData.child('topTenOrder').hasChildren()) && (!newData.hasChild('topTenSubmitted') || newData.child('topTenSubmitted').isBoolean()))",
             "isImpostor": {
               ".validate": "newData.isBoolean()"
             },
@@ -64,6 +64,15 @@
             "justOneClue": {
               ".validate": "newData.val() === null || (newData.isString() && newData.val().length >= 1 && newData.val().length <= 48)"
             },
+            "rating": {
+              ".validate": "newData.val() === null || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 10)"
+            },
+            "topTenOrder": {
+              ".validate": "newData.hasChildren()"
+            },
+            "topTenSubmitted": {
+              ".validate": "newData.isBoolean()"
+            },
             "$other": {
               ".validate": false
             }
@@ -81,6 +90,9 @@
             ".validate": "newData.val() === null || (newData.isString() && newData.val().length <= 32)"
           },
           "assignments": {
+            ".validate": "newData.hasChildren()"
+          },
+          "ratings": {
             ".validate": "newData.hasChildren()"
           },
           "$other": {
@@ -163,7 +175,7 @@
         ".write": true,
         ".validate": "newData.val() === null || newData.hasChildren(['gameId', 'onlineCount', 'updatedAt'])",
         "gameId": {
-          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one|sing-it|jungle-speed)$/)"
+          ".validate": "newData.isString() && newData.val().matches(/^(never-have-i-ever|truth-or-dare|impostor|mafia|dark-stories|who-would-rather|would-you-rather|kto-najpredzej|telepathy|just-one|sing-it|top-ten|jungle-speed)$/)"
         },
         "joinMode": {
           ".validate": "newData.val() === null || (newData.isString() && newData.val().matches(/^(public|password|invite)$/))"

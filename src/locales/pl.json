@@ -4,6 +4,8 @@
     "close": "Zamknij",
     "loading": "Ładowanie…",
     "loadingGame": "Ładowanie gry…",
+    "gameLoadFailed": "Gra się nie załadowała (błąd kompilacji lub sieci). Odśwież stronę.",
+    "reloadPage": "Odśwież stronę",
     "loadingRoom": "Ładowanie pokoju…",
     "soon": "Wkrótce",
     "player": "Gracz",
@@ -50,7 +52,9 @@
     "guest": {
       "hint": "Wybierz aktywny pokój albo wpisz kod/link od Hosta.",
       "roomCodePlaceholder": "Kod pokoju (roomId)",
-      "joinByCode": "Dołącz po kodzie",
+      "joinByCode": "▼ Dołącz po kodzie",
+      "hideJoinByCode": "▲ Ukryj wpisywanie kodu",
+      "joinConfirm": "Dołącz",
       "hideFilters": "▲ Ukryj filtry",
       "showFilters": "▼ Filtry listy pokoi",
       "filtersDisabled": "wyłączone",
@@ -162,6 +166,7 @@
     "waitForHostTelepathy": "Czekamy aż Host wystartuje grę…",
     "waitForHostJustOne": "Czekamy aż Host wybierze kategorie i wystartuje grę…",
     "waitForHostSingIt": "Czekamy aż Host wybierze kategorie i wystartuje grę…",
+    "waitForHostTopTen": "Czekamy aż Host wybierze kategorie i wylosuje hasło…",
     "categoriesShow": "▼ Kategorie ({{selected}}/{{total}})",
     "categoriesHide": "▲ Ukryj kategorie",
     "categoriesLead": "Domyślnie zaznaczone są wszystkie — odznacz te, których nie chcesz w rundzie."
@@ -229,6 +234,61 @@
       "startButton": "Wylosuj hasło i zacznij śpiewać",
       "wordsBoxTitle": "Słowa",
       "artistsBoxTitle": "Artyści"
+    },
+    "topTen": {
+      "startButton": "Wylosuj hasło i rozpocznij Top Ten",
+      "needCategory": "Zaznacz co najmniej jedną kategorię.",
+      "needPlayers": "Potrzebujesz co najmniej 2 graczy przy stole.",
+      "startFailed": "Nie udało się rozpocząć rundy. Sprawdź kategorie i graczy.",
+      "startError": "Błąd startu rundy — sprawdź połączenie z bazą.",
+      "startErrorPermission": "Baza odrzuciła zapis (reguły Firebase). Wdróż database.rules.json.",
+      "settingsShow": "▼ Ustawienia układania graczy",
+      "settingsHide": "▲ Ukryj ustawienia układania",
+      "orderingModeTitle": "Tryb układania kolejności",
+      "backToRoom": "← Wróć do pokoju",
+      "yourTurn": "Twoja kolej — wykonaj ruch lub potwierdź zgodę.",
+      "waitTurn": "Kolej: {{name}}",
+      "agreeOrder": "Pasuje mi — przekaż kolejkę",
+      "finishPickMove": "Przekaż kolejkę",
+      "agreedProgress": "Zgoda na układ: {{done}} / {{total}}",
+      "allAgreed": "Wszyscy zgodni — host może odsłonić liczby.",
+      "submitOrder": "Zatwierdź moją tabelę",
+      "submittedProgress": "Zatwierdzone tabele: {{done}} / {{total}}",
+      "scoresTitle": "Kto był najbliżej prawdy?",
+      "scoresHint": "Im mniej punktów błędu pozycji, tym lepiej.",
+      "scorePoints": "{{score}} pkt błędu",
+      "compareShared": "Porównajcie wspólną tabelę z prawdziwymi liczbami!",
+      "orderingHints": {
+        "individual": "Ułóż graczy na swojej tabeli — od najsłabszego (1) do najsilniejszego (10). Zatwierdź, gdy skończysz.",
+        "individualDone": "Twoja tabela zatwierdzona. Czekaj na pozostałych i odsłonięcie wyniku.",
+        "turnStep": "Kolejka tur — tylko aktywny gracz przesuwa ▲▼. Po ruchu następna osoba. Możesz też kliknąć „Pasuje mi”.",
+        "turnPickMove": "Twoja kolej — wybierz gracza, przesuwaj go ▲▼ ile chcesz (tylko jego). Potem „Przekaż kolejkę”.",
+        "turnSwap": "Twoja kolej — wybierz dwóch graczy, aby zamienić ich miejsca. Potem następna osoba w kolejce.",
+        "turnPickTarget": "Twoja kolej — wybierz gracza, potem kliknij podświetlonego sąsiada, aby zamienić miejsca.",
+        "watchOnly": "Obserwuj układ — teraz ruch ma inny gracz."
+      },
+      "orderingModes": {
+        "individual": {
+          "title": "Osobne tabele",
+          "hint": "Każdy układa swoją tabelę — najmniej punktów błędu wygrywa."
+        },
+        "shared-turn-step": {
+          "title": "Kolejka — krok po kroku",
+          "hint": "Jedna osoba naraz: ▲▼, potem następna w kółko. „Pasuje mi” gdy układ OK."
+        },
+        "shared-turn-pick-move": {
+          "title": "Kolejka — wybierz gracza",
+          "hint": "Jedna osoba naraz: wybierz gracza, przesuwaj go ▲▼ dowolnie wiele razy, potem przekaż kolejkę."
+        },
+        "shared-turn-swap": {
+          "title": "Kolejka — zamiana dwóch",
+          "hint": "Jedna osoba naraz: wybierz dwóch graczy i zamień ich miejsca."
+        },
+        "shared-turn-pick-target": {
+          "title": "Kolejka — wybierz i zamień",
+          "hint": "Jedna osoba naraz: wybierz gracza, kliknij podświetlonego sąsiada (bez ⇅)."
+        }
+      }
     }
   },
   "comingSoon": {
@@ -585,6 +645,16 @@
         "Tryb All in: każdy telefon pokazuje hasło. Tryb wybranych telefonów: hasło widzą tylko wskazane urządzenia — wyświetlone we wszystkich kierunkach, żeby położyć je na środku stołu.",
         "Po odsłonięciu hasła pierwsza osoba, która podniesie fizyczny mikrofon i zacznie śpiewać piosenkę zawierającą to słowo, wygrywa rundę.",
         "Host przechodzi do następnego hasła po rozstrzygnięciu rundy. Wygrywa refleks i znajomość piosenek — nie oceniacie wokalnie w aplikacji."
+      ]
+    },
+    "top-ten": {
+      "name": "🔟 Top Ten",
+      "description": "Pokaż hasło na swoją skalę 1–10 — potem ułóżcie się w kolejności.",
+      "rules": [
+        "Host losuje wspólne hasło i unikalne liczby 1–10 dla każdego gracza (przytrzymaj ekran, żeby zobaczyć).",
+        "Wszyscy pokazują, jak wykonują czynność na swoją skalę — bez mówienia liczby.",
+        "Losowany gracz układa pozostałych od najsłabszego (1) do najsilniejszego (10) wykonania, patrząc tylko na pokazy.",
+        "Host odsłania prawdziwe liczby — porównajcie z układem zgadywacza i losujcie kolejne hasło."
       ]
     },
     "miners": {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { buildGameContent } from '../lib/gameContentLoader';
+import { buildGameContent, buildGameContentShell } from '../lib/gameContentLoader';
 import { loadUiSettings, notifyUiSettingsChanged, UI_SETTINGS_KEY } from '../lib/uiSettings';
 import {
     createTranslator,
@@ -27,10 +27,21 @@ function persistLocale(locale) {
 
 export function LocaleProvider({ children }) {
     const [locale, setLocaleState] = useState(detectInitialLocale);
+    const [gameContent, setGameContent] = useState(() => buildGameContentShell(detectInitialLocale()));
 
     const messages = useMemo(() => getUiMessages(locale), [locale]);
     const t = useMemo(() => createTranslator(messages), [messages]);
-    const gameContent = useMemo(() => buildGameContent(locale), [locale]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setGameContent(buildGameContentShell(locale));
+        void buildGameContent(locale).then((content) => {
+            if (!cancelled) setGameContent(content);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [locale]);
 
     const setLocale = useCallback((next) => {
         const resolved = resolveLocaleId(next);

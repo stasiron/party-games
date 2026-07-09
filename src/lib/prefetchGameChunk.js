@@ -10,6 +10,7 @@ const GAME_CHUNK_LOADERS = {
     telepathy: () => import('../games/telepathy/Telepathy'),
     'just-one': () => import('../games/just-one/JustOne'),
     'sing-it': () => import('../games/sing-it/SingIt'),
+    'top-ten': () => import('../games/top-ten/TopTen'),
 };
 
 const prefetched = new Set();

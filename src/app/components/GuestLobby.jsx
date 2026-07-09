@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, memo } from 'react';
 import { localizeCatalogGames } from '../../lib/gameMeta.js';
 import { ROOM_CODE_LENGTH } from '../constants';
 import { useLocale } from '../../locales/LocaleContext.jsx';
@@ -20,6 +20,7 @@ function GuestLobby({
     onBack,
 }) {
     const { t, gameContent } = useLocale();
+    const [joinCodePanelOpen, setJoinCodePanelOpen] = useState(false);
     const playableGames = useMemo(
         () => localizeCatalogGames(gameContent.games, t).filter((g) => !g.comingSoon),
         [gameContent.games, t]
@@ -28,23 +29,39 @@ function GuestLobby({
     return (
         <>
             <p>{t('lobby.guest.hint')}</p>
-            <input
-                type="text"
-                value={manualRoomCode}
-                onChange={(e) => onManualRoomCodeChange(
-                    e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-                )}
-                placeholder={t('lobby.guest.roomCodePlaceholder')}
-                maxLength={ROOM_CODE_LENGTH}
-            />
-            <div className="actions-stack join-code-actions">
+            <div className="guest-lobby-join-code-wrap">
                 <button
                     type="button"
-                    onClick={() => onJoinByCode(manualRoomCode.trim())}
-                    disabled={manualRoomCode.trim() === ''}
+                    className="btn-collapsible-toggle guest-lobby-join-code-trigger"
+                    aria-expanded={joinCodePanelOpen}
+                    onClick={() => setJoinCodePanelOpen((prev) => !prev)}
                 >
-                    {t('lobby.guest.joinByCode')}
+                    {joinCodePanelOpen
+                        ? t('lobby.guest.hideJoinByCode')
+                        : t('lobby.guest.joinByCode')}
                 </button>
+                {joinCodePanelOpen && (
+                    <div className="guest-lobby-join-code-panel">
+                        <input
+                            type="text"
+                            value={manualRoomCode}
+                            onChange={(e) => onManualRoomCodeChange(
+                                e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                            )}
+                            placeholder={t('lobby.guest.roomCodePlaceholder')}
+                            maxLength={ROOM_CODE_LENGTH}
+                            autoFocus
+                        />
+                        <button
+                            type="button"
+                            className="btn-main-action"
+                            onClick={() => onJoinByCode(manualRoomCode.trim())}
+                            disabled={manualRoomCode.trim() === ''}
+                        >
+                            {t('lobby.guest.joinConfirm')}
+                        </button>
+                    </div>
+                )}
             </div>
             <div className="guest-lobby-filters-wrap">
                 <button
@@ -244,4 +261,4 @@ function GuestLobby({
     );
 }
 
-export default GuestLobby;
+export default memo(GuestLobby);

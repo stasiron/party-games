@@ -33,6 +33,19 @@ export function applyLowPowerClass() {
     );
 }
 
+/** Reaguje na zmianę sieci / saveData bez przeładowania strony. */
+export function subscribeLowPowerUpdates() {
+    if (typeof window === 'undefined') return () => {};
+    const conn = getNetworkInformation();
+    const onChange = () => applyLowPowerClass();
+    conn?.addEventListener?.('change', onChange);
+    window.addEventListener('partyGames:uiSettings', onChange);
+    return () => {
+        conn?.removeEventListener?.('change', onChange);
+        window.removeEventListener('partyGames:uiSettings', onChange);
+    };
+}
+
 /** Po dołączeniu — nie wyrzucać przy chwilowym braku wpisu w RTDB (wolny Android / emulator). */
 export function getJoinGraceMs() {
     return isLowPowerDevice() ? 12000 : 5000;

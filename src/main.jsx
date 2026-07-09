@@ -1,13 +1,14 @@
-import { StrictMode } from 'react'
+import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { maybeRedirectToApGateway } from './lib/partyRedirect.js'
-import { applyLowPowerClass } from './lib/lowPower.js'
+import { applyLowPowerClass, subscribeLowPowerUpdates } from './lib/lowPower.js'
 import { PWA_ENABLED } from './lib/pwa.js'
 import './styles/index.css'
 import App from './app/App.jsx'
-import CmsApp from './cms/CmsApp.jsx'
 import { ServerBusyProvider } from './context/ServerBusyContext.jsx'
 import { LocaleProvider } from './locales/LocaleContext.jsx'
+
+const CmsApp = lazy(() => import('./cms/CmsApp.jsx'))
 
 if (PWA_ENABLED) {
     import('virtual:pwa-register')
@@ -31,6 +32,7 @@ function setAppIcons(href) {
 
 setAppIcons('/pwa-icon.svg')
 applyLowPowerClass()
+subscribeLowPowerUpdates()
 
 function resolveRootComponent() {
     if (typeof window === 'undefined') return App
@@ -45,7 +47,9 @@ if (!maybeRedirectToApGateway()) {
         <StrictMode>
             <ServerBusyProvider>
                 <LocaleProvider>
-                    <RootComponent />
+                    <Suspense fallback={null}>
+                        <RootComponent />
+                    </Suspense>
                 </LocaleProvider>
             </ServerBusyProvider>
         </StrictMode>,

@@ -106,7 +106,27 @@ function Impostor({
         []
     );
 
-    const roomData = useRoomGameState(roomId, defaultRoomState, { mergeDefaults: true });
+    const impostorGameStateFingerprint = useCallback((data) => {
+        const impostorIds = Array.isArray(data?.impostorIds)
+            ? data.impostorIds.join(',')
+            : (data?.impostorId || '');
+        return [
+            data?.phase ?? '',
+            data?.roleRevealEpoch ?? 0,
+            data?.isGameStarted ? '1' : '0',
+            data?.categoryName ?? '',
+            data?.word ?? '',
+            data?.startingPlayerId ?? '',
+            impostorIds,
+            data?.roundResult ?? '',
+            data?.eliminatedImpostors ?? 0,
+        ].join('|');
+    }, []);
+
+    const roomData = useRoomGameState(roomId, defaultRoomState, {
+        mergeDefaults: true,
+        getFingerprint: impostorGameStateFingerprint,
+    });
     const roleRevealEpoch = roomData.roleRevealEpoch ?? 0;
     const isLegacy = isLegacyImpostorState(roomData);
     const usePrivacy = usesImpostorPrivacyModel(roomData);
@@ -184,16 +204,8 @@ function Impostor({
         }
 
         try {
-            const playersRef = ref(db, `rooms/${roomId}/players`);
-            const snapshot = await get(playersRef);
-            const playersData = snapshot.val();
+            const playerIds = getTablePlayers(tablePlayers).map((p) => p.id);
 
-            if (!playersData) {
-                setStartErrorKey('gameSetup.impostor.needPlayers');
-                return;
-            }
-
-            const playerIds = Object.keys(playersData);
             if (playerIds.length < 2) {
                 setStartErrorKey('gameSetup.impostor.needPlayers');
                 return;
@@ -255,6 +267,7 @@ function Impostor({
         effectiveRandomImpostorMaxCount,
         roomSettings.fairnessEnabled,
         roomId,
+        tablePlayers,
     ]);
 
     const drawNextWord = useCallback(async () => {
@@ -265,12 +278,7 @@ function Impostor({
 
         if (categoryIds.length === 0) return;
 
-        const playersRef = ref(db, `rooms/${roomId}/players`);
-        const playersSnapshot = await get(playersRef);
-        const playersData = playersSnapshot.val();
-        if (!playersData) return;
-
-        const playerIds = Object.keys(playersData);
+        const playerIds = getTablePlayers(tablePlayers).map((p) => p.id);
         if (playerIds.length < 2) return;
 
         const previousStartingPlayerId = roomData.startingPlayerId ?? null;
@@ -344,7 +352,8 @@ function Impostor({
         roleRevealEpoch,
         impostorCount,
         roomSettings.fairnessEnabled,
-        roomId
+        roomId,
+        tablePlayers,
     ]);
 
     const canDrawNextWord =

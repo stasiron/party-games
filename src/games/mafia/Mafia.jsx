@@ -40,7 +40,19 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
     );
 
-    const roomData = useRoomGameState(roomId, defaultRoomState, { mergeDefaults: true });
+    const mafiaGameStateFingerprint = useCallback((data) => {
+        const pd = data?.playersData || {};
+        const keys = Object.keys(pd).sort();
+        const aliveSig = keys
+            .map((k) => `${k}:${pd[k]?.alive === false ? '0' : '1'}:${pd[k]?.role ?? ''}`)
+            .join(',');
+        return [data?.phase ?? '', data?.roleRevealEpoch ?? 0, aliveSig].join('|');
+    }, []);
+
+    const roomData = useRoomGameState(roomId, defaultRoomState, {
+        mergeDefaults: true,
+        getFingerprint: mafiaGameStateFingerprint,
+    });
 
     const roleRevealEpoch = roomData.roleRevealEpoch ?? 0;
 

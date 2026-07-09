@@ -1,13 +1,18 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useConnectionPing } from '../lib/useConnectionPing';
 import { isLowPowerDevice } from '../lib/lowPower';
 import { subscribePiQueue } from '../lib/rtdbThrottle';
-import { ServerBusyContext } from './ServerBusyContext';
+import { RunWithBusyContext, ConnectionPingContext } from './ServerBusyContext';
 
 export function ServerBusyProvider({ children }) {
     const [busyCount, setBusyCount] = useState(0);
     const [piQueueDepth, setPiQueueDepth] = useState(0);
     const ping = useConnectionPing();
+    const pingRef = useRef(ping);
+
+    useEffect(() => {
+        pingRef.current = ping;
+    }, [ping]);
 
     useEffect(() => subscribePiQueue(setPiQueueDepth), []);
 
@@ -26,25 +31,27 @@ export function ServerBusyProvider({ children }) {
         ? 'Synchronizacja z Maliną'
         : 'Łączenie z serwerem';
 
-    const value = useMemo(
+    const busyValue = useMemo(
         () => ({
-            ...ping,
             busyCount,
             piQueueDepth,
             showSpinner,
             runWithBusy,
+            getPingSnapshot: () => pingRef.current,
         }),
-        [ping, busyCount, piQueueDepth, showSpinner, runWithBusy]
+        [busyCount, piQueueDepth, showSpinner, runWithBusy]
     );
 
     return (
-        <ServerBusyContext.Provider value={value}>
-            {children}
-            {showSpinner && (
-                <div className="server-busy" role="status" aria-live="polite" aria-label={busyLabel}>
-                    <span className="server-busy__orb" aria-hidden="true" />
-                </div>
-            )}
-        </ServerBusyContext.Provider>
+        <ConnectionPingContext.Provider value={ping}>
+            <RunWithBusyContext.Provider value={busyValue}>
+                {children}
+                {showSpinner && (
+                    <div className="server-busy" role="status" aria-live="polite" aria-label={busyLabel}>
+                        <span className="server-busy__orb" aria-hidden="true" />
+                    </div>
+                )}
+            </RunWithBusyContext.Provider>
+        </ConnectionPingContext.Provider>
     );
 }

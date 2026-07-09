@@ -380,7 +380,7 @@ function Telepathy({
         autoRoundCountdownRef.current = window.setInterval(() => {
             const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
             setAutoRoundSecondsLeft(left);
-        }, 250);
+        }, 1000);
 
         const timer = window.setTimeout(() => {
             void nextRound();

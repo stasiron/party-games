@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { getComingSoonMessage } from '../../lib/gameCatalog.js';
 import { localizeCatalogGames } from '../../lib/gameMeta.js';
 import { getJoinModeOptions } from '../../lib/roomAccessLabels.js';
@@ -123,4 +123,4 @@ function HostLobby({
     );
 }
 
-export default HostLobby;
+export default memo(HostLobby);
