@@ -214,11 +214,11 @@ export function useAdminCommands({
 
             if (cleanedCmd === 'PURGE PLAYERS') {
                 if (window.confirm(t('admin.confirmPurgePlayers'))) {
-                    const roomsSnap = await get(ref(db, 'rooms'));
-                    const roomsData = roomsSnap.val() || {};
+                    const publicSnap = await get(ref(db, 'roomsPublic'));
+                    const roomIds = new Set(Object.keys(publicSnap.val() || {}));
+                    if (selectedGame) roomIds.add(selectedGame);
                     const purgePlayersUpdates = {};
-
-                    Object.keys(roomsData).forEach((roomId) => {
+                    roomIds.forEach((roomId) => {
                         purgePlayersUpdates[`rooms/${roomId}/players`] = null;
                     });
 
@@ -293,9 +293,27 @@ export function useAdminCommands({
                     alert(t('admin.revealWrongGame'));
                     return;
                 }
-                await update(ref(db, `rooms/${selectedGame}/gameState`), {
-                    revealAllRoles: true,
-                });
+                const revealUpdates = {
+                    [`rooms/${selectedGame}/gameState/revealAllRoles`]: true,
+                };
+                if (
+                    roomData.gameId === 'mafia'
+                    && Number(roomData.gameState?.stateVersion) >= 2
+                ) {
+                    const hostOnlySnap = await get(ref(db, `rooms/${selectedGame}/hostOnly`));
+                    const hostPlayers = hostOnlySnap.val()?.playersData || {};
+                    const publicPlayers = roomData.gameState?.playersData || {};
+                    Object.entries(hostPlayers).forEach(([pid, entry]) => {
+                        if (!entry?.role) return;
+                        const alive = publicPlayers[pid]?.isAlive !== false;
+                        revealUpdates[`rooms/${selectedGame}/gameState/playersData/${pid}`] = {
+                            name: entry.name || publicPlayers[pid]?.name || '',
+                            role: entry.role,
+                            isAlive: alive,
+                        };
+                    });
+                }
+                await update(ref(db), revealUpdates);
                 setLobbyMessage(t('admin.revealDone'));
                 finishAdminCommand();
                 return;

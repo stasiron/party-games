@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 import { ref } from 'firebase/database';
 
-import { set, update } from '../../lib/rtdb';
+import { set, get, update } from '../../lib/rtdb';
 
 import { db } from '../../lib/firebase';
 
@@ -23,7 +23,12 @@ import { HostShareOptions } from '../../components/RoomInviteQR';
 import { getTablePlayers, getGuestsForOwner } from '../../lib/guestPlayers';
 
 import SharedPhoneRoleReveal from '../../components/SharedPhoneRoleReveal';
+import { usePrivateGameState, useHostOnlyGameState } from '../../lib/usePrivateGameState';
 import { buildRolesPool, assignRolesToPlayers, sumAssignedRoles } from './engine';
+import {
+    buildMafiaPrivacyStartUpdates,
+    usesMafiaPrivacyModel,
+} from './privateState';
 
 
 
@@ -53,6 +58,35 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
         mergeDefaults: true,
         getFingerprint: mafiaGameStateFingerprint,
     });
+
+    const usePrivacy = usesMafiaPrivacyModel(roomData);
+    const hostOnlyState = useHostOnlyGameState(roomId, isHost && roomData.phase === 'playing');
+    const myPrivateRole = usePrivateGameState(roomId, myPlayerId);
+
+    const resolvePlayerRole = useCallback((playerId) => {
+        const publicEntry = roomData.playersData?.[playerId];
+        if (roomData.revealAllRoles && publicEntry?.role) {
+            return publicEntry.role;
+        }
+        if (usePrivacy) {
+            if (isHost && hostOnlyState?.playersData?.[playerId]?.role) {
+                return hostOnlyState.playersData[playerId].role;
+            }
+            if (playerId === myPlayerId && myPrivateRole?.role) {
+                return myPrivateRole.role;
+            }
+            return null;
+        }
+        return publicEntry?.role ?? null;
+    }, [
+        roomData.playersData,
+        roomData.revealAllRoles,
+        usePrivacy,
+        isHost,
+        hostOnlyState,
+        myPlayerId,
+        myPrivateRole,
+    ]);
 
     const roleRevealEpoch = roomData.roleRevealEpoch ?? 0;
 
@@ -192,19 +226,8 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
         const rolesPool = buildRolesPool(roleCounts);
         const newPlayersData = assignRolesToPlayers(lobbyPlayers, rolesPool);
 
-
-
-        set(ref(db, `rooms/${roomId}/gameState`), {
-
-            phase: 'playing',
-
-            playersData: newPlayersData,
-
-            roleRevealEpoch: 1,
-
-            revealAllRoles: false,
-
-        });
+        const updates = buildMafiaPrivacyStartUpdates(roomId, newPlayersData);
+        update(ref(db), updates);
         recordGameStarted(roomId, 'mafia');
 
     }, [lobbyPlayers, totalRolesAssigned, roleCounts, roomId, t]);
@@ -224,24 +247,22 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
 
     const forceResetTable = useCallback(() => {
-
-        set(ref(db, `rooms/${roomId}/gameState`), null);
-
+        update(ref(db), {
+            [`rooms/${roomId}/gameState`]: null,
+            [`rooms/${roomId}/hostOnly`]: null,
+            [`rooms/${roomId}/private`]: null,
+        });
         setShowRole(false);
-
         setHostRevealActive(false);
-
     }, [roomId]);
 
 
 
     const myData = roomData.playersData?.[myPlayerId];
-
     const myRoleInfo = useMemo(() => {
-
-        return myData ? roleById.get(myData.role) || null : null;
-
-    }, [myData, roleById]);
+        const roleId = resolvePlayerRole(myPlayerId);
+        return roleId ? roleById.get(roleId) || null : null;
+    }, [myData, myPlayerId, roleById, resolvePlayerRole]);
 
 
 
@@ -520,7 +541,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
                             <div className="mafia-players-grid">
                                 {Object.keys(roomData.playersData || {}).map((pId) => {
                                     const p = roomData.playersData[pId];
-                                    const roleDef = roleById.get(p.role);
+                                    const roleDef = roleById.get(resolvePlayerRole(pId));
                                     return (
                                         <div key={pId} className={`mafia-player-card ${p.isAlive ? 'alive' : 'dead'}`}>
                                             <span className="mafia-player-name">{p.name}</span>
@@ -560,7 +581,7 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
                                             const p = roomData.playersData[pId];
 
-                                            const roleDef = roleById.get(p.role);
+                                            const roleDef = roleById.get(resolvePlayerRole(pId));
 
                                             return (
 
