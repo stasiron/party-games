@@ -84,6 +84,10 @@ import { useGuestRoomsList } from './hooks/useGuestRoomsList';
 import { useRoomCleanupScheduler } from './hooks/useRoomCleanupScheduler';
 import { useAdminCommands } from './hooks/useAdminCommands';
 import { useRoomLifecycle } from './hooks/useRoomLifecycle';
+import { useDeepLinkEntry } from './hooks/useDeepLinkEntry';
+import { useAccountHandlers } from './hooks/useAccountHandlers';
+import { useRoomContextValue } from './hooks/useRoomContextValue';
+import { fetchRoomMeta } from '../lib/room/roomMetaFetch';
 import versionData from '../../version.json';
 import '../styles/app.css';
 import { recordRoomCreated, recordNewPlayerJoin } from '../lib/appMetrics.js';
@@ -568,56 +572,14 @@ function App() {
         }
     }, [selectedGame, isHost]);
 
-    // Wejście z linku / QR: ?room=<roomId> (pomija hasło prywatnego pokoju)
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const roomFromUrl = (params.get('room') || '')
-            .toUpperCase()
-            .replace(/[^A-Z0-9]/g, '');
-        if (!roomFromUrl) return;
-        const t = setTimeout(() => {
-            void openRoomAsGuestRef.current?.(roomFromUrl, { joinViaInvite: true });
-        }, 0);
-        return () => clearTimeout(t);
-    }, []);
-
-    // Szybkie wejście hosta: ?game=<gameId> (np. /?game=who-would-rather)
-    useEffect(() => {
-        if (typeof window === 'undefined') return undefined;
-        const params = new URLSearchParams(window.location.search);
-        const roomFromUrl = (params.get('room') || '').trim();
-        if (roomFromUrl) return undefined;
-
-        const rawGame = (params.get('game') || '').trim();
-        if (!rawGame) return undefined;
-
-        const gameId = resolveGameId(rawGame);
-        try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('game');
-            window.history.replaceState({}, '', url.toString());
-        } catch {
-            /* ignore URL cleanup */
-        }
-
-        if (!gameId) {
-            setLobbyMessage(t('errors.unknownGame', { game: rawGame }));
-            return undefined;
-        }
-
-        if (isGameComingSoon(gameId)) {
-            setLobbyMessage(getComingSoonMessage(gameId, t));
-            return undefined;
-        }
-
-        prefetchGameChunk(gameId);
-        setEntryRole('host');
-        setIsHost(true);
-        const t = setTimeout(() => {
-            createHostRoomRef.current?.(gameId);
-        }, 0);
-        return () => clearTimeout(t);
-    }, []);
+    useDeepLinkEntry({
+        openRoomAsGuestRef,
+        createHostRoomRef,
+        setLobbyMessage,
+        setEntryRole,
+        setIsHost,
+        t,
+    });
 
     useEffect(() => {
         const preset = findThemePreset(themePreset);
@@ -637,29 +599,25 @@ function App() {
         let active = true;
         const loadRoomType = async () => {
             try {
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomData = roomSnap.val();
+                const meta = await fetchRoomMeta(selectedGame);
                 if (!active) return;
-                if (!roomData?.gameId) {
+                if (!meta?.gameId) {
                     setLobbyMessage(t('errors.roomNotFound'));
                     setSelectedGame(null);
                     setSelectedGameType(null);
                     return;
                 }
-                setSelectedGameType(roomData.gameId);
-                const joinMode = normalizeJoinMode(roomData);
-                const admission = normalizeAdmission(roomData);
-                const showCode = showRoomCodeInList(roomData);
-                setCurrentRoomJoinMode(joinMode);
-                setRoomAdmission(admission);
-                setRoomShowCodeInList(showCode);
-                showCodeInListRef.current = showCode;
-                setIsRoomLocked(admission === 'closed');
+                setSelectedGameType(meta.gameId);
+                setCurrentRoomJoinMode(meta.joinMode);
+                setRoomAdmission(meta.admission);
+                setRoomShowCodeInList(meta.showCodeInList);
+                showCodeInListRef.current = meta.showCodeInList;
+                setIsRoomLocked(meta.admission === 'closed');
                 cachedRoomRef.current = {
                     ...cachedRoomRef.current,
-                    joinMode,
-                    admission,
-                    gameId: roomData.gameId,
+                    joinMode: meta.joinMode,
+                    admission: meta.admission,
+                    gameId: meta.gameId,
                     updatedAt: Date.now(),
                 };
             } catch {
@@ -676,78 +634,8 @@ function App() {
     }, [selectedGame, selectedGameType]);
 
     // =========================================================================
-    // Jeden listener RTDB na cały pokój (useRoomSnapshot)
+    // Room lifecycle (join / leave / kick / create)
     // =========================================================================
-    useRoomSnapshot({
-        roomId: selectedGame,
-        selectedGameType,
-        authUserRef,
-        isHostRef,
-        isJoinedRef,
-        myPlayerIdRef,
-        isJoiningRef,
-        isLeavingVoluntarily,
-        cachedRoomRef,
-        pendingJoinCountRef,
-        showCodeInListRef,
-        prevPlayersCountRef,
-        prevJoinRequestCountRef,
-        missingPlayerSinceRef,
-        joinGraceUntilRef,
-        isOnlineHealSentRef,
-        lastOnlineHealAtRef,
-        lastZombieCleanupAtRef,
-        lastPlayersListFingerprintRef,
-        setPlayersList,
-        setRoomAdmission,
-        setIsRoomLocked,
-        setCurrentRoomJoinMode,
-        setRoomShowCodeInList,
-        setJoinRequestList,
-        setIsHost,
-        leaveToLobby,
-        syncRoomPublicSummary,
-        alertHostJoinRequest,
-        clearPresenceIndex,
-        playJoinSound,
-        soundEnabledRef,
-    });
-
-    useEffect(() => {
-        if (!isJoined || typeof document === 'undefined') return undefined;
-        const onVisibility = () => {
-            if (document.hidden) {
-                joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
-            }
-        };
-        document.addEventListener('visibilitychange', onVisibility);
-        return () => document.removeEventListener('visibilitychange', onVisibility);
-    }, [isJoined]);
-
-    usePlayerHeartbeat({
-        isJoined,
-        roomId: selectedGame,
-        myPlayerId,
-    });
-
-    const { refreshGuestRooms } = useGuestRoomsList({
-        selectedGame,
-        entryRole,
-        gameById,
-        lobbyFilters,
-        t,
-        setActiveRooms,
-        setGuestRoomsListReady,
-        setGuestRoomsRefreshing,
-    });
-
-    useRoomCleanupScheduler({
-        isJoined,
-        effectiveIsHost,
-        hasAdminPowers,
-        selectedGame,
-    });
-
     const {
         leaveToLobby,
         updatePresenceIndex,
@@ -846,10 +734,85 @@ function App() {
         createHostRoomRef.current = createHostRoom;
     }, [createHostRoom]);
 
+    // =========================================================================
+    // Jeden listener RTDB na cały pokój (useRoomSnapshot)
+    // =========================================================================
+    useRoomSnapshot({
+        roomId: selectedGame,
+        selectedGameType,
+        authUserRef,
+        isHostRef,
+        isJoinedRef,
+        myPlayerIdRef,
+        isJoiningRef,
+        isLeavingVoluntarily,
+        cachedRoomRef,
+        pendingJoinCountRef,
+        showCodeInListRef,
+        prevPlayersCountRef,
+        prevJoinRequestCountRef,
+        missingPlayerSinceRef,
+        joinGraceUntilRef,
+        isOnlineHealSentRef,
+        lastOnlineHealAtRef,
+        lastZombieCleanupAtRef,
+        lastPlayersListFingerprintRef,
+        setPlayersList,
+        setRoomAdmission,
+        setIsRoomLocked,
+        setCurrentRoomJoinMode,
+        setRoomShowCodeInList,
+        setJoinRequestList,
+        setIsHost,
+        leaveToLobby,
+        syncRoomPublicSummary,
+        alertHostJoinRequest,
+        clearPresenceIndex,
+        playJoinSound,
+        soundEnabledRef,
+    });
+
+    useEffect(() => {
+        if (!isJoined || typeof document === 'undefined') return undefined;
+        const onVisibility = () => {
+            if (document.hidden) {
+                joinGraceUntilRef.current = Date.now() + getJoinGraceMs();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => document.removeEventListener('visibilitychange', onVisibility);
+    }, [isJoined]);
+
+    usePlayerHeartbeat({
+        isJoined,
+        roomId: selectedGame,
+        myPlayerId,
+    });
+
+    const { refreshGuestRooms } = useGuestRoomsList({
+        selectedGame,
+        entryRole,
+        gameById,
+        lobbyFilters,
+        t,
+        setActiveRooms,
+        setGuestRoomsListReady,
+        setGuestRoomsRefreshing,
+    });
+
+    useRoomCleanupScheduler({
+        isJoined,
+        effectiveIsHost,
+        hasAdminPowers,
+        selectedGame,
+    });
+
     const { handleAdminCommand } = useAdminCommands({
         adminCommand,
         selectedGame,
+        selectedGameType,
         myPlayerId,
+        playersList,
         isAdminMode,
         adminBypassEnabled,
         adminBypassRef,
@@ -882,122 +845,26 @@ function App() {
 
 
 
-    const hasGoogleProvider = !!authUser?.providerData?.some((provider) => provider.providerId === 'google.com');
-    const hasEmailProvider = !!authUser?.providerData?.some((provider) => provider.providerId === 'password');
-
-    const handleGoogleAuth = useCallback(async () => {
-        setAuthBusy(true);
-        setAuthStatus('');
-        try {
-            const authModule = await import('../services/auth/firebaseAuth');
-            await authModule.signInWithGoogle();
-            setAuthStatus('Zalogowano przez Google.');
-        } catch (error) {
-            setAuthStatus(error instanceof Error ? error.message : 'Logowanie Google nie powiodło się.');
-        } finally {
-            setAuthBusy(false);
-        }
-    }, []);
-
-    const handleSendMagicLink = useCallback(async () => {
-        const email = accountEmail.trim();
-        if (!email) {
-            setAuthStatus('Podaj email do linku logowania.');
-            return;
-        }
-        setAuthBusy(true);
-        setAuthStatus('');
-        try {
-            const authModule = await import('../services/auth/firebaseAuth');
-            await authModule.sendPasswordlessSignInLink(email);
-            setAuthStatus('Wysłano link logowania na email.');
-        } catch (error) {
-            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się wysłać linku.');
-        } finally {
-            setAuthBusy(false);
-        }
-    }, [accountEmail]);
-
-    const handleCompleteMagicLink = useCallback(async () => {
-        setAuthBusy(true);
-        setAuthStatus('');
-        try {
-            const authModule = await import('../services/auth/firebaseAuth');
-            await authModule.completePasswordlessSignIn(accountEmail);
-            setAuthStatus('Konto połączone przez email link.');
-        } catch (error) {
-            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się dokończyć logowania.');
-        } finally {
-            setAuthBusy(false);
-        }
-    }, [accountEmail]);
-
-    const handleConnectGoogle = useCallback(async () => {
-        if (!firebaseAuth.currentUser) {
-            setAuthStatus('Najpierw zaloguj się lub utwórz konto.');
-            return;
-        }
-        setAuthBusy(true);
-        setAuthStatus('');
-        try {
-            await linkWithPopup(firebaseAuth.currentUser, new GoogleAuthProvider());
-            setAuthStatus('Połączono konto z Google.');
-        } catch (error) {
-            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się połączyć konta.');
-        } finally {
-            setAuthBusy(false);
-        }
-    }, []);
-
-    const handleSignOut = useCallback(async () => {
-        setAuthBusy(true);
-        setAuthStatus('');
-        try {
-            await signOut(firebaseAuth);
-            setAuthStatus('Wylogowano.');
-        } catch (error) {
-            setAuthStatus(error instanceof Error ? error.message : 'Nie udało się wylogować.');
-        } finally {
-            setAuthBusy(false);
-        }
-    }, []);
-
-    const handleSaveNickname = useCallback(async () => {
-        const nickname = accountNickname.trim().slice(0, 24);
-        if (!nickname) {
-            setAuthStatus('Nick nie może być pusty.');
-            return;
-        }
-
-        try {
-            if (typeof window !== 'undefined') {
-                window.localStorage.setItem(NICKNAME_KEY, nickname);
-            }
-            setNicknameSavedAt(Date.now());
-        } catch {
-            // Ignore local storage failures.
-        }
-
-        setAuthBusy(true);
-        setAuthStatus('');
-        try {
-            if (firebaseAuth.currentUser?.uid) {
-                await setDoc(
-                    doc(firestore, 'users', firebaseAuth.currentUser.uid),
-                    { nickname },
-                    { merge: true }
-                );
-                setAuthStatus(t('account.savedRemote'));
-            } else {
-                setAuthStatus(t('account.savedLocal'));
-            }
-            setPlayerName((prev) => (prev.trim() ? prev : nickname));
-        } catch (error) {
-            setAuthStatus(error instanceof Error ? error.message : t('account.saveFailed'));
-        } finally {
-            setAuthBusy(false);
-        }
-    }, [accountNickname]);
+    const {
+        hasGoogleProvider,
+        hasEmailProvider,
+        handleGoogleAuth,
+        handleSendMagicLink,
+        handleCompleteMagicLink,
+        handleConnectGoogle,
+        handleSignOut,
+        handleSaveNickname,
+    } = useAccountHandlers({
+        accountEmail,
+        accountNickname,
+        authUser,
+        setAuthBusy,
+        setAuthStatus,
+        setAccountNickname,
+        setNicknameSavedAt,
+        setPlayerName,
+        t,
+    });
 
     useEffect(() => {
         if (!nicknameSavedAt) return undefined;
@@ -1066,7 +933,7 @@ function App() {
         };
     }, [overlayOpen]);
 
-    const roomContextValue = useMemo(() => ({
+    const roomContextValue = useRoomContextValue({
         selectedGame,
         selectedGameType,
         effectiveIsHost,
@@ -1106,43 +973,9 @@ function App() {
         playersList,
         kickPlayer,
         adminKick,
-    }), [
-        selectedGame,
-        selectedGameType,
-        effectiveIsHost,
-        isHost,
-        isJoined,
-        roomAdmission,
-        joinRequestList,
-        cycleRoomAdmission,
-        approveJoinRequest,
-        rejectJoinRequest,
-        approveAllJoinRequests,
-        waitingForApproval,
-        currentRoomJoinMode,
-        guestPasswordGranted,
-        guestRoomPassword,
-        guestPasswordError,
-        handleGuestRoomPassword,
-        guestJoinViaInvite,
-        playerName,
-        nameError,
-        joinStatus,
-        lastJoinResult,
-        handleJoin,
-        handleBackToMenu,
-        roomInviteUrl,
-        roomShowCodeInList,
-        toggleShowCodeInList,
-        handleLeaveRoom,
-        handleCloseRoom,
-        myPlayerId,
-        isRoomLocked,
-        hostShareOptions,
-        playersList,
-        kickPlayer,
-        adminKick,
-    ]);
+        hasAdminPowers,
+        runWithBusy,
+    });
 
     return (
         <div
@@ -1365,8 +1198,6 @@ function App() {
                     <RoomScreen
                         currentGameMeta={currentGameMeta}
                         vibrationEnabled={vibrationEnabled}
-                        hasAdminPowers={hasAdminPowers}
-                        runWithBusy={runWithBusy}
                     />
                 </RoomProvider>
             )}

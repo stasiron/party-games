@@ -455,14 +455,13 @@ function TopTen({
         if (isIndividual) {
             const individualOrders = {};
             const scores = {};
-            await Promise.all(
-                activePlayerIds.map(async (pid) => {
-                    const snap = await get(ref(db, `rooms/${roomId}/private/${pid}/topTenOrder`));
-                    const order = privateOrderToArray(snap.val());
-                    individualOrders[pid] = order;
-                    scores[pid] = scoreOrderAgainstRatings(order, ratings);
-                })
-            );
+            const privateSnap = await get(ref(db, `rooms/${roomId}/private`));
+            const privateData = privateSnap.val() || {};
+            for (const pid of activePlayerIds) {
+                const order = privateOrderToArray(privateData[pid]?.topTenOrder);
+                individualOrders[pid] = order;
+                scores[pid] = scoreOrderAgainstRatings(order, ratings);
+            }
             revealPayload.revealedIndividualOrders = individualOrders;
             revealPayload.individualScores = scores;
         }

@@ -34,6 +34,8 @@ import { recordRoomCreated, recordNewPlayerJoin } from '../../lib/appMetrics.js'
 import { buildTelepathySyncUpdates } from '../../lib/telepathyState';
 import { buildJustOneSyncUpdates } from '../../lib/justOneState';
 import { PRESENCE_INDEX_ROOT, RATE_LIMITS_MS, LAST_ROOM_KEY } from '../constants';
+import { generateRoomCode } from '../utils/localPrefs';
+import { fetchRoomMeta } from '../../lib/room/roomMetaFetch';
 
 export function useRoomLifecycle(deps) {
     const {
@@ -234,9 +236,7 @@ export function useRoomLifecycle(deps) {
     }, [selectedGame]);
 
     const approveAllJoinRequests = useCallback(async () => {
-        for (const req of joinRequestList) {
-            await approveJoinRequest(req.id);
-        }
+        await Promise.all(joinRequestList.map((req) => approveJoinRequest(req.id)));
     }, [joinRequestList, approveJoinRequest]);
 
     const cycleRoomAdmission = useCallback(async () => {
@@ -353,20 +353,25 @@ export function useRoomLifecycle(deps) {
         };
         if (!data || Date.now() - cachedRoomRef.current.updatedAt > 1500) {
             setJoinStatus(t('errors.joinFetching'));
-            const [playersSnap, roomSnap] = await Promise.all([
+            const [playersSnap, meta] = await Promise.all([
                 get(ref(db, `rooms/${selectedGame}/players`)),
-                get(ref(db, `rooms/${selectedGame}`)),
+                fetchRoomMeta(selectedGame),
             ]);
             data = playersSnap.val() || {};
-            roomMeta = roomSnap.val() || {};
-            const joinMode = normalizeJoinMode(roomMeta);
-            const admission = normalizeAdmission(roomMeta);
+            if (!meta?.gameId) {
+                setNameError(t('errors.roomNotFound'));
+                setJoinStatus('');
+                return;
+            }
+            roomMeta = meta;
+            const joinMode = meta.joinMode;
+            const admission = meta.admission;
             cachedRoomRef.current = {
                 players: data,
                 joinMode,
                 admission,
-                gameId: roomMeta.gameId || selectedGameType,
-                passwordHash: roomMeta.passwordHash,
+                gameId: meta.gameId || selectedGameType,
+                passwordHash: meta.passwordHash,
                 updatedAt: Date.now(),
             };
             setCurrentRoomJoinMode(joinMode);
@@ -561,30 +566,29 @@ export function useRoomLifecycle(deps) {
             .toUpperCase()
             .replace(/[^A-Z0-9]/g, '');
         if (!normalizedRoomId) return;
-        const roomSnap = await get(ref(db, `rooms/${normalizedRoomId}`));
-        const roomData = roomSnap.val();
-        if (!roomData?.gameId) {
+        const meta = await fetchRoomMeta(normalizedRoomId);
+        if (!meta?.gameId) {
             setLobbyMessage(t('errors.roomClosed'));
             return;
         }
-        const joinMode = normalizeJoinMode(roomData);
+        const joinMode = meta.joinMode;
         if (fromList && !canJoinFromList(joinMode)) {
             setLobbyMessage(t('errors.roomInviteOnly'));
             return;
         }
-        prefetchGameChunk(roomData.gameId);
+        prefetchGameChunk(meta.gameId);
         setEntryRole('guest');
         setSelectedGame(normalizedRoomId);
-        setSelectedGameType(roomData.gameId);
+        setSelectedGameType(meta.gameId);
         setIsHost(false);
         setIsJoined(false);
         setMyPlayerId(null);
         setLobbyMessage('');
         setShowAdminPanel(false);
         setCurrentRoomJoinMode(joinMode);
-        setRoomAdmission(normalizeAdmission(roomData));
-        setRoomShowCodeInList(showRoomCodeInList(roomData));
-        showCodeInListRef.current = showRoomCodeInList(roomData);
+        setRoomAdmission(meta.admission);
+        setRoomShowCodeInList(meta.showCodeInList);
+        showCodeInListRef.current = meta.showCodeInList;
         setGuestRoomPassword('');
         setGuestPasswordError('');
         setGuestJoinViaInvite(joinViaInvite);
@@ -596,10 +600,10 @@ export function useRoomLifecycle(deps) {
         cachedRoomRef.current = {
             ...cachedRoomRef.current,
             joinMode,
-            admission: normalizeAdmission(roomData),
-            gameId: roomData.gameId,
+            admission: meta.admission,
+            gameId: meta.gameId,
         };
-    }, []);
+    }, [t]);
 
     const handleGuestRoomPassword = useCallback(async () => {
         if (!selectedGame) return;
@@ -612,13 +616,12 @@ export function useRoomLifecycle(deps) {
             return;
         }
         try {
-            const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-            const roomData = roomSnap.val();
-            if (normalizeJoinMode(roomData) !== 'password') {
+            const meta = await fetchRoomMeta(selectedGame);
+            if (meta?.joinMode !== 'password') {
                 setGuestPasswordGranted(true);
                 return;
             }
-            const ok = await verifyRoomPassword(selectedGame, password, roomData.passwordHash);
+            const ok = await verifyRoomPassword(selectedGame, password, meta.passwordHash);
             if (!ok) {
                 setGuestPasswordError(t('errors.wrongPassword'));
                 return;
@@ -627,7 +630,7 @@ export function useRoomLifecycle(deps) {
         } catch {
             setGuestPasswordError('Nie udało się sprawdzić hasła. Spróbuj ponownie.');
         }
-    }, [selectedGame, guestRoomPassword]);
+    }, [selectedGame, guestRoomPassword, t]);
 
     const handleJoinLastKnownGame = useCallback(async () => {
         const roomId = lastKnownRoomId.trim();

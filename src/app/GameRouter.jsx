@@ -1,6 +1,7 @@
 import { lazy, Suspense, memo, Component } from 'react';
 import { isGameComingSoon } from '../lib/gameCatalog';
 import { useRoomPlayers } from '../context/RoomPlayersContext';
+import { useRoom } from '../context/RoomContext';
 import { useLocale } from '../locales/LocaleContext';
 
 class GameChunkErrorBoundary extends Component {
@@ -44,24 +45,26 @@ const TopTen = lazy(() => import('../games/top-ten/TopTen'));
 const ComingSoonGame = lazy(() => import('../components/ComingSoonGame'));
 
 function GameRouter({
-    selectedGameType,
     currentGameMeta,
-    effectiveIsHost,
-    isLobbyHost = false,
-    handleLeaveRoom,
-    handleCloseRoom,
-    handleBackToMenu,
     playerName,
-    myPlayerId,
     vibrationEnabled,
-    isRoomLocked,
-    roomId,
-    hostShareOptions,
-    hasAdminPowers = false,
 }) {
+    const {
+        selectedGameType,
+        selectedGame: roomId,
+        effectiveIsHost,
+        isHost,
+        handleLeaveRoom,
+        handleCloseRoom,
+        handleBackToMenu,
+        myPlayerId,
+        isRoomLocked,
+        hostShareOptions,
+        hasAdminPowers,
+    } = useRoom();
     const tablePlayers = useRoomPlayers();
     const { t } = useLocale();
-    const canManageGame = effectiveIsHost || isLobbyHost || hasAdminPowers;
+    const canManageGame = effectiveIsHost || isHost || hasAdminPowers;
 
     return (
         <GameChunkErrorBoundary

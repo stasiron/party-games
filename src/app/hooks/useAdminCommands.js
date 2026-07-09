@@ -7,11 +7,6 @@ import {
     roomPublicPath,
     roomsPurgeAllUpdates,
 } from '../../lib/roomIndex';
-import {
-    normalizeJoinMode,
-    normalizeAdmission,
-    showRoomCodeInList,
-} from '../../lib/roomAccess';
 import { isAdminCommandEnabled } from '../../lib/cmsConfig.js';
 import {
     buildTelepathyAdvanceRoundUpdatesFromRoom,
@@ -24,6 +19,8 @@ import {
     canAdvanceJustOneRound,
 } from '../../lib/justOneState';
 import { RATE_LIMITS_MS } from '../constants';
+import { roomSecretWipePaths } from '../../lib/room/roomSecrets';
+import { fetchRoomMeta } from '../../lib/room/roomMetaFetch';
 
 function resetLobbySession(setters) {
     setters.setSelectedGame(null);
@@ -43,7 +40,9 @@ function resetLobbySession(setters) {
 export function useAdminCommands({
     adminCommand,
     selectedGame,
+    selectedGameType,
     myPlayerId,
+    playersList = [],
     isAdminMode,
     adminBypassEnabled,
     adminBypassRef,
@@ -131,37 +130,34 @@ export function useAdminCommands({
                     alert(t('admin.clearNeedsRoom'));
                     return;
                 }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomData = roomSnap.val() || {};
-                if (!roomData.gameId) {
+                const meta = await fetchRoomMeta(selectedGame);
+                if (!meta?.gameId) {
                     alert(t('admin.clearRoomNotFound'));
                     return;
                 }
                 const now = Date.now();
-                const joinMode = normalizeJoinMode(roomData);
-                const admission = normalizeAdmission(roomData);
-                const showCodeInList = showRoomCodeInList(roomData);
                 await update(ref(db), {
                     [`rooms/${selectedGame}`]: {
-                        gameId: roomData.gameId,
-                        joinMode,
-                        admission,
-                        showCodeInList,
-                        ...(roomData.passwordHash ? { passwordHash: roomData.passwordHash } : {}),
-                        createdAt: roomData.createdAt || now,
+                        gameId: meta.gameId,
+                        joinMode: meta.joinMode,
+                        admission: meta.admission,
+                        showCodeInList: meta.showCodeInList,
+                        ...(meta.passwordHash ? { passwordHash: meta.passwordHash } : {}),
+                        createdAt: meta.createdAt || now,
                         gameState: null,
                         settings: null,
                         roleHistory: null,
                         players: null,
                         joinRequests: null,
                     },
+                    ...roomSecretWipePaths(selectedGame),
                     [roomPublicPath(selectedGame)]: buildRoomPublicEntry({
-                        gameId: roomData.gameId,
-                        joinMode,
-                        admission,
+                        gameId: meta.gameId,
+                        joinMode: meta.joinMode,
+                        admission: meta.admission,
                         onlineCount: 0,
                         pendingCount: 0,
-                        showCodeInList,
+                        showCodeInList: meta.showCodeInList,
                         updatedAt: now,
                     }),
                 });
@@ -173,18 +169,7 @@ export function useAdminCommands({
             if (cleanedCmd === 'RESET') {
                 if (window.confirm(t('admin.confirmReset'))) {
                     await update(ref(db), roomsPurgeAllUpdates());
-                    setSelectedGame(null);
-                    setSelectedGameType(null);
-                    setEntryRole(null);
-                    setManualRoomCode('');
-                    setActiveRooms([]);
-                    setPlayersList([]);
-                    setIsJoined(false);
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setNameError('');
-                    setJoinStatus('');
-                    setLastJoinResult('');
+                    resetLobbySession(lobbySetters);
                     setLobbyMessage(t('admin.resetDone'));
                     finishAdminCommand();
                 }
@@ -194,18 +179,7 @@ export function useAdminCommands({
             if (cleanedCmd === 'PURGE') {
                 if (window.confirm(t('admin.confirmPurge'))) {
                     await update(ref(db), roomsPurgeAllUpdates());
-                    setSelectedGame(null);
-                    setSelectedGameType(null);
-                    setEntryRole(null);
-                    setManualRoomCode('');
-                    setActiveRooms([]);
-                    setPlayersList([]);
-                    setIsJoined(false);
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setNameError('');
-                    setJoinStatus('');
-                    setLastJoinResult('');
+                    resetLobbySession(lobbySetters);
                     setLobbyMessage(t('admin.purgeDone'));
                     finishAdminCommand();
                 }
@@ -242,18 +216,7 @@ export function useAdminCommands({
             if (cleanedCmd === 'PURGE ROOMS') {
                 if (window.confirm(t('admin.confirmPurgeRooms'))) {
                     await update(ref(db), roomsPurgeAllUpdates());
-                    setSelectedGame(null);
-                    setSelectedGameType(null);
-                    setEntryRole(null);
-                    setManualRoomCode('');
-                    setActiveRooms([]);
-                    setPlayersList([]);
-                    setIsJoined(false);
-                    setIsHost(false);
-                    setMyPlayerId(null);
-                    setNameError('');
-                    setJoinStatus('');
-                    setLastJoinResult('');
+                    resetLobbySession(lobbySetters);
                     setLobbyMessage(t('admin.purgeRoomsDone'));
                     finishAdminCommand();
                 }
@@ -287,31 +250,33 @@ export function useAdminCommands({
                     alert(t('admin.revealNeedsRoom'));
                     return;
                 }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomData = roomSnap.val() || {};
-                if (!['impostor', 'mafia'].includes(roomData.gameId)) {
+                const roomGameId = selectedGameType || (await fetchRoomMeta(selectedGame))?.gameId;
+                if (!['impostor', 'mafia'].includes(roomGameId)) {
                     alert(t('admin.revealWrongGame'));
                     return;
                 }
                 const revealUpdates = {
                     [`rooms/${selectedGame}/gameState/revealAllRoles`]: true,
                 };
-                if (
-                    roomData.gameId === 'mafia'
-                    && Number(roomData.gameState?.stateVersion) >= 2
-                ) {
-                    const hostOnlySnap = await get(ref(db, `rooms/${selectedGame}/hostOnly`));
-                    const hostPlayers = hostOnlySnap.val()?.playersData || {};
-                    const publicPlayers = roomData.gameState?.playersData || {};
-                    Object.entries(hostPlayers).forEach(([pid, entry]) => {
-                        if (!entry?.role) return;
-                        const alive = publicPlayers[pid]?.isAlive !== false;
-                        revealUpdates[`rooms/${selectedGame}/gameState/playersData/${pid}`] = {
-                            name: entry.name || publicPlayers[pid]?.name || '',
-                            role: entry.role,
-                            isAlive: alive,
-                        };
-                    });
+                if (roomGameId === 'mafia') {
+                    const [stateVersionSnap, hostOnlySnap, publicPlayersSnap] = await Promise.all([
+                        get(ref(db, `rooms/${selectedGame}/gameState/stateVersion`)),
+                        get(ref(db, `rooms/${selectedGame}/hostOnly`)),
+                        get(ref(db, `rooms/${selectedGame}/gameState/playersData`)),
+                    ]);
+                    if (Number(stateVersionSnap.val()) >= 2) {
+                        const hostPlayers = hostOnlySnap.val()?.playersData || {};
+                        const publicPlayers = publicPlayersSnap.val() || {};
+                        Object.entries(hostPlayers).forEach(([pid, entry]) => {
+                            if (!entry?.role) return;
+                            const alive = publicPlayers[pid]?.isAlive !== false;
+                            revealUpdates[`rooms/${selectedGame}/gameState/playersData/${pid}`] = {
+                                name: entry.name || publicPlayers[pid]?.name || '',
+                                role: entry.role,
+                                isAlive: alive,
+                            };
+                        });
+                    }
                 }
                 await update(ref(db), revealUpdates);
                 setLobbyMessage(t('admin.revealDone'));
@@ -330,9 +295,7 @@ export function useAdminCommands({
                     alert(t('admin.gameSyncNeedsRoom'));
                     return;
                 }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomVal = roomSnap.val() || {};
-                const roomGameId = roomVal.gameId;
+                const roomGameId = selectedGameType;
 
                 if (roomGameId === 'telepathy') {
                     const { updates, result } = await buildTelepathySyncUpdates(selectedGame);
@@ -375,19 +338,19 @@ export function useAdminCommands({
                     alert(t('admin.gameNextNeedsRoom'));
                     return;
                 }
-                const roomSnap = await get(ref(db, `rooms/${selectedGame}`));
-                const roomVal = roomSnap.val() || {};
-                const roomGameId = roomVal.gameId;
-                const gameState = roomVal.gameState || {};
+                const roomGameId = selectedGameType;
+                const gameStateSnap = await get(ref(db, `rooms/${selectedGame}/gameState`));
+                const gameState = gameStateSnap.val() || {};
 
                 if (roomGameId === 'telepathy') {
                     if (!canAdvanceTelepathyRound(gameState)) {
                         alert(t('admin.telepathyNextWrongPhase'));
                         return;
                     }
-                    const playerIds = Object.keys(roomVal.players || {}).filter(
-                        (id) => roomVal.players[id] && roomVal.players[id].isKicked !== true
-                    );
+                    const playerIds = playersList
+                        .filter((p) => p?.isKicked !== true)
+                        .map((p) => p.id)
+                        .filter(Boolean);
                     const updates = await buildTelepathyAdvanceRoundUpdatesFromRoom(
                         selectedGame,
                         playerIds
@@ -426,9 +389,12 @@ export function useAdminCommands({
                         alert(t('admin.kickNameRequired'));
                         return;
                     }
-                    const snap = await get(ref(db, `rooms/${selectedGame}/players`));
-                    const data = snap.val() || {};
-                    const targetKey = Object.keys(data).find(k => String(data[k]?.name || '').toLowerCase() === targetName.toLowerCase());
+                    const data = playersList.length > 0
+                        ? Object.fromEntries(playersList.map((p) => [p.id, p]))
+                        : (await get(ref(db, `rooms/${selectedGame}/players`))).val() || {};
+                    const targetKey = Object.keys(data).find(
+                        (k) => String(data[k]?.name || '').toLowerCase() === targetName.toLowerCase()
+                    );
                     if (!targetKey) {
                         alert(t('admin.playerNotFoundInRoom'));
                         return;
@@ -454,8 +420,9 @@ export function useAdminCommands({
                     alert(t('admin.hostMustJoin'));
                     return;
                 }
-                const snap = await get(ref(db, `rooms/${selectedGame}/players`));
-                const data = snap.val() || {};
+                const data = playersList.length > 0
+                    ? Object.fromEntries(playersList.map((p) => [p.id, p]))
+                    : (await get(ref(db, `rooms/${selectedGame}/players`))).val() || {};
                 if (!data[myPlayerId]) {
                     alert(t('admin.hostPlayerMissing'));
                     return;
@@ -482,8 +449,9 @@ export function useAdminCommands({
                     alert(t('admin.hostUsage'));
                     return;
                 }
-                const snap = await get(ref(db, `rooms/${selectedGame}/players`));
-                const data = snap.val() || {};
+                const data = playersList.length > 0
+                    ? Object.fromEntries(playersList.map((p) => [p.id, p]))
+                    : (await get(ref(db, `rooms/${selectedGame}/players`))).val() || {};
 
                 let targetKey = null;
                 if (arg.toUpperCase() === 'ME') {
@@ -517,7 +485,7 @@ export function useAdminCommands({
             alert(t('admin.commandError'));
         }
         });
-    }, [adminCommand, selectedGame, myPlayerId, isAdminMode, adminBypassEnabled, cmsConfig, runWithBusy, isAdminRateLimited, finishAdminCommand, t, adminBypassRef, setAdminCommand, setLobbyMessage, setIsAdminMode, setAdminBypassEnabled, setShowAdminPanel, lobbySetters]);
+    }, [adminCommand, selectedGame, selectedGameType, myPlayerId, playersList, isAdminMode, adminBypassEnabled, cmsConfig, runWithBusy, isAdminRateLimited, finishAdminCommand, t, adminBypassRef, setAdminCommand, setLobbyMessage, setIsAdminMode, setAdminBypassEnabled, setShowAdminPanel, lobbySetters]);
 
     return { handleAdminCommand };
 }

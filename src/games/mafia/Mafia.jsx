@@ -267,35 +267,18 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
 
     const renderGuestRole = useCallback(
-
         (guest) => {
-
-            const guestData = roomData.playersData?.[guest.id];
-
-            const guestRole = guestData
-
-                ? roleById.get(guestData.role) || null
-
-                : null;
-
+            const roleId = resolvePlayerRole(guest.id);
+            const guestRole = roleId ? roleById.get(roleId) || null : null;
             return (
-
                 <>
-
                     <span className="mafia-identity-label">Rola gościa: {guest.name}</span>
-
                     <h2 className="mafia-identity-title">{guestRole?.name ?? '—'}</h2>
-
                     <p className="mafia-identity-desc">{guestRole?.desc ?? ''}</p>
-
                 </>
-
             );
-
         },
-
-        [roomData.playersData, roleById]
-
+        [resolvePlayerRole, roleById]
     );
 
 

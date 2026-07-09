@@ -16,8 +16,6 @@ import { useLocale } from '../locales/LocaleContext';
 function RoomScreen({
     currentGameMeta,
     vibrationEnabled,
-    hasAdminPowers,
-    runWithBusy,
 }) {
     const {
         selectedGame,
@@ -59,6 +57,8 @@ function RoomScreen({
         playersList,
         kickPlayer,
         adminKick,
+        hasAdminPowers,
+        runWithBusy,
     } = useRoom();
     const { t } = useLocale();
     const joinModeOptions = useMemo(() => getJoinModeOptions(t), [t]);
@@ -203,20 +203,9 @@ function RoomScreen({
                 <div>
                     <h2>{t('room.playing', { name: currentGameMeta?.name ?? '' })}</h2>
                     <GameRouter
-                        selectedGameType={selectedGameType}
                         currentGameMeta={currentGameMeta}
-                        effectiveIsHost={effectiveIsHost}
-                        isLobbyHost={isHost}
-                        handleLeaveRoom={handleLeaveRoom}
-                        handleCloseRoom={handleCloseRoom}
-                        handleBackToMenu={handleBackToMenu}
                         playerName={playerName}
-                        myPlayerId={myPlayerId}
                         vibrationEnabled={vibrationEnabled}
-                        isRoomLocked={isRoomLocked}
-                        roomId={selectedGame}
-                        hostShareOptions={hostShareOptions}
-                        hasAdminPowers={hasAdminPowers}
                     />
                 </div>
             )}

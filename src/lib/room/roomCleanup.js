@@ -136,13 +136,17 @@ export async function fetchRoomsForCleanup(rawRoomsPublic, extraRoomIds = []) {
     await Promise.all(
         [...roomIds].map(async (roomId) => {
             try {
-                const snap = await get(ref(db, `rooms/${roomId}`));
-                if (!snap.exists()) return;
-                const val = snap.val() || {};
+                const [gameIdSnap, createdAtSnap, playersSnap] = await Promise.all([
+                    get(ref(db, `rooms/${roomId}/gameId`)),
+                    get(ref(db, `rooms/${roomId}/createdAt`)),
+                    get(ref(db, `rooms/${roomId}/players`)),
+                ]);
+                const gameId = gameIdSnap.val();
+                if (!gameId) return;
                 rooms[roomId] = {
-                    gameId: val.gameId,
-                    createdAt: val.createdAt,
-                    players: val.players,
+                    gameId,
+                    createdAt: createdAtSnap.val(),
+                    players: playersSnap.val(),
                 };
             } catch {
                 /* best effort */
