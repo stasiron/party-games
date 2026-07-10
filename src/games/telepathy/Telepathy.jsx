@@ -32,6 +32,9 @@ import {
     isWordAlreadyUsed,
     normalizeTelepathyWord,
 } from './telepathyUtils';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameLobbyGuestWait from '../../components/GameLobbyGuestWait';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 
 function TelepathyRevealItem({
     name,
@@ -207,8 +210,10 @@ function TelepathyPlayerForm({
 
 function Telepathy({
     isHost,
+    canManageRoom = isHost,
     hasAdminPowers = false,
     onLeave,
+    gameId = 'telepathy',
     myPlayerId,
     tablePlayers = [],
     roomId,
@@ -415,11 +420,6 @@ function Telepathy({
         };
     }, [participantsFingerprint, isHost, isSubmitting, roomId, syncOpts]);
 
-    const handleEndGame = useCallback(async () => {
-        await forceResetTable();
-        onLeave();
-    }, [forceResetTable, onLeave]);
-
     const pendingCount = participantIds.filter((id) => submitted[id] !== true).length;
 
     return (
@@ -443,7 +443,7 @@ function Telepathy({
                             <HostShareOptions shareOptions={shareOptions} />
                         </div>
                     ) : (
-                        <p className="telepathy-wait-host">{t('gameLobby.waitForHostTelepathy')}</p>
+                        <GameLobbyGuestWait gameId={gameId} className="telepathy-wait-host" />
                     )}
                 </div>
             ) : (
@@ -552,7 +552,13 @@ function Telepathy({
                             {isHost && (
                                 <div className="game-host-controls">
                                     <HostShareOptions shareOptions={shareOptions} />
-                                    <ConfirmButton onClick={() => void forceResetTable()} text={t('gameUi.resetTable')} />
+                                    <GameHostResetButton
+                                        gameId={gameId}
+                                        canManageRoom={canManageRoom}
+                                        onLeave={onLeave}
+                                        onReset={() => void forceResetTable()}
+                                        busy={rtdbBusy}
+                                    />
                                 </div>
                             )}
                         </>
@@ -576,12 +582,12 @@ function Telepathy({
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? () => void handleEndGame() : onLeave}
-                    text={isHost ? t('gameUi.closeRoom') : t('gameUi.leaveRoom')}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }

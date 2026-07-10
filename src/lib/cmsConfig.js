@@ -10,6 +10,8 @@ export const CMS_COMMAND_TOGGLES = [
     { id: 'PURGE_ROOMS', labelKey: 'cms.commandPurgeRooms' },
     { id: 'CLEAR', labelKey: 'cms.commandClear' },
     { id: 'REVEAL', labelKey: 'cms.commandReveal' },
+    { id: 'SHOW', labelKey: 'cms.commandShow' },
+    { id: 'PUPPET', labelKey: 'cms.commandPuppet' },
     { id: 'SYNC', labelKey: 'cms.commandSync' },
     { id: 'NEXT', labelKey: 'cms.commandNext' },
     { id: 'ADMIN_KICK', labelKey: 'cms.commandAdminKick' },
@@ -166,6 +168,8 @@ export function parseAdminCommandKey(rawCommand) {
     if (upper === 'PURGE ROOMS') return 'PURGE_ROOMS';
     if (upper === 'CLEAR') return 'CLEAR';
     if (upper === 'REVEAL') return 'REVEAL';
+    if (upper === 'SHOW') return 'SHOW';
+    if (upper === 'PUPPET ON' || upper === 'PUPPET OFF') return 'PUPPET';
     if (upper === 'SYNC') return 'SYNC';
     if (upper === 'NEXT' || upper === 'NEXT ROUND') return 'NEXT';
     if (upper.startsWith('ADMIN ') && raw.slice(6).trim().toUpperCase().startsWith('KICK ')) {

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 
-/** Domyślnie wszystkie kategorie/poziomy zaznaczone; reset przywraca pełną listę. */
-export function useCategorySelection(playableItems) {
+/** Domyślnie wszystkie kategorie/poziomy zaznaczone; opcjonalnie przywraca ostatni zestaw z gry. */
+export function useCategorySelection(playableItems, { lastPlayedCategoryIds } = {}) {
     const allIds = useMemo(
         () => (playableItems ?? []).map((item) => item.id),
         [playableItems]
@@ -20,6 +20,21 @@ export function useCategorySelection(playableItems) {
         });
     }, [allIds]);
 
+    useEffect(() => {
+        if (!Array.isArray(lastPlayedCategoryIds) || lastPlayedCategoryIds.length === 0) return;
+        setSelectedIds((prev) => {
+            const valid = lastPlayedCategoryIds.filter((id) => allIds.includes(id));
+            if (valid.length === 0) return prev;
+            if (
+                valid.length === prev.length &&
+                valid.every((id) => prev.includes(id))
+            ) {
+                return prev;
+            }
+            return valid;
+        });
+    }, [lastPlayedCategoryIds, allIds]);
+
     const toggleId = useCallback((id) => {
         setSelectedIds((prev) =>
             prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -30,5 +45,12 @@ export function useCategorySelection(playableItems) {
         setSelectedIds(allIds);
     }, [allIds]);
 
-    return { selectedIds, toggleId, resetToAll, allIds };
+    const restoreFromIds = useCallback((ids) => {
+        setSelectedIds((prev) => {
+            const valid = (ids ?? []).filter((id) => allIds.includes(id));
+            return valid.length > 0 ? valid : prev;
+        });
+    }, [allIds]);
+
+    return { selectedIds, toggleId, resetToAll, restoreFromIds, allIds };
 }

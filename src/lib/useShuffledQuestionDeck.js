@@ -21,7 +21,6 @@ const DEFAULT_DECK_STATE = {
  * @param {{
  *   buildDeckFromCategoryIds: (categoryIds: string[]) => unknown[],
  *   getCategoryIds: () => string[],
- *   onResetCategories?: () => void,
  *   indexKey?: string,
  *   legacyDeckKey?: string,
  *   extraStartFields?: Record<string, unknown>,
@@ -34,7 +33,6 @@ const DEFAULT_DECK_STATE = {
 export function useShuffledQuestionDeck(roomId, {
     buildDeckFromCategoryIds,
     getCategoryIds,
-    onResetCategories,
     indexKey = 'currentQuestionIndex',
     legacyDeckKey = 'shuffledQuestions',
     extraStartFields = {},
@@ -89,8 +87,7 @@ export function useShuffledQuestionDeck(roomId, {
 
     const forceResetTable = useCallback(() => {
         set(ref(db, `rooms/${roomId}/gameState`), null);
-        onResetCategories?.();
-    }, [roomId, onResetCategories]);
+    }, [roomId]);
 
     const nextQuestion = useCallback(() => {
         if (currentIndex < deckLength - 1) {

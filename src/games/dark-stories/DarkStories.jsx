@@ -36,7 +36,6 @@ function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
             contentKey="darkStories"
             getCategories={getCategories}
             deckField="stories"
-            hostLeaveText="Zamknij pokój"
             rootClassName="dark-stories"
             deckHookOptions={{
                 indexKey: 'currentStoryIndex',
@@ -46,7 +45,6 @@ function DarkStories({ isHost, onLeave, roomId, shareOptions }) {
             }}
             lobbyProps={{
                 selectPrompt: t('gameLobby.selectDifficulties'),
-                guestWaitMessage: t('gameLobby.waitForHostNarrator'),
             }}
             progressRenderer={({ currentIndex, deckLength }) =>
                 `Historia ${currentIndex + 1} z ${deckLength}`}

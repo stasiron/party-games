@@ -12,7 +12,7 @@ import CollapsibleSection from './CollapsibleSection';
 import { recordNewPlayerJoin } from '../lib/appMetrics.js';
 import { useLocale } from '../locales/LocaleContext';
 
-function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
+function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy, embedded = false }) {
     const { t } = useLocale();
     const [guestName, setGuestName] = useState('');
     const [guestError, setGuestError] = useState('');
@@ -98,13 +98,8 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
 
     const guestCountLabel = guests.length > 0 ? ` (${guests.length})` : '';
 
-    return (
-        <CollapsibleSection
-            className="guest-players-panel"
-            toggleLabel={`${t('guestPlayers.toggleShow')}${guestCountLabel}`}
-            toggleLabelOpen={`${t('guestPlayers.toggleHide')}${guestCountLabel}`}
-            defaultOpen={false}
-        >
+    const panelBody = (
+        <>
             <p className="guest-players-panel__hint">
                 {t('guestPlayers.hint')}
             </p>
@@ -191,6 +186,28 @@ function GuestPlayersPanel({ roomId, playersList, myPlayerId, runWithBusy }) {
                     })}
                 </div>
             )}
+        </>
+    );
+
+    if (embedded) {
+        return (
+            <div className="guest-players-panel guest-players-panel--embedded room-invite__section">
+                <p className="room-invite__section-title">
+                    {t('guestPlayers.sectionTitle')}{guestCountLabel}
+                </p>
+                {panelBody}
+            </div>
+        );
+    }
+
+    return (
+        <CollapsibleSection
+            className="guest-players-panel"
+            toggleLabel={`${t('guestPlayers.toggleShow')}${guestCountLabel}`}
+            toggleLabelOpen={`${t('guestPlayers.toggleHide')}${guestCountLabel}`}
+            defaultOpen={false}
+        >
+            {panelBody}
         </CollapsibleSection>
     );
 }

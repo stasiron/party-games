@@ -1,8 +1,9 @@
 import ConfirmButton from './ConfirmButton';
 import GameRules from './GameRules';
 import { useLocale } from '../locales/LocaleContext';
+import GameRoomExitBar from './GameRoomExitBar';
 
-function ComingSoonGame({ title, onLeave, isHost }) {
+function ComingSoonGame({ title, onLeave, isHost, gameId = 'coming-soon' }) {
     const { t } = useLocale();
 
     return (
@@ -23,12 +24,11 @@ function ComingSoonGame({ title, onLeave, isHost }) {
                 </p>
             </div>
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={onLeave}
-                    text={isHost ? t('comingSoon.backToMenu') : t('comingSoon.leaveRoom')}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={isHost}
+                onLeave={onLeave}
+            />
         </div>
     );
 }

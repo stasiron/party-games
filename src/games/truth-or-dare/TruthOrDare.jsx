@@ -16,19 +16,27 @@ import {
     buildInitialPoolIndices,
     chooseCard,
     chooseCardFromIndices,
+    chooseCardFromIndicesAt,
+    chooseCardAtPoolIndex,
     resolveTodPoolState,
     getTodPoolLengths,
+    peekTodNextCards,
     buildUpdatedPlayerStats,
     TOD_POOL_VERSION,
 } from './engine';
+import { resolveNextTurnPlayerName } from '../../lib/playerNames';
 import ConfirmButton from '../../components/ConfirmButton';
 import GameRules from '../../components/GameRules';
 import GameRulesList from '../../components/GameRulesList';
 import GameCategoryLobby from '../../components/GameCategoryLobby';
 import TurnHeader from '../../components/TurnHeader';
+import AdminDeckControlPanel from '../../components/AdminDeckControlPanel';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 import { isTurnForPhoneOwner, isCurrentPlayerGuest } from '../../lib/guestPlayers';
+import { buildRefreshTodShowLockUpdates } from '../../lib/adminDeckControls';
 import { useCategorySelection } from '../../lib/useCategorySelection';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 
 const EMPTY_POOL_MSG = {
     truth: 'Koniec pytań w tej puli! Musisz wybrać Wyzwanie.',
@@ -42,13 +50,16 @@ const SAFE_EMPTY_MSG = {
 
 function TruthOrDare({
     isHost,
+    canManageRoom = isHost,
     onLeave,
+    gameId = 'truth-or-dare',
     playerName,
     myPlayerId,
     tablePlayers = [],
     vibrationEnabled,
     roomId,
     shareOptions,
+    hasAdminPowers = false,
 }) {
     const { gameContent, t } = useLocale();
     const truthOrDareSection = gameContent.truthOrDare;
@@ -58,11 +69,6 @@ function TruthOrDare({
         [truthOrDareSection]
     );
 
-    const {
-        selectedIds: selectedCategories,
-        toggleId: toggleCategory,
-        resetToAll: resetCategoriesToAll,
-    } = useCategorySelection(playableCategories);
     const [isSafeMode, setIsSafeMode] = useState(false);
 
     const contentByCategory = truthOrDareSection?.content;
@@ -74,6 +80,7 @@ function TruthOrDare({
             currentText: '',
             currentDifficulty: 0,
             currentPlayerName: '',
+            puppetNextPlayerName: '',
             poolVersion: 0,
             categoryIds: [],
             remainingTruthIndices: [],
@@ -96,6 +103,15 @@ function TruthOrDare({
                 currentDifficulty: data.currentDifficulty,
                 currentPlayerName: data.currentPlayerName,
                 playerStats: data.playerStats,
+                showNextPreview: data.showNextPreview === true,
+                showOperatorPlayerId: data.showOperatorPlayerId || '',
+                showLockedTruthIdx: data.showLockedTruthIdx ?? null,
+                showLockedDareIdx: data.showLockedDareIdx ?? null,
+                showPreviewDeckAnchor: data.showPreviewDeckAnchor ?? null,
+                showPreviewNextIndex: data.showPreviewNextIndex ?? null,
+                puppetMode: data.puppetMode === true,
+                puppetOperatorPlayerId: data.puppetOperatorPlayerId || '',
+                puppetNextPlayerName: data.puppetNextPlayerName || '',
             };
             if (amI || data.mode !== 'choice') {
                 const { truthLen, dareLen } = getTodPoolLengths(data);
@@ -110,6 +126,18 @@ function TruthOrDare({
     const roomData = useRoomGameState(roomId, defaultRoomState, {
         getFingerprint: truthOrDareFingerprint,
     });
+
+    const lastPlayedCategoryIds = useMemo(() => {
+        if (roomData.isGameStarted) return undefined;
+        return Array.isArray(roomData.categoryIds) && roomData.categoryIds.length > 0
+            ? roomData.categoryIds
+            : undefined;
+    }, [roomData.isGameStarted, roomData.categoryIds]);
+
+    const {
+        selectedIds: selectedCategories,
+        toggleId: toggleCategory,
+    } = useCategorySelection(playableCategories, { lastPlayedCategoryIds });
     const actionLockRef = useRef(false);
     const { rtdbBusy, syncOpts } = useRtdbSync();
 
@@ -168,7 +196,13 @@ function TruthOrDare({
                     }, syncOpts);
                     return;
                 }
-                chosen = chooseCard({ currentPool, ...drawOpts });
+                const forcedIndex =
+                    roomData.showNextPreview === true && currentPool.length > 0
+                        ? 0
+                        : null;
+                chosen = forcedIndex != null
+                    ? chooseCardAtPoolIndex({ currentPool, atIndex: forcedIndex })
+                    : chooseCard({ currentPool, ...drawOpts });
                 if (!chosen) {
                     await update(ref(db, `rooms/${roomId}/gameState`), {
                         mode: type,
@@ -183,6 +217,9 @@ function TruthOrDare({
                 const remainingIndices = isTruth ? pools.truthIndices : pools.dareIndices;
                 const basePool = isTruth ? pools.baseTruths : pools.baseDares;
                 const indicesKey = isTruth ? 'remainingTruthIndices' : 'remainingDareIndices';
+                const forcedIdx = roomData.showNextPreview === true && remainingIndices.length > 0
+                    ? remainingIndices[0]
+                    : null;
 
                 if (!remainingIndices.length) {
                     await update(ref(db, `rooms/${roomId}/gameState`), {
@@ -193,11 +230,13 @@ function TruthOrDare({
                     return;
                 }
 
-                chosen = chooseCardFromIndices({
-                    remainingIndices,
-                    basePool,
-                    ...drawOpts,
-                });
+                chosen = forcedIdx != null
+                    ? chooseCardFromIndicesAt({ remainingIndices, basePool, atIdx: forcedIdx })
+                    : chooseCardFromIndices({
+                        remainingIndices,
+                        basePool,
+                        ...drawOpts,
+                    });
 
                 if (!chosen) {
                     await update(ref(db, `rooms/${roomId}/gameState`), {
@@ -216,12 +255,29 @@ function TruthOrDare({
                 chosen.selectedItem.level
             );
 
+            const lockRefresh = roomData.showNextPreview === true
+                ? buildRefreshTodShowLockUpdates(roomId, {
+                    ...roomData,
+                    mode: type,
+                    currentText: chosen.selectedItem.text,
+                    currentDifficulty: chosen.selectedItem.level,
+                    ...poolUpdate,
+                    ...(type === 'truth'
+                        ? { showLockedTruthIdx: null, showLockedTruthPos: null }
+                        : { showLockedDareIdx: null, showLockedDarePos: null }),
+                })
+                : {};
+
             await update(ref(db, `rooms/${roomId}/gameState`), {
                 mode: type,
                 currentText: chosen.selectedItem.text,
                 currentDifficulty: chosen.selectedItem.level,
                 ...poolUpdate,
+                ...(type === 'truth'
+                    ? { showLockedTruthIdx: null, showLockedTruthPos: null }
+                    : { showLockedDareIdx: null, showLockedDarePos: null }),
                 playerStats: newStats,
+                ...lockRefresh,
             }, syncOpts);
         } finally {
             actionLockRef.current = false;
@@ -232,28 +288,23 @@ function TruthOrDare({
         if (actionLockRef.current) return;
         actionLockRef.current = true;
         try {
-            const nextPlayer = pickRandomPlayerName(tablePlayers, roomData.currentPlayerName);
+            const nextPlayer = resolveNextTurnPlayerName(roomData, tablePlayers);
             await update(ref(db, `rooms/${roomId}/gameState`), {
                 mode: 'choice',
                 currentText: '',
                 currentDifficulty: 0,
                 currentPlayerName: nextPlayer,
+                puppetNextPlayerName: null,
             }, syncOpts);
         } finally {
             actionLockRef.current = false;
         }
-    }, [roomData.currentPlayerName, syncOpts, roomId, tablePlayers]);
+    }, [roomData, syncOpts, roomId, tablePlayers]);
 
     const forceResetTable = useCallback(() => {
         set(ref(db, `rooms/${roomId}/gameState`), null);
-        resetCategoriesToAll();
         setIsSafeMode(false);
-    }, [roomId, resetCategoriesToAll]);
-
-    const handleEndGame = useCallback(() => {
-        forceResetTable();
-        onLeave();
-    }, [forceResetTable, onLeave]);
+    }, [roomId]);
 
     const toggleSafeMode = useCallback(() => {
         setIsSafeMode((prev) => !prev);
@@ -274,6 +325,32 @@ function TruthOrDare({
         return roomData.currentPlayerName;
     }, [tablePlayers, isSharedPhoneTurn, roomData.currentPlayerName]);
 
+    const todNextPeek = useMemo(
+        () => peekTodNextCards(roomData, contentByCategory),
+        [roomData, contentByCategory]
+    );
+
+    const todPreviewContent = (
+        <div className="admin-next-preview__tod">
+            <div className="admin-next-preview__tod-row">
+                <span className="admin-next-preview__tod-label text-truth">
+                    {t('gameUi.showNextPreviewTruth')}
+                </span>
+                <p className="admin-next-preview__tod-text">
+                    {todNextPeek.truth?.text ?? t('gameUi.showNextPreviewPoolEmpty')}
+                </p>
+            </div>
+            <div className="admin-next-preview__tod-row">
+                <span className="admin-next-preview__tod-label text-dare">
+                    {t('gameUi.showNextPreviewDare')}
+                </span>
+                <p className="admin-next-preview__tod-text">
+                    {todNextPeek.dare?.text ?? t('gameUi.showNextPreviewPoolEmpty')}
+                </p>
+            </div>
+        </div>
+    );
+
     return (
         <div>
             {!roomData.isGameStarted ? (
@@ -283,12 +360,12 @@ function TruthOrDare({
                     </GameRules>
 
                     <GameCategoryLobby
+                        gameId={gameId}
                         isHost={isHost}
                         categories={playableCategories}
                         selectedIds={selectedCategories}
                         onToggle={toggleCategory}
                         onStart={startGame}
-                        guestWaitMessage={t('gameLobby.waitForHostDeck')}
                         shareOptions={shareOptions}
                     />
                 </div>
@@ -362,6 +439,18 @@ function TruthOrDare({
                         </div>
                     )}
 
+                    <AdminDeckControlPanel
+                        roomData={roomData}
+                        roomId={roomId}
+                        gameId="truth-or-dare"
+                        myPlayerId={myPlayerId}
+                        tablePlayers={tablePlayers}
+                        previewContent={todPreviewContent}
+                        contentByCategory={contentByCategory}
+                        safeMode={isSafeMode}
+                        busy={rtdbBusy}
+                    />
+
                     {isHost && (
                         <div className="host-controls">
                             {roomData.mode !== 'choice' && (
@@ -370,18 +459,23 @@ function TruthOrDare({
                                 </button>
                             )}
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={forceResetTable}
+                            />
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? handleEndGame : onLeave}
-                    text={isHost ? 'Zamknij pokój' : 'Wyjdź z pokoju'}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }

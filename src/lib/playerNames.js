@@ -21,3 +21,15 @@ export function pickRandomPlayerName(tablePlayers, excludeName = null) {
     }
     return allNames[Math.floor(Math.random() * allNames.length)];
 }
+
+/** Następna kolejka: wybór PUPPET ma pierwszeństwo, inaczej losowanie. */
+export function resolveNextTurnPlayerName(state, tablePlayers) {
+    const puppetNext = String(state?.puppetNextPlayerName || '').trim();
+    if (puppetNext) {
+        const active = getActivePlayerNames(tablePlayers);
+        if (active.includes(puppetNext)) {
+            return puppetNext;
+        }
+    }
+    return pickRandomPlayerName(tablePlayers, state?.currentPlayerName);
+}

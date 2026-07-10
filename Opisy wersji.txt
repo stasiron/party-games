@@ -76,3 +76,12 @@ Rozwuj wersji:
 1.9.0 Top Ten update
 1.9.1 Top Ten 5 roznych funkcji ustawienia
 1.9.2 debug fix
+1.9.3 Top Ten different awnser methods
+1.9.4 Top Ten Debug
+1.9.5 Optimisation
+1.9.6 Room buttons rework
+1.9.7 Command SHOW implemented
+1.9.8 show bug fix
+1.9.9 Command Puppet implemented
+1.9.10 Command Puppet Bug Fix
+1.9.11 Game Rooms standarized

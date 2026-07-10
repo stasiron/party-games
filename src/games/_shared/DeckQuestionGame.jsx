@@ -3,6 +3,7 @@ import { ref } from 'firebase/database';
 import { update } from '../../lib/rtdb';
 import { db } from '../../lib/firebase';
 import { buildDeckFromContentMap } from '../../lib/gameContentUtils';
+import { resolveNextDeckItemFromState } from '../../lib/deckStateUtils';
 import { useShuffledQuestionDeck } from '../../lib/useShuffledQuestionDeck';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 import { useLocale } from '../../locales/LocaleContext';
@@ -10,13 +11,17 @@ import ConfirmButton from '../../components/ConfirmButton';
 import GameRules from '../../components/GameRules';
 import GameRulesList from '../../components/GameRulesList';
 import GameCategoryLobby from '../../components/GameCategoryLobby';
+import AdminDeckControlPanel from '../../components/AdminDeckControlPanel';
 import { HostShareOptions } from '../../components/RoomInviteQR';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
+import GameHostResetButton from '../../components/GameHostResetButton';
 
 /**
  * Wspólny szablon gier: kategorie → tasowana talia → nawigacja prev/next.
  */
 export default function DeckQuestionGame({
     isHost,
+    canManageRoom = isHost,
     onLeave,
     roomId,
     shareOptions,
@@ -24,7 +29,6 @@ export default function DeckQuestionGame({
     contentKey,
     getCategories,
     deckField = 'questions',
-    hostLeaveLabelKey = 'comingSoon.backToMenu',
     renderInGameHint = null,
     questionClassName = 'nhie-question-text',
     deckHookOptions = {},
@@ -34,8 +38,10 @@ export default function DeckQuestionGame({
     renderInGamePanels = null,
     onHostNext = null,
     nextButtonLabel = null,
-    hostLeaveText = null,
     rootClassName = '',
+    hasAdminPowers = false,
+    myPlayerId = null,
+    tablePlayers = [],
 }) {
     const { gameContent, t } = useLocale();
     const section = gameContent[contentKey];
@@ -48,7 +54,6 @@ export default function DeckQuestionGame({
     const {
         selectedIds: selectedCategories,
         toggleId: toggleCategory,
-        resetToAll: resetCategoriesToAll,
     } = useCategorySelection(playableCategories);
 
     const buildDeckFromCategoryIds = useCallback(
@@ -72,7 +77,6 @@ export default function DeckQuestionGame({
     } = useShuffledQuestionDeck(roomId, {
         buildDeckFromCategoryIds,
         getCategoryIds,
-        onResetCategories: resetCategoriesToAll,
         metricsGameId: gameId,
         ...deckHookOptions,
     });
@@ -107,16 +111,37 @@ export default function DeckQuestionGame({
         nextQuestion();
     }, [onHostNext, currentIndex, deckLength, isLastQuestion, navigateToIndex, nextQuestion]);
 
-    const handleEndGame = useCallback(() => {
-        forceResetTable();
-        onLeave();
-    }, [forceResetTable, onLeave]);
-
     const resolvedNextLabel = typeof nextButtonLabel === 'function'
         ? nextButtonLabel({ isLast: isLastQuestion })
         : (nextButtonLabel ?? (isLastQuestion ? t('gameUi.endGame') : t('gameUi.next')));
     const defaultProgress = t('gameUi.questionProgress', { current: currentIndex + 1, total: deckLength });
     const defaultQuestion = currentQuestion ?? t('common.loading');
+
+    const nextDeckItem = useMemo(
+        () => resolveNextDeckItemFromState(roomData, buildDeckFromCategoryIds, {
+            indexKey: deckHookOptions.indexKey || 'currentQuestionIndex',
+            legacyDeckKey: deckHookOptions.legacyDeckKey || 'shuffledQuestions',
+        }),
+        [roomData, buildDeckFromCategoryIds, deckHookOptions.indexKey, deckHookOptions.legacyDeckKey]
+    );
+
+    const deckSkipOptions = useMemo(
+        () => ({
+            indexKey: deckHookOptions.indexKey || 'currentQuestionIndex',
+            legacyDeckKey: deckHookOptions.legacyDeckKey || 'shuffledQuestions',
+        }),
+        [deckHookOptions.indexKey, deckHookOptions.legacyDeckKey]
+    );
+
+    const previewContent = nextDeckItem != null ? (
+        questionRenderer ? (
+            questionRenderer(nextDeckItem, t)
+        ) : (
+            <h3 className={questionClassName}>{String(nextDeckItem)}</h3>
+        )
+    ) : (
+        <p className="admin-next-preview__empty">{t('gameUi.showNextPreviewEnd')}</p>
+    );
 
     return (
         <div className={rootClassName || undefined}>
@@ -127,6 +152,7 @@ export default function DeckQuestionGame({
                     </GameRules>
 
                     <GameCategoryLobby
+                        gameId={gameId}
                         isHost={isHost}
                         categories={playableCategories}
                         selectedIds={selectedCategories}
@@ -153,6 +179,16 @@ export default function DeckQuestionGame({
                             <h3 className={questionClassName}>{defaultQuestion}</h3>
                         )}
                     </div>
+
+                    <AdminDeckControlPanel
+                        roomData={roomData}
+                        roomId={roomId}
+                        gameId={gameId}
+                        myPlayerId={myPlayerId}
+                        tablePlayers={tablePlayers}
+                        previewContent={previewContent}
+                        deckSkipOptions={deckSkipOptions}
+                    />
 
                     {renderInGamePanels?.({
                         roomData,
@@ -181,18 +217,23 @@ export default function DeckQuestionGame({
                                 </button>
                             </div>
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={forceResetTable} text={t('gameUi.resetTable')} />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={forceResetTable}
+                            />
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? handleEndGame : onLeave}
-                    text={isHost ? (hostLeaveText ?? t(hostLeaveLabelKey)) : t('gameUi.leaveRoom')}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }

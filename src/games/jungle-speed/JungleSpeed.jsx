@@ -9,7 +9,8 @@ import { useRtdbSync } from '../../lib/useRtdbSync';
 import { getTablePlayers, getPlayerNameById } from '../../lib/guestPlayers';
 import GameRules from '../../components/GameRules';
 import GameRulesList from '../../components/GameRulesList';
-import ConfirmButton from '../../components/ConfirmButton';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 import {
     appendCardsToHiddenDeck,
@@ -37,7 +38,16 @@ const DEFAULT_STATE = {
     lastResolution: null,
 };
 
-function JungleSpeed({ isHost, onLeave, myPlayerId, tablePlayers = [], roomId, shareOptions }) {
+function JungleSpeed({
+    isHost,
+    canManageRoom = isHost,
+    onLeave,
+    gameId = 'jungle-speed',
+    myPlayerId,
+    tablePlayers = [],
+    roomId,
+    shareOptions,
+}) {
     const { t } = useLocale();
     const { syncOpts, rtdbBusy } = useRtdbSync();
     const roomData = useRoomGameState(roomId, DEFAULT_STATE, { mergeDefaults: true });
@@ -213,11 +223,6 @@ function JungleSpeed({ isHost, onLeave, myPlayerId, tablePlayers = [], roomId, s
         await set(ref(db, `rooms/${roomId}/gameState`), null, syncOpts);
     }, [roomId, syncOpts]);
 
-    const handleEndGame = useCallback(async () => {
-        await resetTable();
-        onLeave();
-    }, [resetTable, onLeave]);
-
     return (
         <div className="jungle-speed-game">
             {!gameStarted ? (
@@ -353,18 +358,24 @@ function JungleSpeed({ isHost, onLeave, myPlayerId, tablePlayers = [], roomId, s
                     {isHost ? (
                         <div className="game-host-controls">
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={() => void resetTable()} text={t('gameUi.resetTable')} />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={() => void resetTable()}
+                                busy={rtdbBusy}
+                            />
                         </div>
                     ) : null}
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? () => void handleEndGame() : onLeave}
-                    text={isHost ? t('gameUi.closeRoom') : t('gameUi.leaveRoom')}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={resetTable}
+            />
         </div>
     );
 }

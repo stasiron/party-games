@@ -1,4 +1,5 @@
 import { useState, useCallback, lazy, Suspense, memo } from 'react';
+import GuestPlayersPanel from './GuestPlayersPanel';
 import { useLocale } from '../locales/LocaleContext';
 
 const QRCodeSVG = lazy(() =>
@@ -10,6 +11,7 @@ function RoomInviteQR({
     roomId = '',
     showCodeInList,
     onToggleShowCodeInList,
+    guestPanel = null,
     className = '',
 }) {
     const { t } = useLocale();
@@ -100,6 +102,16 @@ function RoomInviteQR({
                             </button>
                         </div>
                     )}
+
+                    {guestPanel && (
+                        <GuestPlayersPanel
+                            embedded
+                            roomId={roomId}
+                            playersList={guestPanel.playersList}
+                            myPlayerId={guestPanel.myPlayerId}
+                            runWithBusy={guestPanel.runWithBusy}
+                        />
+                    )}
                 </div>
             )}
         </div>
@@ -114,6 +126,7 @@ export function HostShareOptions({ shareOptions, className = 'room-invite--slot'
             roomId={shareOptions.roomId}
             showCodeInList={shareOptions.showCodeInList}
             onToggleShowCodeInList={shareOptions.onToggleShowCodeInList}
+            guestPanel={shareOptions.guestPanel}
             className={className}
         />
     );

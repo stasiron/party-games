@@ -4,7 +4,7 @@ import {
     normalizeOrderingMode,
 } from './orderingModes';
 
-function TopTenModeSelector({ value, onChange, onBackToRoom }) {
+function TopTenModeSelector({ value, onChange }) {
     const { t } = useLocale();
     const selected = normalizeOrderingMode(value);
     const groupLabel = t('gameSetup.topTen.orderingModeTitle');
@@ -35,11 +35,6 @@ function TopTenModeSelector({ value, onChange, onBackToRoom }) {
                     );
                 })}
             </ul>
-            {onBackToRoom && (
-                <button type="button" className="btn-link option-picker__back" onClick={onBackToRoom}>
-                    {t('gameSetup.topTen.backToRoom')}
-                </button>
-            )}
         </div>
     );
 }

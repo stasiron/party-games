@@ -29,10 +29,22 @@ import {
     buildMafiaPrivacyStartUpdates,
     usesMafiaPrivacyModel,
 } from './privateState';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 
 
 
-function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = false, roomId, shareOptions }) {
+function Mafia({
+    isHost,
+    canManageRoom = isHost,
+    onLeave,
+    gameId = 'mafia',
+    myPlayerId,
+    tablePlayers = [],
+    isRoomLocked = false,
+    roomId,
+    shareOptions,
+}) {
 
     const { gameContent, t } = useLocale();
     const mafiaSection = gameContent.mafia;
@@ -93,8 +105,6 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
 
     usePiGameSession(roomData.phase !== 'lobby');
-
-
 
     const [roleCounts, setRoleCounts] = useState({});
 
@@ -623,17 +633,13 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
                                     <HostShareOptions shareOptions={shareOptions} />
 
                                     <div className="bottom-controls">
-
-                                        <ConfirmButton
-
-                                            onClick={forceResetTable}
-
-                                            text="Zakończ grę i wróć do Setupu"
-
-                                            className="w-100"
-
+                                        <GameHostResetButton
+                                            gameId={gameId}
+                                            canManageRoom={canManageRoom}
+                                            onLeave={onLeave}
+                                            onReset={forceResetTable}
+                                            buttonClassName="w-100"
                                         />
-
                                     </div>
 
                                 </>
@@ -764,11 +770,12 @@ function Mafia({ isHost, onLeave, myPlayerId, tablePlayers = [], isRoomLocked = 
 
 
 
-            <div className="bottom-controls">
-
-                <ConfirmButton onClick={onLeave} text="Wyjdź z pokoju" className="w-100" />
-
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                buttonClassName="w-100"
+            />
 
         </div>
 

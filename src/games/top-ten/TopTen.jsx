@@ -47,6 +47,8 @@ import {
     usePrivateRolesForPlayers,
     getPrivateWord,
 } from '../../lib/usePrivateGameState';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 
 const DEFAULT_SETTINGS = { orderingMode: DEFAULT_TOP_TEN_ORDERING_MODE };
 
@@ -66,10 +68,10 @@ function getPrivateRating(privateEntry) {
 
 function TopTen({
     isHost,
+    canManageRoom = isHost,
     hasAdminPowers = false,
     onLeave,
-    onCloseRoom,
-    onBackToMenu,
+    gameId = 'top-ten',
     myPlayerId,
     tablePlayers = [],
     isRoomLocked = false,
@@ -86,12 +88,6 @@ function TopTen({
     );
 
     const lobbyPlayerCount = useMemo(() => getTablePlayers(tablePlayers).length, [tablePlayers]);
-
-    const {
-        selectedIds: selectedCategories,
-        toggleId: toggleCategory,
-        resetToAll: resetCategoriesToAll,
-    } = useCategorySelection(playableCategories);
 
     const myLinkedGuests = useMemo(
         () => getGuestsForOwner(tablePlayers, myPlayerId),
@@ -147,6 +143,18 @@ function TopTen({
         getFingerprint: topTenGameStateFingerprint,
     });
 
+    const lastPlayedCategoryIds = useMemo(() => {
+        if (roomData.phase !== 'lobby') return undefined;
+        return Array.isArray(roomData.categoryIds) && roomData.categoryIds.length > 0
+            ? roomData.categoryIds
+            : undefined;
+    }, [roomData.phase, roomData.categoryIds]);
+
+    const {
+        selectedIds: selectedCategories,
+        toggleId: toggleCategory,
+    } = useCategorySelection(playableCategories, { lastPlayedCategoryIds });
+
     useEffect(() => {
         setSwapSelection([]);
         setPickMoveIndex(null);
@@ -174,7 +182,7 @@ function TopTen({
         usePrivacy ? roomId : null,
         usePrivacy ? linkedPlayerIds : []
     );
-    const canManageGame = isHost || hasAdminPowers;
+    const canManageGame = canManageRoom;
     const hostOnlyState = useHostOnlyGameState(roomId, canManageGame && (usePrivacy || roomData.phase !== 'lobby'));
 
     usePiGameSession(roomData.phase !== 'lobby');
@@ -635,20 +643,10 @@ function TopTen({
         } else {
             update(ref(db), buildTopTenResetUpdates(roomId));
         }
-        resetCategoriesToAll();
         setShowSecret(false);
         setSwapSelection([]);
         setPickMoveIndex(null);
-    }, [isLegacy, roomId, defaultRoomState, resetCategoriesToAll]);
-
-    const handleEndGame = useCallback(() => {
-        forceResetTable();
-        if (canManageGame && onCloseRoom) {
-            onCloseRoom();
-            return;
-        }
-        onLeave();
-    }, [forceResetTable, canManageGame, onCloseRoom, onLeave]);
+    }, [isLegacy, roomId, defaultRoomState]);
 
     const renderSecretContent = (word, rating) => (
         <>
@@ -723,11 +721,11 @@ function TopTen({
                             <TopTenModeSelector
                                 value={roomSettings.orderingMode}
                                 onChange={setOrderingModeSetting}
-                                onBackToRoom={onBackToMenu}
                             />
                         </CollapsibleSection>
                     )}
                     <GameCategoryLobby
+                        gameId={gameId}
                         isHost={canManageGame}
                         categories={playableCategories}
                         selectedIds={selectedCategories}
@@ -735,7 +733,6 @@ function TopTen({
                         onStart={startGame}
                         startLabel={t('gameSetup.topTen.startButton')}
                         selectPrompt={t('gameLobby.selectCategories')}
-                        guestWaitMessage={t('gameLobby.waitForHostTopTen')}
                         shareOptions={shareOptions}
                         canStart={selectedCategories.length > 0 && lobbyPlayerCount >= 2}
                     />
@@ -975,18 +972,23 @@ function TopTen({
                                 <ConfirmButton onClick={drawNextWord} text="Losuj kolejne hasło" />
                             )}
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={forceResetTable} text="Zakończ rundę i wróć do lobby" />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={forceResetTable}
+                            />
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={canManageGame ? handleEndGame : onLeave}
-                    text={canManageGame ? 'Zamknij pokój' : 'Wyjdź z pokoju'}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }

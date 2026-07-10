@@ -21,6 +21,12 @@ import {
 import { RATE_LIMITS_MS } from '../constants';
 import { roomSecretWipePaths } from '../../lib/room/roomSecrets';
 import { fetchRoomMeta } from '../../lib/room/roomMetaFetch';
+import {
+    isAdminDeckControlGame,
+    buildShowCommandUpdates,
+    PUPPET_MODE_STATE_KEY,
+    PUPPET_OPERATOR_STATE_KEY,
+} from '../../lib/adminDeckControls';
 
 function resetLobbySession(setters) {
     setters.setSelectedGame(null);
@@ -112,6 +118,9 @@ export function useAdminCommands({
             }
             if (
                 cleanedCmd === 'REVEAL' ||
+                cleanedCmd === 'SHOW' ||
+                cleanedCmd === 'PUPPET ON' ||
+                cleanedCmd === 'PUPPET OFF' ||
                 cleanedCmd === 'NEXT' ||
                 cleanedCmd === 'NEXT ROUND' ||
                 cleanedCmd === 'SYNC' ||
@@ -280,6 +289,70 @@ export function useAdminCommands({
                 }
                 await update(ref(db), revealUpdates);
                 setLobbyMessage(t('admin.revealDone'));
+                finishAdminCommand();
+                return;
+            }
+
+            if (cleanedCmd === 'SHOW') {
+                if (!selectedGame) {
+                    alert(t('admin.showNeedsRoom'));
+                    return;
+                }
+                if (!myPlayerId) {
+                    alert(t('admin.deckControlNeedsPlayer'));
+                    return;
+                }
+                const roomGameId = selectedGameType || (await fetchRoomMeta(selectedGame))?.gameId;
+                if (!isAdminDeckControlGame(roomGameId)) {
+                    alert(t('admin.showWrongGame'));
+                    return;
+                }
+                const gameStateSnap = await get(ref(db, `rooms/${selectedGame}/gameState`));
+                const gameState = gameStateSnap.val();
+                if (!gameState?.isGameStarted) {
+                    alert(t('admin.showNotStarted'));
+                    return;
+                }
+                await update(ref(db), buildShowCommandUpdates(selectedGame, roomGameId, gameState, myPlayerId));
+                setLobbyMessage(t('admin.showDone', { roomId: selectedGame }));
+                finishAdminCommand();
+                return;
+            }
+
+            if (cleanedCmd === 'PUPPET ON' || cleanedCmd === 'PUPPET OFF') {
+                if (!selectedGame) {
+                    alert(t('admin.puppetNeedsRoom'));
+                    return;
+                }
+                const roomGameId = selectedGameType || (await fetchRoomMeta(selectedGame))?.gameId;
+                if (!isAdminDeckControlGame(roomGameId)) {
+                    alert(t('admin.puppetWrongGame'));
+                    return;
+                }
+                const gameStateSnap = await get(ref(db, `rooms/${selectedGame}/gameState`));
+                const gameState = gameStateSnap.val();
+                if (!gameState?.isGameStarted) {
+                    alert(t('admin.puppetNotStarted'));
+                    return;
+                }
+
+                const turningOn = cleanedCmd === 'PUPPET ON';
+                if (turningOn && !myPlayerId) {
+                    alert(t('admin.deckControlNeedsPlayer'));
+                    return;
+                }
+                const updates = {
+                    [`rooms/${selectedGame}/gameState/${PUPPET_MODE_STATE_KEY}`]: turningOn,
+                };
+                if (turningOn) {
+                    updates[`rooms/${selectedGame}/gameState/${PUPPET_OPERATOR_STATE_KEY}`] = myPlayerId;
+                } else {
+                    updates[`rooms/${selectedGame}/gameState/${PUPPET_OPERATOR_STATE_KEY}`] = null;
+                }
+                await update(ref(db), updates);
+                setLobbyMessage(t(turningOn ? 'admin.puppetOnDone' : 'admin.puppetOffDone', {
+                    roomId: selectedGame,
+                }));
                 finishAdminCommand();
                 return;
             }

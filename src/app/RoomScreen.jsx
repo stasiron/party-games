@@ -1,7 +1,5 @@
 import { memo, useMemo } from 'react';
 import JoinRequestPanel from '../components/JoinRequestPanel';
-import RoomInviteQR from '../components/RoomInviteQR';
-import GuestPlayersPanel from '../components/GuestPlayersPanel';
 import { RoomPlayersProvider } from '../context/RoomPlayersContext';
 import { useRoom } from '../context/RoomContext';
 import GameRouter from './GameRouter';
@@ -46,19 +44,14 @@ function RoomScreen({
         lastJoinResult,
         handleJoin,
         handleBackToMenu,
-        roomInviteUrl,
-        roomShowCodeInList,
-        toggleShowCodeInList,
         handleLeaveRoom,
         handleCloseRoom,
         myPlayerId,
         isRoomLocked,
-        hostShareOptions,
         playersList,
         kickPlayer,
         adminKick,
         hasAdminPowers,
-        runWithBusy,
     } = useRoom();
     const { t } = useLocale();
     const joinModeOptions = useMemo(() => getJoinModeOptions(t), [t]);
@@ -183,16 +176,6 @@ function RoomScreen({
                         {joinStatus && <p className="join-progress">{joinStatus}</p>}
                         {lastJoinResult && !nameError && <p className="join-progress">{lastJoinResult}</p>}
 
-                        {isHost && (
-                            <RoomInviteQR
-                                inviteUrl={roomInviteUrl}
-                                roomId={selectedGame}
-                                showCodeInList={roomShowCodeInList}
-                                onToggleShowCodeInList={toggleShowCodeInList}
-                                className="room-invite--slot"
-                            />
-                        )}
-
                         <div className="actions-stack">
                             <button type="button" onClick={handleJoin} disabled={playerName.trim() === ''}>{t('room.join')}</button>
                             <button type="button" onClick={handleBackToMenu} className="btn-link">{t('common.back')}</button>
@@ -208,15 +191,6 @@ function RoomScreen({
                         vibrationEnabled={vibrationEnabled}
                     />
                 </div>
-            )}
-
-            {isJoined && effectiveIsHost && (
-                <GuestPlayersPanel
-                    roomId={selectedGame}
-                    playersList={playersList}
-                    myPlayerId={myPlayerId}
-                    runWithBusy={runWithBusy}
-                />
             )}
 
             <div className="players-section">

@@ -16,7 +16,6 @@ function KtoNajpredzej(props) {
             gameId="kto-najpredzej"
             contentKey="ktoNajpredzej"
             getCategories={getCategories}
-            hostLeaveLabelKey="gameUi.closeRoom"
             renderInGameHint={<p className="knp-hint">{t('gameUi.ktoNajpredzejHint')}</p>}
         />
     );

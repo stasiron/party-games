@@ -5,29 +5,36 @@ import { db } from '../../lib/firebase';
 import { useRtdbSync } from '../../lib/useRtdbSync';
 import { useTurnVibration } from '../../lib/useTurnVibration';
 import { buildDeckFromContentMap, getWhoWouldRatherCategories } from '../../lib/gameContentUtils';
+import { resolveNextDeckItemFromState } from '../../lib/deckStateUtils';
 import { useLocale } from '../../locales/LocaleContext';
 import { useShuffledQuestionDeck } from '../../lib/useShuffledQuestionDeck';
-import { pickRandomPlayerName } from '../../lib/playerNames';
+import { pickRandomPlayerName, resolveNextTurnPlayerName } from '../../lib/playerNames';
 import ConfirmButton from '../../components/ConfirmButton';
 import GameRules from '../../components/GameRules';
 import GameRulesList from '../../components/GameRulesList';
 import GameCategoryLobby from '../../components/GameCategoryLobby';
+import AdminDeckControlPanel from '../../components/AdminDeckControlPanel';
 import TurnHeader from '../../components/TurnHeader';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 import { isTurnForPhoneOwner, isCurrentPlayerGuest } from '../../lib/guestPlayers';
 import { useCategorySelection } from '../../lib/useCategorySelection';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 
-const WHO_WOULD_RATHER_ADDITIONAL_STATE = { currentPlayerName: '' };
+const WHO_WOULD_RATHER_ADDITIONAL_STATE = { currentPlayerName: '', puppetNextPlayerName: '' };
 
 function WhoWouldRather({
     isHost,
+    canManageRoom = isHost,
     onLeave,
+    gameId = 'who-would-rather',
     playerName,
     myPlayerId,
     tablePlayers = [],
     vibrationEnabled,
     roomId,
     shareOptions,
+    hasAdminPowers = false,
 }) {
     const { gameContent, t } = useLocale();
     const section = gameContent.whoWouldRather;
@@ -40,7 +47,6 @@ function WhoWouldRather({
     const {
         selectedIds: selectedCategories,
         toggleId: toggleCategory,
-        resetToAll: resetCategoriesToAll,
     } = useCategorySelection(playableCategories);
 
     const buildDeckFromCategoryIds = useCallback(
@@ -56,7 +62,7 @@ function WhoWouldRather({
     );
 
     const fingerprintExtra = useCallback(
-        (data) => data.currentPlayerName || '',
+        (data) => `${data.currentPlayerName || ''}:${data.puppetNextPlayerName || ''}`,
         []
     );
 
@@ -71,7 +77,6 @@ function WhoWouldRather({
     } = useShuffledQuestionDeck(roomId, {
         buildDeckFromCategoryIds,
         getCategoryIds,
-        onResetCategories: resetCategoriesToAll,
         indexKey: 'currentDilemmaIndex',
         legacyDeckKey: 'shuffledDilemmas',
         additionalState: WHO_WOULD_RATHER_ADDITIONAL_STATE,
@@ -92,17 +97,18 @@ function WhoWouldRather({
     const nextTurn = useCallback(async () => {
         if (currentIndex >= deckLength - 1) return;
 
-        const nextPlayer = pickRandomPlayerName(tablePlayers, roomData.currentPlayerName);
+        const nextPlayer = resolveNextTurnPlayerName(roomData, tablePlayers);
 
         await update(
             ref(db, `rooms/${roomId}/gameState`),
             {
                 currentDilemmaIndex: currentIndex + 1,
                 currentPlayerName: nextPlayer,
+                puppetNextPlayerName: null,
             },
             syncOpts
         );
-    }, [currentIndex, deckLength, roomData.currentPlayerName, syncOpts, roomId, tablePlayers]);
+    }, [currentIndex, deckLength, roomData, syncOpts, roomId, tablePlayers]);
 
     const prevTurn = useCallback(async () => {
         if (currentIndex <= 0) return;
@@ -113,11 +119,6 @@ function WhoWouldRather({
             syncOpts
         );
     }, [currentIndex, syncOpts, roomId]);
-
-    const handleEndGame = useCallback(() => {
-        forceResetTable();
-        onLeave();
-    }, [forceResetTable, onLeave]);
 
     const isSharedPhoneTurn = isTurnForPhoneOwner(
         tablePlayers,
@@ -132,6 +133,29 @@ function WhoWouldRather({
         return roomData.currentPlayerName;
     }, [tablePlayers, isSharedPhoneTurn, roomData.currentPlayerName]);
 
+    const nextDilemma = useMemo(
+        () => resolveNextDeckItemFromState(roomData, buildDeckFromCategoryIds, {
+            indexKey: 'currentDilemmaIndex',
+            legacyDeckKey: 'shuffledDilemmas',
+        }),
+        [roomData, buildDeckFromCategoryIds]
+    );
+
+    const previewContent = nextDilemma ? (
+        <div className="wwr-dilemma-grid admin-next-preview__dilemma">
+            <div className="content-panel content-panel--dark wwr-option">
+                <span className="wwr-option-label">A</span>
+                <p className="wwr-option-text">{nextDilemma.a}</p>
+            </div>
+            <div className="content-panel content-panel--dark wwr-option wwr-option--b">
+                <span className="wwr-option-label">B</span>
+                <p className="wwr-option-text">{nextDilemma.b}</p>
+            </div>
+        </div>
+    ) : (
+        <p className="admin-next-preview__empty">{t('gameUi.showNextPreviewEnd')}</p>
+    );
+
     return (
         <div>
             {!roomData.isGameStarted ? (
@@ -141,6 +165,7 @@ function WhoWouldRather({
                     </GameRules>
 
                     <GameCategoryLobby
+                        gameId={gameId}
                         isHost={isHost}
                         categories={playableCategories}
                         selectedIds={selectedCategories}
@@ -194,6 +219,20 @@ function WhoWouldRather({
                         </div>
                     </div>
 
+                    <AdminDeckControlPanel
+                        roomData={roomData}
+                        roomId={roomId}
+                        gameId="who-would-rather"
+                        myPlayerId={myPlayerId}
+                        tablePlayers={tablePlayers}
+                        previewContent={previewContent}
+                        busy={rtdbBusy}
+                        deckSkipOptions={{
+                            indexKey: 'currentDilemmaIndex',
+                            legacyDeckKey: 'shuffledDilemmas',
+                        }}
+                    />
+
                     {isHost && (
                         <div className="game-host-controls">
                             <div className="game-nav-row wwr-nav-buttons">
@@ -213,18 +252,23 @@ function WhoWouldRather({
                                 </button>
                             </div>
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={forceResetTable} text="Zresetuj stół" />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={forceResetTable}
+                            />
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? handleEndGame : onLeave}
-                    text={isHost ? 'Zamknij pokój' : 'Wyjdź z pokoju'}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }

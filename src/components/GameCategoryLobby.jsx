@@ -1,9 +1,11 @@
 import CategorySelectionGrid from './CategorySelectionGrid';
 import { HostShareOptions } from './RoomInviteQR';
 import { useLocale } from '../locales/LocaleContext';
+import { getLobbyWaitMessage } from '../lib/room/gameRoomContract';
 
 function GameCategoryLobby({
     isHost,
+    gameId,
     categories,
     selectedIds,
     onToggle,
@@ -18,7 +20,8 @@ function GameCategoryLobby({
     const { t } = useLocale();
     const prompt = selectPrompt ?? t('gameLobby.selectCategories');
     const start = startLabel ?? t('gameLobby.startGame');
-    const guestWait = guestWaitMessage ?? t('gameLobby.waitForHost');
+    const guestWait = guestWaitMessage
+        ?? (gameId ? getLobbyWaitMessage(t, gameId) : t('gameLobby.waitForHost'));
     const startDisabled = canStart !== undefined ? !canStart : selectedIds.length === 0;
 
     if (!isHost) {

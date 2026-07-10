@@ -8,6 +8,9 @@ import GameRules from '../../components/GameRules';
 import GameRulesList from '../../components/GameRulesList';
 import CategorySelectionGrid from '../../components/CategorySelectionGrid';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameLobbyGuestWait from '../../components/GameLobbyGuestWait';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 import { getTablePlayers } from '../../lib/guestPlayers';
 import { HostShareOptions } from '../../components/RoomInviteQR';
 
@@ -111,7 +114,9 @@ function SingItCategoryBox({ title, categories, selectedIds, onToggle }) {
 
 function SingIt({
     isHost,
+    canManageRoom = isHost,
     onLeave,
+    gameId = 'sing-it',
     roomId,
     shareOptions,
     myPlayerId,
@@ -143,7 +148,6 @@ function SingIt({
     const {
         selectedIds: selectedCategories,
         toggleId: toggleCategory,
-        resetToAll: resetCategoriesToAll,
     } = useCategorySelection(lobbyCategories);
 
     const activePlayers = useMemo(
@@ -208,7 +212,6 @@ function SingIt({
     } = useShuffledQuestionDeck(roomId, {
         buildDeckFromCategoryIds,
         getCategoryIds,
-        onResetCategories: resetCategoriesToAll,
         getExtraStartFields,
         additionalState: {
             displayMode: DISPLAY_MODE_ALL,
@@ -233,11 +236,6 @@ function SingIt({
     const canStart = selectedCategories.length > 0
         && (displayMode === DISPLAY_MODE_ALL || displayPlayerIds.length > 0);
 
-    const handleEndGame = useCallback(() => {
-        forceResetTable();
-        onLeave();
-    }, [forceResetTable, onLeave]);
-
     return (
         <div className="sing-it-game">
             {!roomData.isGameStarted ? (
@@ -247,7 +245,7 @@ function SingIt({
                     </GameRules>
 
                     {!isHost ? (
-                        <p>{t('gameLobby.waitForHostSingIt')}</p>
+                        <GameLobbyGuestWait gameId={gameId} />
                     ) : (
                         <>
                             <p>{t('gameLobby.selectCategories')}</p>
@@ -353,18 +351,23 @@ function SingIt({
                                 </button>
                             </div>
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={forceResetTable} text={t('gameUi.resetTable')} />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={forceResetTable}
+                            />
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? handleEndGame : onLeave}
-                    text={isHost ? t('gameUi.closeRoom') : t('gameUi.leaveRoom')}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }

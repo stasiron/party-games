@@ -31,11 +31,15 @@ import { resolveGameId, isPlayableGameId } from '../../data/gameIds.js';
 import { prefetchGameChunk } from '../../lib/prefetchGameChunk';
 import { getJoinGraceMs } from '../../lib/lowPower';
 import { recordRoomCreated, recordNewPlayerJoin } from '../../lib/appMetrics.js';
-import { buildTelepathySyncUpdates } from '../../lib/telepathyState';
-import { buildJustOneSyncUpdates } from '../../lib/justOneState';
+import { runKickSyncAfterRemove } from '../../lib/room/kickSyncRegistry';
 import { PRESENCE_INDEX_ROOT, RATE_LIMITS_MS, LAST_ROOM_KEY } from '../constants';
 import { generateRoomCode } from '../utils/localPrefs';
 import { fetchRoomMeta } from '../../lib/room/roomMetaFetch';
+import { resolveCanCloseRoom } from '../../lib/room/gameRoomContract';
+import {
+    buildFullRoomCloseUpdates,
+    buildJoinRequestRemoveUpdates,
+} from '../../lib/room/roomExit';
 
 export function useRoomLifecycle(deps) {
     const {
@@ -49,6 +53,7 @@ export function useRoomLifecycle(deps) {
         myPlayerId,
         myJoinRequestId,
         playerName,
+        playersList,
         roomAdmission,
         roomShowCodeInList,
         selectedGame,
@@ -61,6 +66,7 @@ export function useRoomLifecycle(deps) {
         currentRoomJoinMode,
         lastKnownRoomId,
         effectiveIsHost,
+        hasAdminPowers,
         roomInviteUrl,
         isLeavingVoluntarily,
         isJoiningRef,
@@ -265,14 +271,23 @@ export function useRoomLifecycle(deps) {
             roomId: selectedGame,
             showCodeInList: roomShowCodeInList,
             onToggleShowCodeInList: toggleShowCodeInList,
+            guestPanel: isJoined ? {
+                playersList,
+                myPlayerId,
+                runWithBusy,
+            } : null,
         };
     }, [
         selectedGame,
         isHost,
         effectiveIsHost,
+        isJoined,
         roomInviteUrl,
         roomShowCodeInList,
         toggleShowCodeInList,
+        playersList,
+        myPlayerId,
+        runWithBusy,
     ]);
 
     useEffect(() => {
@@ -792,16 +807,9 @@ export function useRoomLifecycle(deps) {
                     name: target.name || t('common.player'),
                 }));
 
-                if (selectedGameType === 'telepathy' || selectedGameType === 'just-one') {
+                if (selectedGameType) {
                     try {
-                        const buildSync =
-                            selectedGameType === 'just-one'
-                                ? buildJustOneSyncUpdates
-                                : buildTelepathySyncUpdates;
-                        const { updates } = await buildSync(selectedGame);
-                        if (Object.keys(updates).length > 0) {
-                            await update(ref(db), updates);
-                        }
+                        await runKickSyncAfterRemove(selectedGame, selectedGameType);
                     } catch (syncErr) {
                         console.warn(`[${selectedGameType}] sync after kick:`, syncErr);
                     }
@@ -837,16 +845,9 @@ export function useRoomLifecycle(deps) {
 
             const roomSnap = await get(ref(db, `rooms/${gameId}`));
             const kickedGameId = roomSnap.val()?.gameId;
-            if (kickedGameId === 'telepathy' || kickedGameId === 'just-one') {
+            if (kickedGameId) {
                 try {
-                    const buildSync =
-                        kickedGameId === 'just-one'
-                            ? buildJustOneSyncUpdates
-                            : buildTelepathySyncUpdates;
-                    const { updates } = await buildSync(gameId);
-                    if (Object.keys(updates).length > 0) {
-                        await update(ref(db), updates);
-                    }
+                    await runKickSyncAfterRemove(gameId, kickedGameId);
                 } catch (syncErr) {
                     console.warn(`[${kickedGameId}] sync after admin kick:`, syncErr);
                 }
@@ -869,66 +870,99 @@ export function useRoomLifecycle(deps) {
         });
     }, [runWithBusy, t]);
 
+    const canCloseRoom = useCallback(() => resolveCanCloseRoom({
+        gameId: selectedGameType,
+        effectiveIsHost,
+        hasAdminPowers,
+    }), [selectedGameType, effectiveIsHost, hasAdminPowers]);
+
+    const leavePlayerFromRoom = useCallback((roomId, playerId) => {
+        if (!roomId || !playerId) return;
+        onDisconnect(ref(db, `rooms/${roomId}/players/${playerId}`)).cancel();
+        remove(ref(db, `rooms/${roomId}/players/${playerId}`));
+    }, []);
+
+    const finalizeLocalExit = useCallback(() => {
+        if (authUser?.uid) {
+            void clearPresenceIndex(authUser.uid);
+        }
+        leaveToLobby({ keepEntryRole: true });
+    }, [authUser, clearPresenceIndex, leaveToLobby]);
+
+    const executeCloseRoom = useCallback(async (closingRoomId, closingPlayerId) => {
+        isLeavingVoluntarily.current = true;
+        await runWithBusy(async () => {
+            try {
+                const playersSnap = await get(ref(db, `rooms/${closingRoomId}/players`));
+                const playersData = playersSnap.val() || {};
+                await update(ref(db), buildFullRoomCloseUpdates(
+                    closingRoomId,
+                    playersData,
+                    closingPlayerId
+                ));
+            } catch (err) {
+                console.error('[closeRoom]', err);
+                setLobbyMessage(t('notifications.roomCloseFailed'));
+            } finally {
+                finalizeLocalExit();
+            }
+        });
+    }, [runWithBusy, finalizeLocalExit, t]);
+
+    /** Pre-join: wstecz / anuluj prośbę. Po joinie: gość wychodzi; host/manager zamyka pokój (bez duchów). */
     const handleBackToMenu = useCallback(() => {
         const roomId = selectedGame;
         const playerId = myPlayerId;
         const wasHostBeforeJoin = isHost && !isJoined && roomId;
         isLeavingVoluntarily.current = true;
+
+        if (playerId && roomId && isJoined) {
+            if (canCloseRoom()) {
+                void executeCloseRoom(roomId, playerId);
+                return;
+            }
+            leavePlayerFromRoom(roomId, playerId);
+            finalizeLocalExit();
+            return;
+        }
+
         if (playerId && roomId) {
-            onDisconnect(ref(db, `rooms/${roomId}/players/${playerId}`)).cancel();
-            remove(ref(db, `rooms/${roomId}/players/${playerId}`));
+            leavePlayerFromRoom(roomId, playerId);
         } else if (myJoinRequestId && roomId) {
-            remove(ref(db, `rooms/${roomId}/joinRequests/${myJoinRequestId}`));
+            void update(ref(db), buildJoinRequestRemoveUpdates(roomId, myJoinRequestId));
         } else if (wasHostBeforeJoin) {
             void update(ref(db), roomDeleteUpdates(roomId));
         }
-        if (authUser?.uid) {
-            void clearPresenceIndex(authUser.uid);
-        }
-        leaveToLobby({ keepEntryRole: true });
-    }, [myPlayerId, myJoinRequestId, selectedGame, isHost, isJoined, authUser, clearPresenceIndex, leaveToLobby]);
+
+        finalizeLocalExit();
+    }, [
+        myPlayerId,
+        myJoinRequestId,
+        selectedGame,
+        isHost,
+        isJoined,
+        canCloseRoom,
+        executeCloseRoom,
+        leavePlayerFromRoom,
+        finalizeLocalExit,
+    ]);
 
     const handleCloseRoom = useCallback(async () => {
         if (!selectedGame || !myPlayerId) {
             handleBackToMenu();
             return;
         }
-        isLeavingVoluntarily.current = true;
-        const closingRoomId = selectedGame;
-        await runWithBusy(async () => {
-            try {
-                const playersSnap = await get(ref(db, `rooms/${closingRoomId}/players`));
-                const playersData = playersSnap.val() || {};
-                const closeUpdates = {
-                    ...roomDeleteUpdates(closingRoomId),
-                };
-                Object.keys(playersData).forEach((playerId) => {
-                    if (playerId === myPlayerId) return;
-                    const authUid = playersData[playerId]?.authUid;
-                    if (authUid) {
-                        closeUpdates[`${PRESENCE_INDEX_ROOT}/${authUid}`] = null;
-                    }
-                });
-                await update(ref(db), closeUpdates);
-            } catch (err) {
-                console.error(err);
-                setLobbyMessage(t('notifications.roomCloseFailed'));
-            } finally {
-                if (authUser?.uid) {
-                    void clearPresenceIndex(authUser.uid);
-                }
-                leaveToLobby({ keepEntryRole: true });
-            }
-        });
-    }, [selectedGame, myPlayerId, runWithBusy, authUser, clearPresenceIndex, leaveToLobby, t]);
+        await executeCloseRoom(selectedGame, myPlayerId);
+    }, [selectedGame, myPlayerId, handleBackToMenu, executeCloseRoom]);
 
+    /** Wyjście z gry: manager/host zamyka pokój, gość tylko siebie. */
     const handleLeaveRoom = useCallback(() => {
-        if (effectiveIsHost) {
-            handleCloseRoom();
+        if (canCloseRoom()) {
+            void handleCloseRoom();
             return;
         }
         handleBackToMenu();
-    }, [effectiveIsHost, handleCloseRoom, handleBackToMenu]);
+    }, [canCloseRoom, handleCloseRoom, handleBackToMenu]);
     return {
         leaveToLobby,
         updatePresenceIndex,

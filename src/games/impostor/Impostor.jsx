@@ -15,6 +15,7 @@ import { HostShareOptions } from '../../components/RoomInviteQR';
 import { usePiGameSession } from '../../lib/usePiGameSession';
 import { getTablePlayers, getGuestsForOwner } from '../../lib/guestPlayers';
 import SharedPhoneRoleReveal from '../../components/SharedPhoneRoleReveal';
+import GameLobbyGuestWait from '../../components/GameLobbyGuestWait';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { useCategorySelection } from '../../lib/useCategorySelection';
 import {
@@ -32,13 +33,16 @@ import {
     getPrivateImpostorFlag,
     getPrivateWord,
 } from '../../lib/usePrivateGameState';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 
 const DEFAULT_SETTINGS = { fairnessEnabled: false };
 
 function Impostor({
     isHost,
+    canManageRoom = isHost,
     onLeave,
-    onCloseRoom,
+    gameId = 'impostor',
     myPlayerId,
     tablePlayers = [],
     isRoomLocked = false,
@@ -62,11 +66,6 @@ function Impostor({
 
     const maxImpostors = Math.max(1, lobbyPlayerCount - 1);
 
-    const {
-        selectedIds: selectedCategories,
-        toggleId: toggleCategory,
-        resetToAll: resetCategoriesToAll,
-    } = useCategorySelection(playableCategories);
     const [impostorCount, setImpostorCount] = useState(1);
     const [randomImpostorCount, setRandomImpostorCount] = useState(false);
     const [randomImpostorMaxCount, setRandomImpostorMaxCount] = useState(maxImpostors);
@@ -83,10 +82,6 @@ function Impostor({
         const hardMax = Math.max(1, lobbyPlayerCount);
         return Math.min(hardMax, Math.max(1, randomImpostorMaxCount));
     }, [lobbyPlayerCount, randomImpostorMaxCount]);
-
-    useEffect(() => {
-        setStartErrorKey('');
-    }, [selectedCategories, lobbyPlayerCount]);
 
     const roomSettings = useRoomSettings(roomId, DEFAULT_SETTINGS);
 
@@ -127,6 +122,23 @@ function Impostor({
         mergeDefaults: true,
         getFingerprint: impostorGameStateFingerprint,
     });
+
+    const lastPlayedCategoryIds = useMemo(() => {
+        if (roomData.phase !== 'lobby') return undefined;
+        return Array.isArray(roomData.categoryIds) && roomData.categoryIds.length > 0
+            ? roomData.categoryIds
+            : undefined;
+    }, [roomData.phase, roomData.categoryIds]);
+
+    const {
+        selectedIds: selectedCategories,
+        toggleId: toggleCategory,
+    } = useCategorySelection(playableCategories, { lastPlayedCategoryIds });
+
+    useEffect(() => {
+        setStartErrorKey('');
+    }, [selectedCategories, lobbyPlayerCount]);
+
     const roleRevealEpoch = roomData.roleRevealEpoch ?? 0;
     const isLegacy = isLegacyImpostorState(roomData);
     const usePrivacy = usesImpostorPrivacyModel(roomData);
@@ -392,18 +404,8 @@ function Impostor({
         } else {
             update(ref(db), buildImpostorResetUpdates(roomId));
         }
-        resetCategoriesToAll();
         setShowRole(false);
-    }, [isLegacy, roomId, resetCategoriesToAll]);
-
-    const handleEndGame = useCallback(() => {
-        forceResetTable();
-        if (isHost && onCloseRoom) {
-            onCloseRoom();
-            return;
-        }
-        onLeave();
-    }, [forceResetTable, isHost, onCloseRoom, onLeave]);
+    }, [isLegacy, roomId]);
 
     const updateEliminatedImpostors = useCallback(
         async (delta) => {
@@ -622,7 +624,7 @@ function Impostor({
                             <HostShareOptions shareOptions={shareOptions} />
                         </>
                     ) : (
-                        <p>{t('gameLobby.waitForHostImpostor')}</p>
+                        <GameLobbyGuestWait gameId={gameId} />
                     )}
                 </div>
             ) : (
@@ -805,18 +807,23 @@ function Impostor({
                                 </p>
                             </div>
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={forceResetTable} text="Zakończ rundę i wybierz nową" />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={forceResetTable}
+                            />
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? handleEndGame : onLeave}
-                    text={isHost ? 'Zamknij pokój' : 'Wyjdź z pokoju'}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }

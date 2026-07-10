@@ -1,8 +1,9 @@
-import { lazy, Suspense, memo, Component } from 'react';
+import { lazy, Suspense, memo, Component, useMemo } from 'react';
 import { isGameComingSoon } from '../lib/gameCatalog';
 import { useRoomPlayers } from '../context/RoomPlayersContext';
 import { useRoom } from '../context/RoomContext';
 import { useLocale } from '../locales/LocaleContext';
+import { buildGameRoomProps } from '../lib/room/gameRoomContract';
 
 class GameChunkErrorBoundary extends Component {
     constructor(props) {
@@ -53,10 +54,7 @@ function GameRouter({
         selectedGameType,
         selectedGame: roomId,
         effectiveIsHost,
-        isHost,
         handleLeaveRoom,
-        handleCloseRoom,
-        handleBackToMenu,
         myPlayerId,
         isRoomLocked,
         hostShareOptions,
@@ -64,7 +62,32 @@ function GameRouter({
     } = useRoom();
     const tablePlayers = useRoomPlayers();
     const { t } = useLocale();
-    const canManageGame = effectiveIsHost || isHost || hasAdminPowers;
+
+    const roomProps = useMemo(() => buildGameRoomProps({
+        roomId,
+        gameId: selectedGameType,
+        effectiveIsHost,
+        hasAdminPowers,
+        handleLeaveRoom,
+        myPlayerId,
+        tablePlayers,
+        playerName,
+        hostShareOptions,
+        isRoomLocked,
+        vibrationEnabled,
+    }), [
+        roomId,
+        selectedGameType,
+        effectiveIsHost,
+        hasAdminPowers,
+        handleLeaveRoom,
+        myPlayerId,
+        tablePlayers,
+        playerName,
+        hostShareOptions,
+        isRoomLocked,
+        vibrationEnabled,
+    ]);
 
     return (
         <GameChunkErrorBoundary
@@ -73,131 +96,47 @@ function GameRouter({
         >
             <Suspense fallback={<p className="game-loading">{t('common.loadingGame')}</p>}>
             {selectedGameType === 'never-have-i-ever' && (
-                <NeverHaveIEver
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <NeverHaveIEver {...roomProps} />
             )}
 
             {selectedGameType === 'truth-or-dare' && (
-                <TruthOrDare
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    playerName={playerName}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    vibrationEnabled={vibrationEnabled}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <TruthOrDare {...roomProps} />
             )}
 
             {selectedGameType === 'impostor' && (
-                <Impostor
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    onCloseRoom={handleCloseRoom}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    isRoomLocked={isRoomLocked}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <Impostor {...roomProps} />
             )}
 
             {selectedGameType === 'mafia' && (
-                <Mafia
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    isRoomLocked={isRoomLocked}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <Mafia {...roomProps} />
             )}
 
             {selectedGameType === 'dark-stories' && (
-                <DarkStories
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <DarkStories {...roomProps} />
             )}
 
             {selectedGameType === 'who-would-rather' && (
-                <WhoWouldRather
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    playerName={playerName}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    vibrationEnabled={vibrationEnabled}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <WhoWouldRather {...roomProps} />
             )}
 
             {selectedGameType === 'kto-najpredzej' && (
-                <KtoNajpredzej
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <KtoNajpredzej {...roomProps} />
             )}
 
             {selectedGameType === 'telepathy' && (
-                <Telepathy
-                    isHost={effectiveIsHost}
-                    hasAdminPowers={hasAdminPowers}
-                    onLeave={handleLeaveRoom}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <Telepathy {...roomProps} />
             )}
 
             {selectedGameType === 'just-one' && (
-                <JustOne
-                    isHost={effectiveIsHost}
-                    hasAdminPowers={hasAdminPowers}
-                    onLeave={handleLeaveRoom}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <JustOne {...roomProps} />
             )}
 
             {selectedGameType === 'sing-it' && (
-                <SingIt
-                    isHost={effectiveIsHost}
-                    onLeave={handleLeaveRoom}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+                <SingIt {...roomProps} />
             )}
 
-                    {selectedGameType === 'top-ten' && (
-                <TopTen
-                    isHost={canManageGame}
-                    hasAdminPowers={hasAdminPowers}
-                    onLeave={handleLeaveRoom}
-                    onCloseRoom={handleCloseRoom}
-                    onBackToMenu={handleBackToMenu}
-                    myPlayerId={myPlayerId}
-                    tablePlayers={tablePlayers}
-                    isRoomLocked={isRoomLocked}
-                    roomId={roomId}
-                    shareOptions={hostShareOptions}
-                />
+            {selectedGameType === 'top-ten' && (
+                <TopTen {...roomProps} />
             )}
 
             {selectedGameType && isGameComingSoon(selectedGameType) && currentGameMeta && (
@@ -205,6 +144,7 @@ function GameRouter({
                     title={currentGameMeta.name}
                     isHost={effectiveIsHost}
                     onLeave={handleLeaveRoom}
+                    gameId={selectedGameType}
                 />
             )}
             </Suspense>

@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { set, get, update } from '../lib/rtdb';
 import { db, firebaseConnection, getPartyOrigin, PI_AP_GATEWAY } from '../lib/firebase';
 import { auth as firebaseAuth, firestore } from '../lib/firebase/client';
+import { getTablePlayers } from '../lib/guestPlayers';
 import { buildCatalogIndex, getComingSoonMessage, isGameComingSoon } from '../lib/gameCatalog.js';
 import { getLocalizedGameMeta, localizeCatalogGames } from '../lib/gameMeta.js';
 import { useLocale } from '../locales/LocaleContext.jsx';
@@ -456,6 +457,11 @@ function App() {
         };
     }, [playersList, joinRequestList.length]);
 
+    const roomPlayerCount = useMemo(
+        () => getTablePlayers(playersList).length,
+        [playersList]
+    );
+
     const guestPasswordPending = Boolean(
         selectedGame &&
             !isJoined &&
@@ -669,6 +675,7 @@ function App() {
         myPlayerId,
         myJoinRequestId,
         playerName,
+        playersList,
         roomAdmission,
         roomShowCodeInList,
         selectedGame,
@@ -681,6 +688,7 @@ function App() {
         currentRoomJoinMode,
         lastKnownRoomId,
         effectiveIsHost,
+        hasAdminPowers,
         roomInviteUrl,
         isLeavingVoluntarily,
         isJoiningRef,
@@ -984,14 +992,25 @@ function App() {
             data-overlay-open={overlayOpen ?? undefined}
         >
             {/* Logo z obsługą double click (Easter egg panelu admina) */}
-            <h1
-                onDoubleClick={toggleAdminPanel}
-                className="main-logo-clickable"
-                title={t('app.logoHint')}
-                {...logoLongPress}
-            >
-                {t('app.title')}
-            </h1>
+            <div className="app-header">
+                <h1
+                    onDoubleClick={toggleAdminPanel}
+                    className="main-logo-clickable"
+                    title={t('app.logoHint')}
+                    {...logoLongPress}
+                >
+                    {t('app.title')}
+                </h1>
+                {selectedGame && isJoined && (
+                    <span
+                        className="app-header__player-count"
+                        aria-label={t('room.headerPlayerCountAria', { count: roomPlayerCount })}
+                    >
+                        <span className="app-header__player-count-icon" aria-hidden="true">👥</span>
+                        {roomPlayerCount}
+                    </span>
+                )}
+            </div>
             <p className="app-version" aria-label={t('common.version', { version: versionData.version })}>
                 v{versionData.version}
             </p>

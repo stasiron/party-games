@@ -46,6 +46,9 @@ import {
     normalizeJustOneWord,
     resolveJustOneClueGivers,
 } from './justOneUtils';
+import GameHostResetButton from '../../components/GameHostResetButton';
+import GameLobbyGuestWait from '../../components/GameLobbyGuestWait';
+import GameRoomExitBar from '../../components/GameRoomExitBar';
 
 function JustOneAutoRoundToggle({ autoRound, onToggle, t }) {
     return (
@@ -263,8 +266,10 @@ function JustOneClueForm({ label, playerId, disabled, clueHistory, onSubmit, bus
 
 function JustOne({
     isHost,
+    canManageRoom = isHost,
     hasAdminPowers = false,
     onLeave,
+    gameId = 'just-one',
     myPlayerId,
     tablePlayers = [],
     roomId,
@@ -732,11 +737,6 @@ function JustOne({
         tryAdvanceJustOneRound,
     ]);
 
-    const handleEndGame = useCallback(async () => {
-        await forceResetTable();
-        onLeave();
-    }, [forceResetTable, onLeave]);
-
     useEffect(() => {
         if (!isHost || !listenerOutOfSync || !roomId || !roomData.isGameStarted) return undefined;
         void update(
@@ -840,7 +840,7 @@ function JustOne({
                             <HostShareOptions shareOptions={shareOptions} />
                         </div>
                     ) : (
-                        <p className="telepathy-wait-host">{t('gameLobby.waitForHostJustOne')}</p>
+                        <GameLobbyGuestWait gameId={gameId} className="telepathy-wait-host" />
                     )}
                 </div>
             ) : (
@@ -1047,7 +1047,13 @@ function JustOne({
                     {isHost && !isPeeking && (
                         <div className="game-host-controls">
                             <HostShareOptions shareOptions={shareOptions} />
-                            <ConfirmButton onClick={() => void forceResetTable()} text={t('gameUi.resetTable')} />
+                            <GameHostResetButton
+                                gameId={gameId}
+                                canManageRoom={canManageRoom}
+                                onLeave={onLeave}
+                                onReset={() => void forceResetTable()}
+                                busy={rtdbBusy}
+                            />
                         </div>
                     )}
 
@@ -1074,12 +1080,12 @@ function JustOne({
                 </div>
             )}
 
-            <div className="bottom-controls">
-                <ConfirmButton
-                    onClick={isHost ? () => void handleEndGame() : onLeave}
-                    text={isHost ? t('gameUi.closeRoom') : t('gameUi.leaveRoom')}
-                />
-            </div>
+            <GameRoomExitBar
+                gameId={gameId}
+                canManageRoom={canManageRoom}
+                onLeave={onLeave}
+                forceResetTable={forceResetTable}
+            />
         </div>
     );
 }
